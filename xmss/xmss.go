@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/theQRL/go-qrllib/misc"
 	"math/rand"
+	"reflect"
 )
 
 type HashFunction uint
@@ -205,7 +206,11 @@ func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)
 }
 
-func Verify(message, signature []uint8, extendedPK [67]uint8, wotsParamW uint32) (result bool) {
+func Verify(message, signature []uint8, extendedPK [67]uint8) (result bool) {
+	return VerifyWithCustomWOTSParamW(message, signature, extendedPK, WOTSParamW)
+}
+
+func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [67]uint8, wotsParamW uint32) (result bool) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if uint32(len(signature)) > signatureBaseSize+uint32(XMSSMaxHeight)*32 {
@@ -580,4 +585,16 @@ func GetXMSSAddressFromPK(ePK [67]uint8) [XMSSAddressSize]uint8 {
 	}
 
 	return address
+}
+
+func IsValidXMSSAddress(address [XMSSAddressSize]uint8) bool {
+	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
+	if d.GetAddrFormatType() != SHA256_2X {
+		return false
+	}
+
+	var hashedKey [32]uint8
+	misc.SHA256(hashedKey[:], address[:DescriptorSize+32])
+
+	return reflect.DeepEqual(address[DescriptorSize+32:], hashedKey[28:])
 }
