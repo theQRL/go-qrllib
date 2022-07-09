@@ -2,7 +2,6 @@ package xmss
 
 import (
 	"encoding/hex"
-	"fmt"
 	"testing"
 )
 
@@ -59,9 +58,6 @@ func TestXMSSCreationHeight4(t *testing.T) {
 		"162a517fd2131f83fbf2698a58f9c46a" +
 		"fc5d"
 
-	fmt.Println(xmss.GetMnemonic())
-	addr := xmss.GetAddress()
-	fmt.Println(hex.EncodeToString(addr[:]))
 	pk := xmss.GetPK()
 	if expectedPK != hex.EncodeToString(pk[:]) {
 		t.Errorf("PK Mismatch\nExpected: %s\nFound: %s", expectedPK, hex.EncodeToString(pk[:]))
