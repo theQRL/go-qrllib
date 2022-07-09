@@ -147,9 +147,9 @@ func BinToMnemonic(input [51]uint8) string {
 
 func MnemonicToBin(mnemonic string) [51]uint8 {
 	mnemonicWords := strings.Split(mnemonic, " ")
-	wordCount := len(mnemonicWords) + 1
+	wordCount := len(mnemonicWords)
 	if wordCount%2 != 0 {
-		panic("word count = " + string(wordCount) + " must be even ")
+		panic(fmt.Sprintf("word count = %d must be even", wordCount))
 	}
 
 	// Prepare lookup
