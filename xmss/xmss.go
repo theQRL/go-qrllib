@@ -206,12 +206,6 @@ func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 }
 
 func Verify(message, signature []uint8, extendedPK [67]uint8, wotsParamW uint32) (result bool) {
-	//defer func() {
-	//	if r := recover(); r != nil {
-	//		result = false
-	//		fmt.Println(r)
-	//	}
-	//}()
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if uint32(len(signature)) > signatureBaseSize+uint32(XMSSMaxHeight)*32 {
