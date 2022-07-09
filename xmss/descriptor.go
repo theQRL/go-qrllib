@@ -31,11 +31,11 @@ func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType Sig
 	}
 }
 
-func NewQRLDescriptorFromExtendedSeed(extendedSeed [51]uint8) *QRLDescriptor {
+func NewQRLDescriptorFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *QRLDescriptor {
 	return NewQRLDescriptorFromBytes(extendedSeed[:DescriptorSize])
 }
 
-func NewQRLDescriptorFromExtendedPK(extendedPK *[67]uint8) *QRLDescriptor {
+func NewQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescriptor {
 	return NewQRLDescriptorFromBytes(extendedPK[:DescriptorSize])
 }
 
@@ -68,8 +68,8 @@ func (d *QRLDescriptor) GetAddrFormatType() AddrFormatType {
 	return d.addrFormatType
 }
 
-func (d *QRLDescriptor) GetBytes() [3]uint8 {
-	var output [3]uint8
+func (d *QRLDescriptor) GetBytes() [DescriptorSize]uint8 {
+	var output [DescriptorSize]uint8
 	output[0] = (uint8(d.signatureType) << 4) | (uint8(d.hashFunction) & 0x0F)
 	output[1] = (uint8(d.addrFormatType) << 4) | ((d.height >> 1) & 0x0F)
 

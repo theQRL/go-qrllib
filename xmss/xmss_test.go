@@ -8,7 +8,7 @@ import (
 func TestXMSS_GetAddress(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8 // seed initialized with 0 (default) value
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
@@ -21,7 +21,7 @@ func TestXMSS_GetAddress(t *testing.T) {
 func TestIsValidXMSSAddress(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8 // seed initialized with 0 (default) value
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	address := xmss.GetAddress()
@@ -33,7 +33,7 @@ func TestIsValidXMSSAddress(t *testing.T) {
 func TestXMSS_GetMnemonic(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8 // seed initialized with 0 (default) value
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	expectedMnemonic := "absorb bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
@@ -46,7 +46,7 @@ func TestXMSS_GetMnemonic(t *testing.T) {
 func TestXMSS_GetExtendedSeed(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8 // seed initialized with 0 (default) value
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	expectedESeed := "010200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -60,7 +60,7 @@ func TestXMSS_GetExtendedSeed(t *testing.T) {
 func TestXMSSCreationHeight4(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8 // seed initialized with 0 (default) value
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
@@ -98,7 +98,7 @@ func TestXMSSCreationHeight4(t *testing.T) {
 func TestXMSSCreationHeight6(t *testing.T) {
 	height := uint8(6)
 
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	expectedAddress := "0103008b0e18dd0bac2c3fdc9a48e10fc466eef899ef074449d12ddf050317b2083527aee74bc3"
@@ -136,7 +136,7 @@ func TestXMSSCreationHeight6(t *testing.T) {
 func TestXMSS(t *testing.T) {
 	height := uint8(4)
 
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
 	if xmss == nil {
@@ -185,7 +185,7 @@ func TestXMSS(t *testing.T) {
 
 func TestXMSSExceptionConstructor(t *testing.T) {
 	height := uint8(7)
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	//assert.Panic(
 	//	t,
 	//	func() {
@@ -205,9 +205,9 @@ func TestXMSSExceptionConstructor(t *testing.T) {
 }
 
 func TestXMSSExceptionVerify(t *testing.T) {
-	var message [48]uint8
+	var message [SeedSize]uint8
 	var signature [2287]uint8
-	var pk [67]uint8
+	var pk [ExtendedPKSize]uint8
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -225,7 +225,7 @@ func TestXMSSExceptionVerify(t *testing.T) {
 
 func TestXMSSChangeIndexTooHigh(t *testing.T) {
 	height := uint8(4)
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 	defer func() {
@@ -243,7 +243,7 @@ func TestXMSSChangeIndexTooHigh(t *testing.T) {
 
 func TestXMSSChangeIndexHigh(t *testing.T) {
 	height := uint8(4)
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 	defer func() {
@@ -260,7 +260,7 @@ func TestXMSSChangeIndexHigh(t *testing.T) {
 
 func TestXMSSChangeIndexLimit(t *testing.T) {
 	height := uint8(4)
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 
 	xmss.SetIndex(15)
@@ -271,7 +271,7 @@ func TestXMSSChangeIndexLimit(t *testing.T) {
 
 func TestXMSSChangeIndex(t *testing.T) {
 	height := uint8(4)
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 
 	xmss.SetIndex(0)

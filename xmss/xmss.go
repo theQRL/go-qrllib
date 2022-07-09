@@ -26,11 +26,14 @@ const (
 )
 
 const (
-	XMSSMaxHeight = 254
+	MaxHeight = 254
 )
 
 const (
-	XMSSAddressSize = 39
+	AddressSize      = 39
+	ExtendedPKSize   = 67
+	SeedSize         = 48
+	ExtendedSeedSize = 51
 )
 
 type XMSS struct {
@@ -39,7 +42,7 @@ type XMSS struct {
 	//addrFormatType eAddrFormatType  // not needed as there is only 1 type
 	height uint8
 	sk     []uint8
-	seed   [48]uint8
+	seed   [SeedSize]uint8
 
 	/*
 		bds_state _state;
@@ -67,9 +70,9 @@ type XMSS struct {
 	//retain   []uint8
 }
 
-func NewXMSSFromSeed(seed [48]uint8, height uint8, hashFunction HashFunction, addrFormatType AddrFormatType) *XMSS {
+func NewXMSSFromSeed(seed [SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType AddrFormatType) *XMSS {
 	signatureType := XMSSSig // Signature Type hard coded for now
-	if height > XMSSMaxHeight {
+	if height > MaxHeight {
 		panic("Height should be <= 254")
 	}
 	desc := NewQRLDescriptor(height, hashFunction, signatureType, addrFormatType)
@@ -77,22 +80,22 @@ func NewXMSSFromSeed(seed [48]uint8, height uint8, hashFunction HashFunction, ad
 	return initializeTree(desc, seed)
 }
 
-func NewXMSSFromExtendedSeed(extendedSeed [51]uint8) *XMSS {
+func NewXMSSFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *XMSS {
 	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
 
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	copy(seed[:], extendedSeed[DescriptorSize:])
 
 	return initializeTree(desc, seed)
 }
 
 func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
-	var seed [48]uint8
+	var seed [SeedSize]uint8
 	rand.Read(seed[:])
 	return NewXMSSFromSeed(seed, height, hashFunction, SHA256_2X)
 }
 
-func initializeTree(desc *QRLDescriptor, seed [48]uint8) *XMSS {
+func initializeTree(desc *QRLDescriptor, seed [SeedSize]uint8) *XMSS {
 	height := uint32(desc.GetHeight())
 	hashFunction := desc.GetHashFunction()
 	sk := make([]uint8, 132)
@@ -135,12 +138,12 @@ func (x *XMSS) GetPKSeed() []uint8 {
 	return x.sk[offsetPubSeed : offsetPubSeed+32]
 }
 
-func (x *XMSS) GetSeed() [48]uint8 {
+func (x *XMSS) GetSeed() [SeedSize]uint8 {
 	return x.seed
 }
 
-func (x *XMSS) GetExtendedSeed() [51]uint8 {
-	var extendedSeed [51]uint8
+func (x *XMSS) GetExtendedSeed() [ExtendedSeedSize]uint8 {
+	var extendedSeed [ExtendedSeedSize]uint8
 	descBytes := x.desc.GetBytes()
 	seed := x.GetSeed()
 	copy(extendedSeed[:3], descBytes[:])
@@ -161,7 +164,7 @@ func (x *XMSS) GetRoot() []uint8 {
 	return x.sk[offsetRoot : offsetRoot+32]
 }
 
-func (x *XMSS) GetPK() [67]uint8 {
+func (x *XMSS) GetPK() [ExtendedPKSize]uint8 {
 	//    PK format
 	//     3 QRL_DESCRIPTOR
 	//    32 root address
@@ -171,7 +174,7 @@ func (x *XMSS) GetPK() [67]uint8 {
 	root := x.GetRoot()
 	pubSeed := x.GetPKSeed()
 
-	var output [67]uint8
+	var output [ExtendedPKSize]uint8
 	offset := 0
 	for i := 0; i < len(desc); i++ {
 		output[i] = desc[i]
@@ -191,7 +194,7 @@ func (x *XMSS) GetSK() []uint8 {
 	return x.sk
 }
 
-func (x *XMSS) GetAddress() [XMSSAddressSize]uint8 {
+func (x *XMSS) GetAddress() [AddressSize]uint8 {
 	return GetXMSSAddressFromPK(x.GetPK())
 }
 
@@ -206,14 +209,14 @@ func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)
 }
 
-func Verify(message, signature []uint8, extendedPK [67]uint8) (result bool) {
+func Verify(message, signature []uint8, extendedPK [ExtendedPKSize]uint8) (result bool) {
 	return VerifyWithCustomWOTSParamW(message, signature, extendedPK, WOTSParamW)
 }
 
-func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [67]uint8, wotsParamW uint32) (result bool) {
+func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [ExtendedPKSize]uint8, wotsParamW uint32) (result bool) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
-	if uint32(len(signature)) > signatureBaseSize+uint32(XMSSMaxHeight)*32 {
+	if uint32(len(signature)) > signatureBaseSize+uint32(MaxHeight)*32 {
 		panic("invalid signature size. Height<=254")
 	}
 
@@ -553,14 +556,14 @@ func hMsg(hashFunction HashFunction, out, in, key []uint8, n uint32) error {
 	return nil
 }
 
-func GetXMSSAddressFromPK(ePK [67]uint8) [XMSSAddressSize]uint8 {
+func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
 	desc := NewQRLDescriptorFromExtendedPK(&ePK)
 
 	if desc.GetAddrFormatType() != SHA256_2X {
 		panic("Address format type not supported")
 	}
 
-	var address [XMSSAddressSize]uint8
+	var address [AddressSize]uint8
 	addressOffset := 0
 	descBytes := desc.GetBytes()
 
@@ -587,7 +590,7 @@ func GetXMSSAddressFromPK(ePK [67]uint8) [XMSSAddressSize]uint8 {
 	return address
 }
 
-func IsValidXMSSAddress(address [XMSSAddressSize]uint8) bool {
+func IsValidXMSSAddress(address [AddressSize]uint8) bool {
 	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
 	if d.GetAddrFormatType() != SHA256_2X {
 		return false
