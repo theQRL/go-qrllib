@@ -1,6 +1,7 @@
 package xmss
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/theQRL/go-qrllib/misc"
@@ -37,7 +38,7 @@ type XMSS struct {
 	//addrFormatType eAddrFormatType  // not needed as there is only 1 type
 	height uint8
 	sk     []uint8
-	seed   []uint8
+	seed   [48]uint8
 
 	/*
 		bds_state _state;
@@ -72,13 +73,14 @@ func NewXMSSFromSeed(seed [48]uint8, height uint8, hashFunction HashFunction, ad
 	}
 	desc := NewQRLDescriptor(height, hashFunction, signatureType, addrFormatType)
 
-	return initializeTree(desc, seed[:])
+	return initializeTree(desc, seed)
 }
 
 func NewXMSSFromExtendedSeed(extendedSeed [51]uint8) *XMSS {
 	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
 
-	seed := extendedSeed[DescriptorSize:]
+	var seed [48]uint8
+	copy(seed[:], extendedSeed[DescriptorSize:])
 
 	return initializeTree(desc, seed)
 }
@@ -89,11 +91,7 @@ func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
 	return NewXMSSFromSeed(seed, height, hashFunction, SHA256_2X)
 }
 
-func initializeTree(desc *QRLDescriptor, seed []uint8) *XMSS {
-	if len(seed) != 48 {
-		panic("Seed should be 48 bytes. Other values are not currently supported")
-	}
-
+func initializeTree(desc *QRLDescriptor, seed [48]uint8) *XMSS {
 	height := uint32(desc.GetHeight())
 	hashFunction := desc.GetHashFunction()
 	sk := make([]uint8, 132)
@@ -134,6 +132,28 @@ func (x *XMSS) GetHeight() uint8 {
 
 func (x *XMSS) GetPKSeed() []uint8 {
 	return x.sk[offsetPubSeed : offsetPubSeed+32]
+}
+
+func (x *XMSS) GetSeed() [48]uint8 {
+	return x.seed
+}
+
+func (x *XMSS) GetExtendedSeed() [51]uint8 {
+	var extendedSeed [51]uint8
+	descBytes := x.desc.GetBytes()
+	seed := x.GetSeed()
+	copy(extendedSeed[:3], descBytes[:])
+	copy(extendedSeed[3:], seed[:])
+	return extendedSeed
+}
+
+func (x *XMSS) GetHexSeed() string {
+	eSeed := x.GetExtendedSeed()
+	return hex.EncodeToString(eSeed[:])
+}
+
+func (x *XMSS) GetMnemonic() string {
+	return misc.BinToMnemonic(x.GetExtendedSeed())
 }
 
 func (x *XMSS) GetRoot() []uint8 {
