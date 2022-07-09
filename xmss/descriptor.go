@@ -32,14 +32,14 @@ func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType Sig
 }
 
 func NewQRLDescriptorFromExtendedSeed(extendedSeed [51]uint8) *QRLDescriptor {
-	return QRLDescriptorFromBytes(extendedSeed[:DescriptorSize])
+	return NewQRLDescriptorFromBytes(extendedSeed[:DescriptorSize])
 }
 
 func NewQRLDescriptorFromExtendedPK(extendedPK *[67]uint8) *QRLDescriptor {
-	return QRLDescriptorFromBytes(extendedPK[:DescriptorSize])
+	return NewQRLDescriptorFromBytes(extendedPK[:DescriptorSize])
 }
 
-func QRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
+func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
 	if len(descriptorBytes) != 3 {
 		panic("Descriptor size should be 3 bytes")
 	}

@@ -18,6 +18,18 @@ func TestXMSS_GetAddress(t *testing.T) {
 	}
 }
 
+func TestIsValidXMSSAddress(t *testing.T) {
+	height := uint8(4)
+
+	var seed [48]uint8 // seed initialized with 0 (default) value
+	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
+
+	address := xmss.GetAddress()
+	if !IsValidXMSSAddress(address) {
+		t.Errorf("Invalid Address")
+	}
+}
+
 func TestXMSS_GetMnemonic(t *testing.T) {
 	height := uint8(4)
 
@@ -144,28 +156,28 @@ func TestXMSS(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		if !Verify(message[:], signature, xmss.GetPK(), 16) {
+		if !Verify(message[:], signature, xmss.GetPK()) {
 			t.Errorf("Expected True")
 		}
 	}
 
 	signature[100] = signature[100] + 1
-	if Verify(message[:], signature, xmss.GetPK(), 16) {
+	if Verify(message[:], signature, xmss.GetPK()) {
 		t.Errorf("Expected False")
 	}
 
 	signature[100] = signature[100] - 1
-	if !Verify(message[:], signature, xmss.GetPK(), 16) {
+	if !Verify(message[:], signature, xmss.GetPK()) {
 		t.Errorf("Expected True")
 	}
 
 	message[2] = message[2] + 1
-	if Verify(message[:], signature, xmss.GetPK(), 16) {
+	if Verify(message[:], signature, xmss.GetPK()) {
 		t.Errorf("Expected False")
 	}
 
 	message[2] = message[2] - 1
-	if !Verify(message[:], signature, xmss.GetPK(), 16) {
+	if !Verify(message[:], signature, xmss.GetPK()) {
 		t.Errorf("Expected True")
 	}
 
@@ -206,7 +218,7 @@ func TestXMSSExceptionVerify(t *testing.T) {
 			t.Error("expected panic")
 		}
 	}()
-	if Verify(message[:], signature[:], pk, 16) {
+	if Verify(message[:], signature[:], pk) {
 		t.Errorf("expected panic")
 	}
 }
