@@ -5,7 +5,7 @@ import (
 )
 
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
-	pk, sk []uint8, bdsState *BDSState, seed []uint8) {
+	pk, sk []uint8, bdsState *BDSState, seed [48]uint8) {
 
 	if xmssParams.h&1 == 1 {
 		panic("Not a valid h, only even numbers supported! Try again with an even number")
@@ -22,7 +22,7 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	// Copy PUB_SEED to public key
 	randombits := make([]uint8, 3*n)
 
-	misc.SHAKE256(randombits, seed)
+	misc.SHAKE256(randombits, seed[:])
 	//shake256(randombits, 3 * n, seed, 48);  // FIXME: seed size has been hardcoded to 48
 
 	rnd := 96

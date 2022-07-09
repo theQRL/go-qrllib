@@ -2,8 +2,49 @@ package xmss
 
 import (
 	"encoding/hex"
+	"fmt"
 	"testing"
 )
+
+func TestXMSS_GetAddress(t *testing.T) {
+	height := uint8(4)
+
+	var seed [48]uint8 // seed initialized with 0 (default) value
+	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
+
+	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
+	address := xmss.GetAddress()
+	if expectedAddress != hex.EncodeToString(address[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
+	}
+}
+
+func TestXMSS_GetMnemonic(t *testing.T) {
+	height := uint8(4)
+
+	var seed [48]uint8 // seed initialized with 0 (default) value
+	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
+
+	expectedMnemonic := "absorb bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
+	mnemonic := xmss.GetMnemonic()
+	if expectedMnemonic != mnemonic {
+		t.Errorf("Mnemonic Mismatch\nExpected: %s\nFound: %s", expectedMnemonic, mnemonic)
+	}
+}
+
+func TestXMSS_GetExtendedSeed(t *testing.T) {
+	height := uint8(4)
+
+	var seed [48]uint8 // seed initialized with 0 (default) value
+	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
+
+	expectedESeed := "010200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	eSeed := xmss.GetExtendedSeed()
+	eSeedStr := hex.EncodeToString(eSeed[:])
+	if expectedESeed != eSeedStr {
+		t.Errorf("Mnemonic Mismatch\nExpected: %s\nFound: %s", expectedESeed, eSeedStr)
+	}
+}
 
 func TestXMSSCreationHeight4(t *testing.T) {
 	height := uint8(4)
@@ -18,6 +59,9 @@ func TestXMSSCreationHeight4(t *testing.T) {
 		"162a517fd2131f83fbf2698a58f9c46a" +
 		"fc5d"
 
+	fmt.Println(xmss.GetMnemonic())
+	addr := xmss.GetAddress()
+	fmt.Println(hex.EncodeToString(addr[:]))
 	pk := xmss.GetPK()
 	if expectedPK != hex.EncodeToString(pk[:]) {
 		t.Errorf("PK Mismatch\nExpected: %s\nFound: %s", expectedPK, hex.EncodeToString(pk[:]))
