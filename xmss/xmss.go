@@ -64,7 +64,7 @@ type XMSS struct {
 	//retain   []uint8
 }
 
-func NewXMSSBySeed(seed [48]uint8, height uint8, hashFunction HashFunction, addrFormatType AddrFormatType) *XMSS {
+func NewXMSSFromSeed(seed [48]uint8, height uint8, hashFunction HashFunction, addrFormatType AddrFormatType) *XMSS {
 	signatureType := XMSSSig // Signature Type hard coded for now
 	if height > XMSSMaxHeight {
 		panic("Height should be <= 254")
@@ -74,7 +74,7 @@ func NewXMSSBySeed(seed [48]uint8, height uint8, hashFunction HashFunction, addr
 	return initializeTree(desc, seed[:])
 }
 
-func NewXMSSByExtendedSeed(extendedSeed [51]uint8) *XMSS {
+func NewXMSSFromExtendedSeed(extendedSeed [51]uint8) *XMSS {
 	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
 
 	seed := extendedSeed[DescriptorSize:]
