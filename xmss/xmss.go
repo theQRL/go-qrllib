@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/theQRL/go-qrllib/misc"
+	"math/rand"
 )
 
 type HashFunction uint
@@ -80,6 +81,12 @@ func NewXMSSFromExtendedSeed(extendedSeed [51]uint8) *XMSS {
 	seed := extendedSeed[DescriptorSize:]
 
 	return initializeTree(desc, seed)
+}
+
+func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
+	var seed [48]uint8
+	rand.Read(seed[:])
+	return NewXMSSFromSeed(seed, height, hashFunction, SHA256_2X)
 }
 
 func initializeTree(desc *QRLDescriptor, seed []uint8) *XMSS {
