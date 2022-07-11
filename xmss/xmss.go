@@ -1,11 +1,11 @@
 package xmss
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/theQRL/go-qrllib/misc"
-	"math/rand"
 	"reflect"
 )
 
@@ -91,7 +91,10 @@ func NewXMSSFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *XMSS {
 
 func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
 	var seed [SeedSize]uint8
-	rand.Read(seed[:])
+	_, err := rand.Read(seed[:])
+	if err != nil {
+		panic("Failed to generate XMSS address")
+	}
 	return NewXMSSFromSeed(seed, height, hashFunction, SHA256_2X)
 }
 
