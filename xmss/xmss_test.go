@@ -11,8 +11,21 @@ func TestXMSS_GetAddress(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
-	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
+	expectedAddress := "0102006f4c94686167e4eb233d3e8e80b14abfa2"
 	address := xmss.GetAddress()
+	if expectedAddress != hex.EncodeToString(address[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
+	}
+}
+
+func TestXMSS_GetLegacyAddress(t *testing.T) {
+	height := uint8(4)
+
+	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
+
+	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
+	address := xmss.GetLegacyAddress()
 	if expectedAddress != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
 	}
@@ -63,7 +76,8 @@ func TestXMSSCreationHeight4(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
-	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
+	expectedAddress := "0102006f4c94686167e4eb233d3e8e80b14abfa2"
+	expectedLegacyAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
 	expectedPK := "010200c25188b585f731c128e2b457069e" +
 		"afd1e3fa3961605af8c58a1aec4d82ac" +
 		"316d3191da3442686282b3d5160f25cf" +
@@ -85,6 +99,16 @@ func TestXMSSCreationHeight4(t *testing.T) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(tmpAddr[:]))
 	}
 
+	legacyAddress := xmss.GetLegacyAddress()
+	if expectedLegacyAddress != hex.EncodeToString(legacyAddress[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
+	}
+
+	tmpLegacyAddr := GetLegacyXMSSAddressFromPK(pk)
+	if expectedLegacyAddress != hex.EncodeToString(tmpLegacyAddr[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
+	}
+
 	desc := NewQRLDescriptorFromExtendedPK(&pk)
 	if desc.GetHeight() != 4 {
 		t.Errorf("Height Mismatch\nExpected: %d\nFound: %d", 6, desc.GetHeight())
@@ -101,7 +125,8 @@ func TestXMSSCreationHeight6(t *testing.T) {
 	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, SHA256_2X)
 
-	expectedAddress := "0103008b0e18dd0bac2c3fdc9a48e10fc466eef899ef074449d12ddf050317b2083527aee74bc3"
+	expectedAddress := "0103003a7d5125fd1d014f972c05b715cfa2f6cd"
+	expectedLegacyAddress := "0103008b0e18dd0bac2c3fdc9a48e10fc466eef899ef074449d12ddf050317b2083527aee74bc3"
 	expectedPK := "010300859060f15adc3825adeec85c7483" +
 		"d868e898bc5117d0cff04ab1343916d4" +
 		"07af3191da3442686282b3d5160f25cf" +
@@ -121,6 +146,16 @@ func TestXMSSCreationHeight6(t *testing.T) {
 	tmpAddr := GetXMSSAddressFromPK(pk)
 	if expectedAddress != hex.EncodeToString(tmpAddr[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(tmpAddr[:]))
+	}
+
+	legacyAddress := xmss.GetLegacyAddress()
+	if expectedLegacyAddress != hex.EncodeToString(legacyAddress[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
+	}
+
+	tmpLegacyAddr := GetLegacyXMSSAddressFromPK(pk)
+	if expectedLegacyAddress != hex.EncodeToString(tmpLegacyAddr[:]) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
 	}
 
 	desc := NewQRLDescriptorFromExtendedPK(&pk)
