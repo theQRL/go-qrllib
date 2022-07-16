@@ -30,10 +30,11 @@ const (
 )
 
 const (
-	AddressSize      = 39
-	ExtendedPKSize   = 67
-	SeedSize         = 48
-	ExtendedSeedSize = 51
+	AddressSize       = 20
+	LegacyAddressSize = 39
+	ExtendedPKSize    = 67
+	SeedSize          = 48
+	ExtendedSeedSize  = 51
 )
 
 type XMSS struct {
@@ -199,6 +200,11 @@ func (x *XMSS) GetSK() []uint8 {
 
 func (x *XMSS) GetAddress() [AddressSize]uint8 {
 	return GetXMSSAddressFromPK(x.GetPK())
+}
+
+// Deprecated: Function to get legacy address. It will be removed in the future.
+func (x *XMSS) GetLegacyAddress() [LegacyAddressSize]uint8 {
+	return GetLegacyXMSSAddressFromPK(x.GetPK())
 }
 
 func (x *XMSS) GetIndex() uint32 {
@@ -567,6 +573,37 @@ func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
 	}
 
 	var address [AddressSize]uint8
+	descBytes := desc.GetBytes()
+
+	copy(address[:DescriptorSize], descBytes[:DescriptorSize])
+
+	var hashedKey [32]uint8
+	misc.SHAKE256(hashedKey[:], ePK[:])
+
+	copy(address[DescriptorSize:], hashedKey[len(hashedKey)-AddressSize+DescriptorSize:])
+
+	return address
+}
+
+func IsValidXMSSAddress(address [AddressSize]uint8) bool {
+	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
+	if d.GetAddrFormatType() != SHA256_2X {
+		return false
+	}
+
+	// TODO: Add checksum
+	return true
+}
+
+// Deprecated: Generates legacy XMSS address, not compatible with the QVM.
+func GetLegacyXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [LegacyAddressSize]uint8 {
+	desc := NewQRLDescriptorFromExtendedPK(&ePK)
+
+	if desc.GetAddrFormatType() != SHA256_2X {
+		panic("Address format type not supported")
+	}
+
+	var address [LegacyAddressSize]uint8
 	addressOffset := 0
 	descBytes := desc.GetBytes()
 
@@ -593,7 +630,8 @@ func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
 	return address
 }
 
-func IsValidXMSSAddress(address [AddressSize]uint8) bool {
+// Deprecated: Checks if legacy XMSS address is valid
+func IsValidLegacyXMSSAddress(address [LegacyAddressSize]uint8) bool {
 	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
 	if d.GetAddrFormatType() != SHA256_2X {
 		return false
