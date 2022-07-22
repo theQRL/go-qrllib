@@ -1,28 +1,15 @@
 package xmss
 
-const (
-	DescriptorSize = 3
-)
-
-type SignatureType uint
-type AddrFormatType uint
-
-const (
-	XMSSSig SignatureType = iota
-)
-
-const (
-	SHA256_2X AddrFormatType = iota
-)
+import "github.com/theQRL/go-qrllib/common"
 
 type QRLDescriptor struct {
 	hashFunction   HashFunction
-	signatureType  SignatureType // Signature Type = XMSS = 0
+	signatureType  common.SignatureType // Signature Type = XMSS = 0
 	height         uint8
-	addrFormatType AddrFormatType
+	addrFormatType common.AddrFormatType
 }
 
-func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType SignatureType, addrFormatType AddrFormatType) *QRLDescriptor {
+func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType common.SignatureType, addrFormatType common.AddrFormatType) *QRLDescriptor {
 	return &QRLDescriptor{
 		hashFunction:   hashFunction,
 		signatureType:  signatureType,
@@ -32,11 +19,11 @@ func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType Sig
 }
 
 func NewQRLDescriptorFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *QRLDescriptor {
-	return NewQRLDescriptorFromBytes(extendedSeed[:DescriptorSize])
+	return NewQRLDescriptorFromBytes(extendedSeed[:common.DescriptorSize])
 }
 
 func NewQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescriptor {
-	return NewQRLDescriptorFromBytes(extendedPK[:DescriptorSize])
+	return NewQRLDescriptorFromBytes(extendedPK[:common.DescriptorSize])
 }
 
 func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
@@ -46,9 +33,9 @@ func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
 
 	return &QRLDescriptor{
 		hashFunction:   HashFunction(descriptorBytes[0] & 0x0f),
-		signatureType:  SignatureType((descriptorBytes[0] >> 4) & 0xf0),
+		signatureType:  common.SignatureType((descriptorBytes[0] >> 4) & 0xf0),
 		height:         (descriptorBytes[1] & 0x0f) << 1,
-		addrFormatType: AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
+		addrFormatType: common.AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
 	}
 }
 
@@ -60,16 +47,16 @@ func (d *QRLDescriptor) GetHashFunction() HashFunction {
 	return d.hashFunction
 }
 
-func (d *QRLDescriptor) GetSignatureType() SignatureType {
+func (d *QRLDescriptor) GetSignatureType() common.SignatureType {
 	return d.signatureType
 }
 
-func (d *QRLDescriptor) GetAddrFormatType() AddrFormatType {
+func (d *QRLDescriptor) GetAddrFormatType() common.AddrFormatType {
 	return d.addrFormatType
 }
 
-func (d *QRLDescriptor) GetBytes() [DescriptorSize]uint8 {
-	var output [DescriptorSize]uint8
+func (d *QRLDescriptor) GetBytes() [common.DescriptorSize]uint8 {
+	var output [common.DescriptorSize]uint8
 	output[0] = (uint8(d.signatureType) << 4) | (uint8(d.hashFunction) & 0x0F)
 	output[1] = (uint8(d.addrFormatType) << 4) | ((d.height >> 1) & 0x0F)
 

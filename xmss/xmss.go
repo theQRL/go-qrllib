@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/misc"
 	"reflect"
 )
@@ -30,7 +31,6 @@ const (
 )
 
 const (
-	AddressSize       = 20
 	LegacyAddressSize = 39
 	ExtendedPKSize    = 67
 	SeedSize          = 48
@@ -71,8 +71,8 @@ type XMSS struct {
 	//retain   []uint8
 }
 
-func NewXMSSFromSeed(seed [SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType AddrFormatType) *XMSS {
-	signatureType := XMSSSig // Signature Type hard coded for now
+func NewXMSSFromSeed(seed [SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType common.AddrFormatType) *XMSS {
+	signatureType := common.XMSSSig // Signature Type hard coded for now
 	if height > MaxHeight {
 		panic("Height should be <= 254")
 	}
@@ -85,7 +85,7 @@ func NewXMSSFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *XMSS {
 	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
 
 	var seed [SeedSize]uint8
-	copy(seed[:], extendedSeed[DescriptorSize:])
+	copy(seed[:], extendedSeed[common.DescriptorSize:])
 
 	return initializeTree(desc, seed)
 }
@@ -96,7 +96,7 @@ func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
 	if err != nil {
 		panic("Failed to generate XMSS address")
 	}
-	return NewXMSSFromSeed(seed, height, hashFunction, SHA256_2X)
+	return NewXMSSFromSeed(seed, height, hashFunction, common.SHA256_2X)
 }
 
 func initializeTree(desc *QRLDescriptor, seed [SeedSize]uint8) *XMSS {
@@ -198,7 +198,7 @@ func (x *XMSS) GetSK() []uint8 {
 	return x.sk
 }
 
-func (x *XMSS) GetAddress() [AddressSize]uint8 {
+func (x *XMSS) GetAddress() [common.AddressSize]uint8 {
 	return GetXMSSAddressFromPK(x.GetPK())
 }
 
@@ -231,7 +231,7 @@ func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [Extended
 
 	desc := NewQRLDescriptorFromExtendedPK(&extendedPK)
 
-	if desc.GetSignatureType() != XMSSSig {
+	if desc.GetSignatureType() != common.XMSSSig {
 		return false
 	}
 
@@ -259,7 +259,7 @@ func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [Extended
 		params.wotsParams,
 		message,
 		tmp,
-		extendedPK[DescriptorSize:],
+		extendedPK[common.DescriptorSize:],
 		height)
 }
 
@@ -565,29 +565,29 @@ func hMsg(hashFunction HashFunction, out, in, key []uint8, n uint32) error {
 	return nil
 }
 
-func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
+func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [common.AddressSize]uint8 {
 	desc := NewQRLDescriptorFromExtendedPK(&ePK)
 
-	if desc.GetAddrFormatType() != SHA256_2X {
+	if desc.GetAddrFormatType() != common.SHA256_2X {
 		panic("Address format type not supported")
 	}
 
-	var address [AddressSize]uint8
+	var address [common.AddressSize]uint8
 	descBytes := desc.GetBytes()
 
-	copy(address[:DescriptorSize], descBytes[:DescriptorSize])
+	copy(address[:common.DescriptorSize], descBytes[:common.DescriptorSize])
 
 	var hashedKey [32]uint8
 	misc.SHAKE256(hashedKey[:], ePK[:])
 
-	copy(address[DescriptorSize:], hashedKey[len(hashedKey)-AddressSize+DescriptorSize:])
+	copy(address[common.DescriptorSize:], hashedKey[len(hashedKey)-common.AddressSize+common.DescriptorSize:])
 
 	return address
 }
 
-func IsValidXMSSAddress(address [AddressSize]uint8) bool {
-	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
-	if d.GetAddrFormatType() != SHA256_2X {
+func IsValidXMSSAddress(address [common.AddressSize]uint8) bool {
+	d := NewQRLDescriptorFromBytes(address[:common.DescriptorSize])
+	if d.GetAddrFormatType() != common.SHA256_2X {
 		return false
 	}
 
@@ -599,7 +599,7 @@ func IsValidXMSSAddress(address [AddressSize]uint8) bool {
 func GetLegacyXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [LegacyAddressSize]uint8 {
 	desc := NewQRLDescriptorFromExtendedPK(&ePK)
 
-	if desc.GetAddrFormatType() != SHA256_2X {
+	if desc.GetAddrFormatType() != common.SHA256_2X {
 		panic("Address format type not supported")
 	}
 
@@ -632,13 +632,13 @@ func GetLegacyXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [LegacyAddressSize]ui
 
 // Deprecated: Checks if legacy XMSS address is valid
 func IsValidLegacyXMSSAddress(address [LegacyAddressSize]uint8) bool {
-	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
-	if d.GetAddrFormatType() != SHA256_2X {
+	d := NewQRLDescriptorFromBytes(address[:common.DescriptorSize])
+	if d.GetAddrFormatType() != common.SHA256_2X {
 		return false
 	}
 
 	var hashedKey [32]uint8
-	misc.SHA256(hashedKey[:], address[:DescriptorSize+32])
+	misc.SHA256(hashedKey[:], address[:common.DescriptorSize+32])
 
-	return reflect.DeepEqual(address[DescriptorSize+32:], hashedKey[28:])
+	return reflect.DeepEqual(address[common.DescriptorSize+32:], hashedKey[28:])
 }

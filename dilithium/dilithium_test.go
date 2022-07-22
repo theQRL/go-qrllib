@@ -180,3 +180,15 @@ func TestExtractSignature(t *testing.T) {
 		t.Error("ExtractedSignature mismatch")
 	}
 }
+
+func TestGetDilithiumAddressFromPK(t *testing.T) {
+	pk := PKHStrToBin(PK1)
+
+	expectedAddress := "100000ee9cdecef927a4cf23e5036ab2b448320f"
+	addressBin := GetDilithiumAddressFromPK(pk)
+	address := hex.EncodeToString(addressBin[:])
+
+	if !reflect.DeepEqual(address, expectedAddress) {
+		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, address)
+	}
+}
