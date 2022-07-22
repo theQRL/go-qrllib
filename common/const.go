@@ -9,7 +9,7 @@ const (
 )
 
 const (
-	XMSSSig SignatureType = iota
+	XMSSSig SignatureType = iota + 1
 	DilithiumSig
 )
 
