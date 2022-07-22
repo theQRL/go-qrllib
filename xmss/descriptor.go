@@ -33,7 +33,7 @@ func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
 
 	return &QRLDescriptor{
 		hashFunction:   HashFunction(descriptorBytes[0] & 0x0f),
-		signatureType:  common.SignatureType((descriptorBytes[0] >> 4) & 0xf0),
+		signatureType:  common.SignatureType((descriptorBytes[0] >> 4) & 0x0f),
 		height:         (descriptorBytes[1] & 0x0f) << 1,
 		addrFormatType: common.AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
 	}
