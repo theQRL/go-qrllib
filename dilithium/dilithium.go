@@ -61,28 +61,24 @@ func ExtractSignature(signatureMessage []uint8) []uint8 {
 	return signatureMessage[:SigSizePacked]
 }
 
-func GetDilithiumDescriptor() [common.DescriptorSize]uint8 {
+func GetDilithiumDescriptor() uint8 {
 	/*
 		In case of Dilithium address, it doesn't have any choice of hashFunction,
-		height. Thus keeping all those values to 0 and assigning only signatureType
-		in the descriptor and the addrFormatType as we are using SHA256_2X to hash
-		the pk for the address computation.
+		height, addrFormatType. Thus keeping all those values to 0 and assigning
+		only signatureType in the descriptor.
 	*/
-	var desc [common.DescriptorSize]uint8
-	desc[0] = uint8(common.DilithiumSig) << 4
-	desc[1] = uint8(common.SHA256_2X) << 4
-	return desc
+	return uint8(common.DilithiumSig) << 4
 }
 
 func GetDilithiumAddressFromPK(pk [PKSizePacked]uint8) [common.AddressSize]uint8 {
 	var address [common.AddressSize]uint8
 	descBytes := GetDilithiumDescriptor()
-	copy(address[:common.DescriptorSize], descBytes[:common.DescriptorSize])
+	address[0] = descBytes
 
 	var hashedKey [32]uint8
 	misc.SHAKE256(hashedKey[:], pk[:])
 
-	copy(address[common.DescriptorSize:], hashedKey[len(hashedKey)-common.AddressSize+common.DescriptorSize:])
+	copy(address[1:], hashedKey[len(hashedKey)-common.AddressSize+1:])
 
 	return address
 }

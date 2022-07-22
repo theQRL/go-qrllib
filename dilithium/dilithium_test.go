@@ -184,7 +184,7 @@ func TestExtractSignature(t *testing.T) {
 func TestGetDilithiumAddressFromPK(t *testing.T) {
 	pk := PKHStrToBin(PK1)
 
-	expectedAddress := "100000ee9cdecef927a4cf23e5036ab2b448320f"
+	expectedAddress := "20599cee9cdecef927a4cf23e5036ab2b448320f"
 	addressBin := GetDilithiumAddressFromPK(pk)
 	address := hex.EncodeToString(addressBin[:])
 

@@ -12,7 +12,7 @@ func TestXMSS_GetAddress(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedAddress := "0102006f4c94686167e4eb233d3e8e80b14abfa2"
+	expectedAddress := "11020013b5158e1e45d28c5c2dee4abfaf7e4ebf"
 	address := xmss.GetAddress()
 	if expectedAddress != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
@@ -25,7 +25,7 @@ func TestXMSS_GetLegacyAddress(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
+	expectedAddress := "11020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a666cb98a4"
 	address := xmss.GetLegacyAddress()
 	if expectedAddress != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
@@ -50,7 +50,7 @@ func TestXMSS_GetMnemonic(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedMnemonic := "absorb bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
+	expectedMnemonic := "ban bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
 	mnemonic := xmss.GetMnemonic()
 	if expectedMnemonic != mnemonic {
 		t.Errorf("Mnemonic Mismatch\nExpected: %s\nFound: %s", expectedMnemonic, mnemonic)
@@ -63,7 +63,7 @@ func TestXMSS_GetExtendedSeed(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedESeed := "010200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	expectedESeed := "110200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 	eSeed := xmss.GetExtendedSeed()
 	eSeedStr := hex.EncodeToString(eSeed[:])
 	if expectedESeed != eSeedStr {
@@ -77,9 +77,9 @@ func TestXMSSCreationHeight4(t *testing.T) {
 	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedAddress := "0102006f4c94686167e4eb233d3e8e80b14abfa2"
-	expectedLegacyAddress := "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
-	expectedPK := "010200c25188b585f731c128e2b457069e" +
+	expectedAddress := "11020013b5158e1e45d28c5c2dee4abfaf7e4ebf"
+	expectedLegacyAddress := "11020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a666cb98a4"
+	expectedPK := "110200c25188b585f731c128e2b457069e" +
 		"afd1e3fa3961605af8c58a1aec4d82ac" +
 		"316d3191da3442686282b3d5160f25cf" +
 		"162a517fd2131f83fbf2698a58f9c46a" +
@@ -102,12 +102,12 @@ func TestXMSSCreationHeight4(t *testing.T) {
 
 	legacyAddress := xmss.GetLegacyAddress()
 	if expectedLegacyAddress != hex.EncodeToString(legacyAddress[:]) {
-		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
+		t.Errorf("Legacy Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
 	}
 
 	tmpLegacyAddr := GetLegacyXMSSAddressFromPK(pk)
 	if expectedLegacyAddress != hex.EncodeToString(tmpLegacyAddr[:]) {
-		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
+		t.Errorf("Legacy Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
 	}
 
 	desc := NewQRLDescriptorFromExtendedPK(&pk)
@@ -126,9 +126,9 @@ func TestXMSSCreationHeight6(t *testing.T) {
 	var seed [SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedAddress := "0103003a7d5125fd1d014f972c05b715cfa2f6cd"
-	expectedLegacyAddress := "0103008b0e18dd0bac2c3fdc9a48e10fc466eef899ef074449d12ddf050317b2083527aee74bc3"
-	expectedPK := "010300859060f15adc3825adeec85c7483" +
+	expectedAddress := "11030084aa70bdb5f610cd0d75c9ae1b86606885"
+	expectedLegacyAddress := "110300eb5a9f44d54af73cd4caac865954b5b81b8a7b1024403bd97134a3fffa16f658c364f04a"
+	expectedPK := "110300859060f15adc3825adeec85c7483" +
 		"d868e898bc5117d0cff04ab1343916d4" +
 		"07af3191da3442686282b3d5160f25cf" +
 		"162a517fd2131f83fbf2698a58f9c46a" +
@@ -151,12 +151,12 @@ func TestXMSSCreationHeight6(t *testing.T) {
 
 	legacyAddress := xmss.GetLegacyAddress()
 	if expectedLegacyAddress != hex.EncodeToString(legacyAddress[:]) {
-		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
+		t.Errorf("Legacy Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(legacyAddress[:]))
 	}
 
 	tmpLegacyAddr := GetLegacyXMSSAddressFromPK(pk)
 	if expectedLegacyAddress != hex.EncodeToString(tmpLegacyAddr[:]) {
-		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
+		t.Errorf("Legacy Address Mismatch\nExpected: %s\nFound: %s", expectedLegacyAddress, hex.EncodeToString(tmpLegacyAddr[:]))
 	}
 
 	desc := NewQRLDescriptorFromExtendedPK(&pk)
@@ -247,7 +247,27 @@ func TestXMSSExceptionVerify(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			if r != "Invalid signature size" {
+			if r != "invalid signature type" {
+				t.Error("expected different panic message")
+			}
+		} else {
+			t.Error("expected panic")
+		}
+	}()
+	if Verify(message[:], signature[:], pk) {
+		t.Errorf("expected panic")
+	}
+}
+
+func TestXMSSExceptionVerify2(t *testing.T) {
+	var message [SeedSize]uint8
+	var signature [2287]uint8
+	var pk [ExtendedPKSize]uint8
+
+	signature[0] = uint8(common.XMSSSig)
+	defer func() {
+		if r := recover(); r != nil {
+			if r != "invalid signature type" {
 				t.Error("expected different panic message")
 			}
 		} else {

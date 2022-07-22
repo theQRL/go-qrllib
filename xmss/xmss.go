@@ -232,7 +232,7 @@ func VerifyWithCustomWOTSParamW(message, signature []uint8, extendedPK [Extended
 	desc := NewQRLDescriptorFromExtendedPK(&extendedPK)
 
 	if desc.GetSignatureType() != common.XMSSSig {
-		return false
+		panic("invalid signature type")
 	}
 
 	height := getHeightFromSigSize(uint32(len(signature)), wotsParamW)
