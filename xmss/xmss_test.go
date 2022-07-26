@@ -9,7 +9,7 @@ import (
 func TestXMSS_GetAddress(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11020013b5158e1e45d28c5c2dee4abfaf7e4ebf"
@@ -22,7 +22,7 @@ func TestXMSS_GetAddress(t *testing.T) {
 func TestXMSS_GetLegacyAddress(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a666cb98a4"
@@ -35,7 +35,7 @@ func TestXMSS_GetLegacyAddress(t *testing.T) {
 func TestIsValidXMSSAddress(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	address := xmss.GetAddress()
@@ -47,7 +47,7 @@ func TestIsValidXMSSAddress(t *testing.T) {
 func TestXMSS_GetMnemonic(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedMnemonic := "ban bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
@@ -60,7 +60,7 @@ func TestXMSS_GetMnemonic(t *testing.T) {
 func TestXMSS_GetExtendedSeed(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedESeed := "110200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -74,7 +74,7 @@ func TestXMSS_GetExtendedSeed(t *testing.T) {
 func TestXMSSCreationHeight4(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8 // seed initialized with 0 (default) value
+	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11020013b5158e1e45d28c5c2dee4abfaf7e4ebf"
@@ -123,7 +123,7 @@ func TestXMSSCreationHeight4(t *testing.T) {
 func TestXMSSCreationHeight6(t *testing.T) {
 	height := uint8(6)
 
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11030084aa70bdb5f610cd0d75c9ae1b86606885"
@@ -172,7 +172,7 @@ func TestXMSSCreationHeight6(t *testing.T) {
 func TestXMSS(t *testing.T) {
 	height := uint8(4)
 
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	if xmss == nil {
@@ -221,7 +221,7 @@ func TestXMSS(t *testing.T) {
 
 func TestXMSSExceptionConstructor(t *testing.T) {
 	height := uint8(7)
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	//assert.Panic(
 	//	t,
 	//	func() {
@@ -241,7 +241,7 @@ func TestXMSSExceptionConstructor(t *testing.T) {
 }
 
 func TestXMSSExceptionVerify(t *testing.T) {
-	var message [SeedSize]uint8
+	var message [common.SeedSize]uint8
 	var signature [2287]uint8
 	var pk [ExtendedPKSize]uint8
 
@@ -260,14 +260,14 @@ func TestXMSSExceptionVerify(t *testing.T) {
 }
 
 func TestXMSSExceptionVerify2(t *testing.T) {
-	var message [SeedSize]uint8
+	var message [common.SeedSize]uint8
 	var signature [2287]uint8
 	var pk [ExtendedPKSize]uint8
 
-	signature[0] = uint8(common.XMSSSig)
+	pk[0] = uint8(common.XMSSSig) << 4
 	defer func() {
 		if r := recover(); r != nil {
-			if r != "invalid signature type" {
+			if r != "Invalid signature size" {
 				t.Error("expected different panic message")
 			}
 		} else {
@@ -281,7 +281,7 @@ func TestXMSSExceptionVerify2(t *testing.T) {
 
 func TestXMSSChangeIndexTooHigh(t *testing.T) {
 	height := uint8(4)
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 	defer func() {
@@ -299,7 +299,7 @@ func TestXMSSChangeIndexTooHigh(t *testing.T) {
 
 func TestXMSSChangeIndexHigh(t *testing.T) {
 	height := uint8(4)
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 	defer func() {
@@ -316,7 +316,7 @@ func TestXMSSChangeIndexHigh(t *testing.T) {
 
 func TestXMSSChangeIndexLimit(t *testing.T) {
 	height := uint8(4)
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 
 	xmss.SetIndex(15)
@@ -327,7 +327,7 @@ func TestXMSSChangeIndexLimit(t *testing.T) {
 
 func TestXMSSChangeIndex(t *testing.T) {
 	height := uint8(4)
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, 16)
 
 	xmss.SetIndex(0)

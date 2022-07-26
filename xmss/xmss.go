@@ -33,8 +33,6 @@ const (
 const (
 	LegacyAddressSize = 39
 	ExtendedPKSize    = 67
-	SeedSize          = 48
-	ExtendedSeedSize  = 51
 )
 
 type XMSS struct {
@@ -43,7 +41,7 @@ type XMSS struct {
 	//addrFormatType eAddrFormatType  // not needed as there is only 1 type
 	height uint8
 	sk     []uint8
-	seed   [SeedSize]uint8
+	seed   [common.SeedSize]uint8
 
 	/*
 		bds_state _state;
@@ -71,7 +69,7 @@ type XMSS struct {
 	//retain   []uint8
 }
 
-func NewXMSSFromSeed(seed [SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType common.AddrFormatType) *XMSS {
+func NewXMSSFromSeed(seed [common.SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType common.AddrFormatType) *XMSS {
 	signatureType := common.XMSSSig // Signature Type hard coded for now
 	if height > MaxHeight {
 		panic("Height should be <= 254")
@@ -81,25 +79,25 @@ func NewXMSSFromSeed(seed [SeedSize]uint8, height uint8, hashFunction HashFuncti
 	return initializeTree(desc, seed)
 }
 
-func NewXMSSFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *XMSS {
+func NewXMSSFromExtendedSeed(extendedSeed [common.ExtendedSeedSize]uint8) *XMSS {
 	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
 
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	copy(seed[:], extendedSeed[common.DescriptorSize:])
 
 	return initializeTree(desc, seed)
 }
 
 func NewXMSSFromHeight(height uint8, hashFunction HashFunction) *XMSS {
-	var seed [SeedSize]uint8
+	var seed [common.SeedSize]uint8
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic("Failed to generate XMSS address")
+		panic("Failed to generate random seed for XMSS address")
 	}
 	return NewXMSSFromSeed(seed, height, hashFunction, common.SHA256_2X)
 }
 
-func initializeTree(desc *QRLDescriptor, seed [SeedSize]uint8) *XMSS {
+func initializeTree(desc *QRLDescriptor, seed [common.SeedSize]uint8) *XMSS {
 	height := uint32(desc.GetHeight())
 	hashFunction := desc.GetHashFunction()
 	sk := make([]uint8, 132)
@@ -142,12 +140,12 @@ func (x *XMSS) GetPKSeed() []uint8 {
 	return x.sk[offsetPubSeed : offsetPubSeed+32]
 }
 
-func (x *XMSS) GetSeed() [SeedSize]uint8 {
+func (x *XMSS) GetSeed() [common.SeedSize]uint8 {
 	return x.seed
 }
 
-func (x *XMSS) GetExtendedSeed() [ExtendedSeedSize]uint8 {
-	var extendedSeed [ExtendedSeedSize]uint8
+func (x *XMSS) GetExtendedSeed() [common.ExtendedSeedSize]uint8 {
+	var extendedSeed [common.ExtendedSeedSize]uint8
 	descBytes := x.desc.GetBytes()
 	seed := x.GetSeed()
 	copy(extendedSeed[:3], descBytes[:])
@@ -161,7 +159,7 @@ func (x *XMSS) GetHexSeed() string {
 }
 
 func (x *XMSS) GetMnemonic() string {
-	return misc.BinToMnemonic(x.GetExtendedSeed())
+	return misc.ExtendedSeedBinToMnemonic(x.GetExtendedSeed())
 }
 
 func (x *XMSS) GetRoot() []uint8 {
