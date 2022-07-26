@@ -23,7 +23,7 @@ func TestBinToMnemonic(t *testing.T) {
 		}
 		var eSeed [51]uint8
 		copy(eSeed[:], eSeedBin)
-		mnemonic := BinToMnemonic(eSeed)
+		mnemonic := ExtendedSeedBinToMnemonic(eSeed)
 		if mnemonic != expectedMnemonic {
 			t.Errorf("Mnemonic mismatch\nExpected: %s\nFound: %s", expectedMnemonic, mnemonic)
 		}
@@ -33,7 +33,7 @@ func TestBinToMnemonic(t *testing.T) {
 
 func TestMnemonicToBin(t *testing.T) {
 	for expectedESeed, mnemonic := range extendedSeed {
-		eSeed := MnemonicToBin(mnemonic)
+		eSeed := MnemonicToExtendedSeedBin(mnemonic)
 		eSeedStr := hex.EncodeToString(eSeed[:])
 		if expectedESeed != eSeedStr {
 			t.Errorf("ExtendedSeed mismatch\nExpected: %s\nFound: %s", expectedESeed, eSeedStr)

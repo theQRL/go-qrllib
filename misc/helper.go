@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/qrl"
 	"golang.org/x/crypto/sha3"
 	"strings"
@@ -116,7 +117,15 @@ func ToByteBigEndian(out []uint8, in uint32, bytes uint32) {
 	}
 }
 
-func BinToMnemonic(input [51]uint8) string {
+func ExtendedSeedBinToMnemonic(input [common.ExtendedSeedSize]uint8) string {
+	return binToMnemonic(input[:])
+}
+
+func SeedBinToMnemonic(input [common.SeedSize]uint8) string {
+	return binToMnemonic(input[:])
+}
+
+func binToMnemonic(input []uint8) string {
 	if len(input)%3 != 0 {
 		panic("byte count needs to be a multiple of 3")
 	}
@@ -137,7 +146,7 @@ func BinToMnemonic(input [51]uint8) string {
 		}
 		_, err := fmt.Fprint(buf, separator, qrl.WordList[idx])
 		if err != nil {
-			panic(fmt.Sprintf("BinToMnemonic error %s", err))
+			panic(fmt.Sprintf("ExtendedSeedBinToMnemonic error %s", err))
 		}
 		separator = " "
 	}
@@ -145,7 +154,31 @@ func BinToMnemonic(input [51]uint8) string {
 	return buf.String()
 }
 
-func MnemonicToBin(mnemonic string) [51]uint8 {
+func MnemonicToExtendedSeedBin(mnemonic string) [common.ExtendedSeedSize]uint8 {
+	output := mnemonicToBin(mnemonic)
+
+	if len(output) != common.ExtendedSeedSize {
+		panic("unexpected MnemonicToExtendedSeedBin output size")
+	}
+
+	var sizedOutput [common.ExtendedSeedSize]uint8
+	copy(sizedOutput[:], output)
+	return sizedOutput
+}
+
+func MnemonicToSeedBin(mnemonic string) [common.SeedSize]uint8 {
+	output := mnemonicToBin(mnemonic)
+
+	if len(output) != common.SeedSize {
+		panic("unexpected MnemonicToSeedBin output size")
+	}
+
+	var sizedOutput [common.SeedSize]uint8
+	copy(sizedOutput[:], output)
+	return sizedOutput
+}
+
+func mnemonicToBin(mnemonic string) []uint8 {
 	mnemonicWords := strings.Split(mnemonic, " ")
 	wordCount := len(mnemonicWords)
 	if wordCount%2 != 0 {
@@ -160,8 +193,7 @@ func MnemonicToBin(mnemonic string) [51]uint8 {
 		wordLookup[word] = i
 	}
 
-	var result [51]uint8
-
+	result := make([]uint8, wordCount*15/10)
 	current := 0
 	buffering := 0
 	resultIndex := 0

@@ -18,7 +18,7 @@ func NewQRLDescriptor(height uint8, hashFunction HashFunction, signatureType com
 	}
 }
 
-func NewQRLDescriptorFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *QRLDescriptor {
+func NewQRLDescriptorFromExtendedSeed(extendedSeed [common.ExtendedSeedSize]uint8) *QRLDescriptor {
 	return NewQRLDescriptorFromBytes(extendedSeed[:common.DescriptorSize])
 }
 
