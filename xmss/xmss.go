@@ -585,6 +585,9 @@ func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [common.AddressSize]uint8 {
 
 func IsValidXMSSAddress(address [common.AddressSize]uint8) bool {
 	d := NewQRLDescriptorFromBytes(address[:common.DescriptorSize])
+	if d.GetSignatureType() != common.XMSSSig {
+		return false
+	}
 	if d.GetAddrFormatType() != common.SHA256_2X {
 		return false
 	}

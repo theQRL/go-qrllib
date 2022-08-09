@@ -44,6 +44,15 @@ func TestIsValidXMSSAddress(t *testing.T) {
 	}
 }
 
+func TestIsValidXMSSAddress2(t *testing.T) {
+	addr, _ := hex.DecodeString("2001430a5152fcc369c309caf3554bd3528161c8")
+	var address [20]uint8
+	copy(address[:], addr)
+	if IsValidXMSSAddress(address) {
+		t.Errorf("Dilithium address passed the validXMSSAddres check")
+	}
+}
+
 func TestXMSS_GetMnemonic(t *testing.T) {
 	height := uint8(4)
 
