@@ -58,7 +58,7 @@ func (d *Dilithium) GetSeed() [common.SeedSize]uint8 {
 
 func (d *Dilithium) GetHexSeed() string {
 	seed := d.GetSeed()
-	return hex.EncodeToString(seed[:])
+	return "0x" + hex.EncodeToString(seed[:])
 }
 
 func (d *Dilithium) GetMnemonic() string {
