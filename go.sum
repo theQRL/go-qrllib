@@ -1,4 +1,6 @@
+github.com/gopherjs/gopherjs v1.18.0-beta1.0.20220817214357-b972ef3adc13 h1:SFRhRWRwuyWGcFUUWjmOtz6Fplqx6xhgb4pGQc9VJtc=
+github.com/gopherjs/gopherjs v1.18.0-beta1.0.20220817214357-b972ef3adc13/go.mod h1:6UY8PXRnu51MqjYCCY4toG0S5GeH5uVJ3qDxIsa+kqo=
 golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d h1:sK3txAijHtOK88l68nt020reeT1ZdKLIYetKl95FzVY=
 golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
-golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 h1:SrN+KX8Art/Sf4HNj6Zcz06G7VEz+7w9tdXTPOZ7+l4=
-golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.0.0-20220412211240-33da011f77ad h1:ntjMns5wyP/fN65tdBD4g8J5w8n015+iIIs9rtjXkY0=
+golang.org/x/sys v0.0.0-20220412211240-33da011f77ad/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
