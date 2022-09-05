@@ -5,6 +5,7 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/dilithium"
+	"strings"
 )
 
 type DilithiumJS struct {
@@ -22,9 +23,9 @@ func newDilithiumJS(d *dilithium.Dilithium) *js.Object {
 
 	djs := DilithiumJS{Object: js.Global.Get("Object").New()}
 	djs.d = d
-	djs.pk = hex.EncodeToString(binPK[:])
-	djs.sk = hex.EncodeToString(binSK[:])
-	djs.seed = hex.EncodeToString(binSeed[:])
+	djs.pk = "0x" + hex.EncodeToString(binPK[:])
+	djs.sk = "0x" + hex.EncodeToString(binSK[:])
+	djs.seed = "0x" + hex.EncodeToString(binSeed[:])
 
 	djs.Object.Set("GetPK", djs.GetPK)
 	djs.Object.Set("GetSK", djs.GetSK)
@@ -42,6 +43,7 @@ func NewDilithiumJS() *js.Object {
 }
 
 func NewDilithiumJSFromSeed(seed string) *js.Object {
+	seed = clearPrefix0x(seed)
 	binSeed, err := hex.DecodeString(seed)
 	if err != nil {
 		return nil
@@ -67,16 +69,18 @@ func (d *DilithiumJS) GetSeed() string {
 
 func (d *DilithiumJS) GetAddress() string {
 	binAddr := d.d.GetAddress()
-	return hex.EncodeToString(binAddr[:])
+	return "0x" + hex.EncodeToString(binAddr[:])
 }
 
-func (d *DilithiumJS) Sign(message string) string {
-	binSignature := d.d.Sign([]uint8(message))
-	return hex.EncodeToString(binSignature[:])
+func (d *DilithiumJS) Sign(message []uint8) string {
+	binSignature := d.d.Sign(message)
+	return "0x" + hex.EncodeToString(binSignature[:])
 }
 
-func DilithiumVerify(message string, signature string, pk string) bool {
-	binMessage := []uint8(message)
+func DilithiumVerify(message []uint8, signature string, pk string) bool {
+	signature = clearPrefix0x(signature)
+	pk = clearPrefix0x(pk)
+
 	binSignature, err := hex.DecodeString(signature)
 	if err != nil {
 		return false
@@ -89,10 +93,11 @@ func DilithiumVerify(message string, signature string, pk string) bool {
 	var sizedBinPK [dilithium.PKSizePacked]uint8
 	copy(sizedBinPK[:], binPK)
 
-	return dilithium.Verify(binMessage, binSignature, &sizedBinPK)
+	return dilithium.Verify(message, binSignature, &sizedBinPK)
 }
 
 func GetDilithiumAddressFromPK(pk string) string {
+	pk = clearPrefix0x(pk)
 	binPK, err := hex.DecodeString(pk)
 	if err != nil {
 		return ""
@@ -103,10 +108,11 @@ func GetDilithiumAddressFromPK(pk string) string {
 
 	binAddress := dilithium.GetDilithiumAddressFromPK(sizedBinPK)
 
-	return hex.EncodeToString(binAddress[:])
+	return "0x" + hex.EncodeToString(binAddress[:])
 }
 
 func IsValidDilithiumAddress(address string) bool {
+	address = clearPrefix0x(address)
 	binAddr, err := hex.DecodeString(address)
 	if err != nil {
 		return false
@@ -116,4 +122,11 @@ func IsValidDilithiumAddress(address string) bool {
 	copy(sizedBinAddr[:], binAddr)
 
 	return dilithium.IsValidDilithiumAddress(sizedBinAddr)
+}
+
+func clearPrefix0x(data string) string {
+	if strings.HasPrefix(data, "0x") {
+		return data[2:]
+	}
+	return data
 }
