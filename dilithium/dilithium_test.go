@@ -77,7 +77,7 @@ func TestNewDilithiumFromSeed(t *testing.T) {
 		t.Errorf("sk mismatch\nExpected: %s\nFound: %s", SK1, strSK)
 	}
 
-	if HexSeed != d.GetHexSeed() {
+	if "0x"+HexSeed != d.GetHexSeed() {
 		t.Errorf("hexseed mismatch\nExpected: %s\nFound: %s", HexSeed, d.GetHexSeed())
 	}
 }
@@ -137,7 +137,7 @@ func TestDilithium_GetHexSeed(t *testing.T) {
 	copy(binSeed[:], binUnsizeSeed)
 	d := NewDilithiumFromSeed(binSeed)
 
-	if HexSeed != d.GetHexSeed() {
+	if "0x"+HexSeed != d.GetHexSeed() {
 		t.Error("HexSeed Mismatch")
 	}
 }
