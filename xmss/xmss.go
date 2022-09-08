@@ -155,7 +155,7 @@ func (x *XMSS) GetExtendedSeed() [common.ExtendedSeedSize]uint8 {
 
 func (x *XMSS) GetHexSeed() string {
 	eSeed := x.GetExtendedSeed()
-	return hex.EncodeToString(eSeed[:])
+	return "0x" + hex.EncodeToString(eSeed[:])
 }
 
 func (x *XMSS) GetMnemonic() string {
