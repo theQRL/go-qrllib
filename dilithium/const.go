@@ -1,8 +1,5 @@
 package dilithium
 
-type Params struct {
-}
-
 const (
 	CryptoPublicKeyBytes = SeedBytes + K*PolyT1PackedBytes
 	CryptoSecretKeyBytes = 3*SeedBytes + L*PolyETAPackedBytes + K*PolyETAPackedBytes + K*PolyT0PackedBytes
