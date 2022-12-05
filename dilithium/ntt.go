@@ -1,43 +1,43 @@
 package dilithium
 
-func ntt(p *[N]uint32) {
+func ntt(a *[N]int32) {
 	var count, start, j, k uint
-	var zeta, t uint32
+	var zeta, t int32
 
-	k = 1
+	k = 0
 	for count = 128; count > 0; count >>= 1 {
 		for start = 0; start < N; start = j + count {
-			zeta = zetas[k]
 			k++
+			zeta = zetas[k]
 			for j = start; j < start+count; j++ {
-				t = montgomeryReduce(uint64(zeta) * uint64(p[j+count]))
-				p[j+count] = p[j] + 2*Q - t
-				p[j] = p[j] + t
+				t = montgomeryReduce(int64(zeta) * int64(a[j+count]))
+				a[j+count] = a[j] - t
+				a[j] = a[j] + t
 			}
 		}
 	}
 }
 
-func invNTTFromInvMont(p *[N]uint32) {
+func invNTTToMont(a *[N]int32) {
 	var count, start, j, k uint
-	var zeta, t uint32
-	f := uint32(((uint64(MONT) * MONT % Q) * (Q - 1) % Q) * ((Q - 1) >> 8) % Q)
+	var zeta, t int32
+	f := int32(41978)
 
-	k = 0
+	k = 256
 	for count = 1; count < N; count <<= 1 {
 		for start = 0; start < N; start = j + count {
-			zeta = zetasInv[k]
-			k++
+			k--
+			zeta = -zetas[k]
 			for j = start; j < start+count; j++ {
-				t = p[j]
-				p[j] = t + p[j+count]
-				p[j+count] = t + 256*Q - p[j+count]
-				p[j+count] = montgomeryReduce(uint64(zeta) * uint64(p[j+count]))
+				t = a[j]
+				a[j] = t + a[j+count]
+				a[j+count] = t - a[j+count]
+				a[j+count] = montgomeryReduce(int64(zeta) * int64(a[j+count]))
 			}
 		}
 	}
 
 	for j = 0; j < N; j++ {
-		p[j] = montgomeryReduce(uint64(f) * uint64(p[j]))
+		a[j] = montgomeryReduce(int64(f) * int64(a[j]))
 	}
 }
