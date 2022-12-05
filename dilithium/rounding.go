@@ -1,77 +1,43 @@
 package dilithium
 
-func powerToRound(a uint32, a0 *uint32) uint32 {
-	t := int32(a & ((1 << D) - 1))
-	t -= (1 << (D - 1)) + 1
-	t += (t >> 31) & (1 << D)
-	t -= (1 << (D - 1)) - 1
-	*a0 = uint32(Q + t)
-	a = (a - uint32(t)) >> D
-	return a
+func power2Round(a0 *int32, a int32) int32 {
+	var a1 int32
+
+	a1 = (a + (1 << (D - 1)) - 1) >> D
+	*a0 = a - (a1 << D)
+	return a1
 }
 
-func decompose(a uint32, a0 *uint32) uint32 {
-	if ALPHA != (Q-1)/16 {
-		panic("decompose assumes ALPHA == (Q-1)/16")
-	}
-	/* Centralized remainder mod ALPHA */
-	t := int32(a & 0x7FFFF)
-	t += int32((a >> 19) << 9)
-	t -= ALPHA/2 + 1
-	t += (t >> 31) & ALPHA
-	t -= ALPHA/2 - 1
-	a -= uint32(t)
+func decompose(a0 *int32, a int32) int32 {
+	a1 := (a + 127) >> 7
+	a1 = (a1*1025 + (1 << 21)) >> 22
+	a1 &= 15
 
-	/* Divide by ALPHA (possible to avoid) */
-	u := int32(a - 1)
-	u >>= 31
-	a = (a >> 19) + 1
-	a -= uint32(u & 1)
+	*a0 = a - a1*2*GAMMA2
+	*a0 -= (((Q-1)/2 - *a0) >> 31) & Q
 
-	/* Border case */
-	*a0 = uint32(Q + t - int32(a>>4))
-	a &= 0xF
-	return a
+	return a1
 }
 
-func makeHint(a, b uint32) uint32 {
-	// XXX FIXME: check if vartime bears significance in here
-	var t uint32
-	x := decompose(a, &t)
-	y := decompose(freeze(a+b), &t)
-	if x != y {
+func makeHint(a0, a1 int32) uint {
+	if a0 > GAMMA2 || a0 < -GAMMA2 || (a0 == -GAMMA2 && a1 != 0) {
 		return 1
-	} else {
-		return 0
 	}
+
+	return 0
 }
 
-func useHint(a uint32, hint uint32) uint32 {
-	var a0, a1 uint32
+func useHint(a int32, hint int) int32 {
+	var a0, a1 int32
 
-	a1 = decompose(a, &a0)
+	a1 = decompose(&a0, a)
 	if hint == 0 {
 		return a1
-	} else if a0 > Q {
-		if a1 == (Q-1)/ALPHA-1 {
-			return 0
-		} else {
-			return a1 + 1
-		}
-	} else {
-		if a1 == 0 {
-			return (Q-1)/ALPHA - 1
-		} else {
-			return a1 - 1
-		}
 	}
 
-	/* If decompose does not divide out ALPHA:
-	if(hint == 0)
-	  return a1;
-	else if(a0 > Q)
-	  return (a1 == Q - 1 - ALPHA) ? 0 : a1 + ALPHA;
-	else
-	  return (a1 == 0) ? Q - 1 - ALPHA : a1 - ALPHA;
-	*/
+	if a0 > 0 {
+		return (a1 + 1) & 15
+	} else {
+		return (a1 - 1) & 15
+	}
 }

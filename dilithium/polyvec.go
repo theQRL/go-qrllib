@@ -8,9 +8,15 @@ type polyVecL struct {
 	vec [L]poly
 }
 
-func polyVecLFreeze(v *polyVecL) {
+func polyVecLUniformGamma1(v *polyVecL, seed [CRHBytes]uint8, nonce uint16) {
+	for i := uint16(0); i < L; i++ {
+		polyUniformGamma1(&v.vec[i], seed, L*nonce+i)
+	}
+}
+
+func polyVecLReduce(v *polyVecL) {
 	for i := 0; i < L; i++ {
-		polyFreeze(&v.vec[i])
+		polyReduce(&v.vec[i])
 	}
 }
 
@@ -26,33 +32,34 @@ func polyVecLNTT(v *polyVecL) {
 	}
 }
 
-func polyVecLPointWiseAccInvMontgomery(w *poly, u, v *polyVecL) {
-	var t poly
-
-	polyPointWiseInvMontgomery(w, &u.vec[0], &v.vec[0])
-
-	for i := 1; i < L; i++ {
-		polyPointWiseInvMontgomery(&t, &u.vec[i], &v.vec[i])
-		polyAdd(w, w, &t)
-	}
-
-	for i := 0; i < N; i++ {
-		w.coeffs[i] = reduce32(w.coeffs[i])
-	}
-}
-
-func polyVecLChkNorm(v *polyVecL, bound uint32) (ret int) {
+func polyVecLInvNTTToMont(v *polyVecL) {
 	for i := 0; i < L; i++ {
-		ret |= polyChkNorm(&v.vec[i], bound)
+		polyInvNTTToMont(&v.vec[i])
 	}
-
-	return ret
 }
 
-func polyVecKFreeze(v *polyVecK) {
-	for i := 0; i < K; i++ {
-		polyFreeze(&v.vec[i])
+func polyVecLPointWisePolyMontgomery(r *polyVecL, a *poly, v *polyVecL) {
+	for i := 0; i < L; i++ {
+		polyPointWiseMontgomery(&r.vec[i], a, &v.vec[i])
 	}
+}
+
+func polyVecMatrixExpand(mat *[K]polyVecL, rho *[SeedBytes]uint8) {
+	for i := 0; i < K; i++ {
+		for j := 0; j < L; j++ {
+			polyUniform(&mat[i].vec[j], rho, (uint16(i)<<8)+uint16(j))
+		}
+	}
+}
+
+func polyVecLChkNorm(v *polyVecL, bound int32) (ret int) {
+	for i := 0; i < L; i++ {
+		if polyChkNorm(&v.vec[i], bound) != 0 {
+			return 1
+		}
+	}
+
+	return 0
 }
 
 func polyVecKAdd(w, u, v *polyVecK) {
@@ -66,15 +73,9 @@ func polyVecKSub(w, u, v *polyVecK) {
 	}
 }
 
-func polyVecKNeg(v *polyVecK) {
+func polyVecKShiftL(v *polyVecK) {
 	for i := 0; i < K; i++ {
-		polyNeg(&v.vec[i])
-	}
-}
-
-func polyVecKShiftL(v *polyVecK, k uint) {
-	for i := 0; i < K; i++ {
-		polyShiftL(&v.vec[i], k)
+		polyShiftL(&v.vec[i])
 	}
 }
 
@@ -83,52 +84,100 @@ func polyVecKNTT(v *polyVecK) {
 		polyNTT(&v.vec[i])
 	}
 }
-func polyVecKInvNTTMontgomery(v *polyVecK) {
+
+func polyVecKInvNTTToMont(v *polyVecK) {
 	for i := 0; i < K; i++ {
-		polyInvNTTMontgomery(&v.vec[i])
+		polyInvNTTToMont(&v.vec[i])
 	}
 }
 
-func polyVecKChkNorm(v *polyVecK, bound uint32) (ret int) {
+func polyVecKPointWisePolyMontgomery(r *polyVecK, a *poly, v *polyVecK) {
 	for i := 0; i < K; i++ {
-		ret |= polyChkNorm(&v.vec[i], bound)
+		polyPointWiseMontgomery(&r.vec[i], a, &v.vec[i])
 	}
-	return ret
+}
+
+func polyVecKChkNorm(v *polyVecK, bound int32) (ret int) {
+	for i := 0; i < K; i++ {
+		if polyChkNorm(&v.vec[i], bound) != 0 {
+			return 1
+		}
+	}
+	return 0
 }
 
 func polyVecKPower2Round(v1, v0, v *polyVecK) {
 	for i := 0; i < K; i++ {
-		for j := 0; j < N; j++ {
-			v1.vec[i].coeffs[j] = powerToRound(v.vec[i].coeffs[j],
-				&v0.vec[i].coeffs[j])
-
-		}
+		polyPower2Round(&v1.vec[i], &v0.vec[i], &v.vec[i])
 	}
 }
 
 func polyVecKDecompose(v1, v0, v *polyVecK) {
 	for i := 0; i < K; i++ {
-		for j := 0; j < N; j++ {
-			v1.vec[i].coeffs[j] = decompose(v.vec[i].coeffs[j],
-				&v0.vec[i].coeffs[j])
-		}
+		polyDecompose(&v1.vec[i], &v0.vec[i], &v.vec[i])
 	}
 }
 
-func polyVecKMakeHint(h, u, v *polyVecK) (s uint32) {
+func polyVecKMakeHint(h, v0, v1 *polyVecK) (s uint) {
 	for i := 0; i < K; i++ {
-		for j := 0; j < N; j++ {
-			h.vec[i].coeffs[j] = makeHint(u.vec[i].coeffs[j], v.vec[i].coeffs[j])
-			s += h.vec[i].coeffs[j]
-		}
+		s += polyMakeHint(&h.vec[i], &v0.vec[i], &v1.vec[i])
 	}
 	return s
 }
 
 func polyVecKUseHint(w, u, h *polyVecK) {
 	for i := 0; i < K; i++ {
-		for j := 0; j < N; j++ {
-			w.vec[i].coeffs[j] = useHint(u.vec[i].coeffs[j], h.vec[i].coeffs[j])
-		}
+		polyUseHint(&w.vec[i], &u.vec[i], &h.vec[i])
+	}
+}
+
+func polyVecLPointWiseAccMontgomery(w *poly, u, v *polyVecL) {
+	var t poly
+
+	polyPointWiseMontgomery(w, &u.vec[0], &v.vec[0])
+	for i := 1; i < L; i++ {
+		polyPointWiseMontgomery(&t, &u.vec[i], &v.vec[i])
+		polyAdd(w, w, &t)
+	}
+}
+
+func polyVecMatrixPointWiseMontgomery(t *polyVecK, mat *[K]polyVecL, v *polyVecL) {
+	for i := 0; i < K; i++ {
+		polyVecLPointWiseAccMontgomery(&t.vec[i], &mat[i], v)
+	}
+}
+
+func polyVecLUniformETA(v *polyVecL, seed *[CRHBytes]uint8, nonce uint16) {
+	for i := 0; i < L; i++ {
+		polyUniformEta(&v.vec[i], seed, nonce)
+		nonce++
+	}
+}
+
+func polyVecKUniformETA(v *polyVecK, seed *[CRHBytes]uint8, nonce uint16) {
+	for i := 0; i < K; i++ {
+		polyUniformEta(&v.vec[i], seed, nonce)
+		nonce++
+	}
+}
+
+func polyVecKReduce(v *polyVecK) {
+	for i := 0; i < K; i++ {
+		polyReduce(&v.vec[i])
+	}
+}
+
+func polyVecKCAddQ(v *polyVecK) {
+	for i := 0; i < K; i++ {
+		polyCAddQ(&v.vec[i])
+	}
+}
+
+func polyVecKPackW1(r []uint8, w1 *polyVecK) {
+	if len(r) != K*PolyW1PackedBytes {
+		panic("invalid length")
+	}
+	for i := 0; i < K; i++ {
+		polyW1Pack(r[i*PolyW1PackedBytes:], &w1.vec[i])
 	}
 }

@@ -1,174 +1,74 @@
 package dilithium
 
-import "golang.org/x/crypto/sha3"
+import (
+	"golang.org/x/crypto/sha3"
+)
 import "crypto/rand"
 
-func expandMat(mat *[K]polyVecL, rho *[SeedBytes]byte) {
-	var inbuf [SeedBytes + 1]byte
-	/* Don't change this to smaller values,
-	 * sampling later assumes sufficient SHAKE output!
-	 * Probability that we need more than 5 blocks: < 2^{-132}.
-	 * Probability that we need more than 6 blocks: < 2^{-546}. */
-	var outbuf [5 * Shake128Rate]byte
-	var val uint32
-
-	copy(inbuf[:], rho[:])
-
-	for i := 0; i < K; i++ {
-		for j := 0; j < L; j++ {
-			ctr, pos := 0, 0
-			inbuf[SeedBytes] = byte(i + (j << 4))
-
-			sha3.ShakeSum128(outbuf[:], inbuf[:])
-
-			for ctr < N {
-				val = uint32(outbuf[pos])
-				val |= uint32(outbuf[pos+1]) << 8
-				val |= uint32(outbuf[pos+2]) << 16
-				val &= 0x7FFFFF
-				pos += 3
-
-				/* Rejection sampling */
-				if val < Q {
-					mat[i].vec[j].coeffs[ctr] = val
-					ctr++
-				}
-			}
-		}
-	}
-}
-
-func challenge(c *poly, mu *[CrhBytes]byte, w1 *polyVecK) {
-	var inbuf [CrhBytes + K*PolW1SizePacked]byte
-	var outbuf [Shake256Rate]byte
-
-	copy(inbuf[:], mu[:])
-	for i := 0; i < K; i++ {
-		polyW1Pack(inbuf[CrhBytes+i*PolW1SizePacked:], &w1.vec[i])
-	}
-
-	state := sha3.NewShake256()
-	state.Write(inbuf[:])
-	state.Read(outbuf[:])
-
-	signs := uint64(0)
-	for i := uint(0); i < 8; i++ {
-		signs |= uint64(outbuf[i]) << (8 * i)
-	}
-
-	mask := uint64(1)
-
-	*c = poly{}
-	pos := 8
-	for i := 196; i < 256; i++ {
-		var b int
-		// randomly truncated hash outputs, huh?
-		for {
-			if pos >= Shake256Rate {
-				state.Read(outbuf[:])
-				pos = 0
-			}
-			b = int(outbuf[pos])
-			pos++
-			if b <= i {
-				break
-			}
-		}
-		c.coeffs[i] = c.coeffs[b]
-
-		// TODO FIXME vartime
-		if (signs & mask) != 0 {
-			c.coeffs[b] = Q - 1
-		} else {
-			c.coeffs[b] = 1
-		}
-		mask <<= 1
-	}
-}
-
 // Take a random seed, and compute sk/pk pair.
-func cryptoSignKeypair(seed []byte, pk *[PKSizePacked]byte, sk *[SKSizePacked]byte) []byte {
-	var tr [CrhBytes]byte
-	var rho, rhoprime, key [SeedBytes]byte
-	var s2, t, t1, t0 polyVecK
-	var s1, s1hat polyVecL
+func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) []uint8 {
+	var tr [SeedBytes]uint8
+	//var rho, rhoprime, key [SeedBytes]byte
+	var rho, key [SeedBytes]uint8
+	var rhoPrime [CRHBytes]uint8
+
 	var mat [K]polyVecL
-	var nonce uint16
+	var s1, s1hat polyVecL
+	var s2, t1, t0 polyVecK
 
 	if seed == nil {
-		seed = make([]byte, SeedBytes)
-		rand.Read(seed)
+		seed = make([]uint8, SeedBytes)
+		_, err := rand.Read(seed)
+		if err != nil {
+			panic("failed to generate random seed")
+		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
 	state := sha3.NewShake256()
 	state.Write(seed)
 	state.Read(rho[:])
-	state.Read(rhoprime[:])
+	state.Read(rhoPrime[:])
 	state.Read(key[:])
 
 	/* Expand matrix */
-	expandMat(&mat, &rho)
+	polyVecMatrixExpand(&mat, &rho)
 
 	/* Sample short vectors s1 and s2 */
-	for i := 0; i < L; i++ {
-		if nonce > 255 {
-			panic("bad mode")
-		}
-		polyUniformEta(&s1.vec[i], &rhoprime, byte(nonce))
-		nonce++
-	}
-	for i := 0; i < K; i++ {
-		if nonce > 255 {
-			panic("bad mode")
-		}
-		polyUniformEta(&s2.vec[i], &rhoprime, byte(nonce))
-		nonce++
-	}
+	polyVecLUniformETA(&s1, &rhoPrime, 0)
+	polyVecKUniformETA(&s2, &rhoPrime, L)
 
 	/* Matrix-vector multiplication */
 	s1hat = s1
 	polyVecLNTT(&s1hat)
-	for i := 0; i < K; i++ {
-		polyVecLPointWiseAccInvMontgomery(&t.vec[i], &mat[i], &s1hat)
-		polyInvNTTMontgomery(&t.vec[i])
-	}
+	polyVecMatrixPointWiseMontgomery(&t1, &mat, &s1hat)
+	polyVecKReduce(&t1)
+	polyVecKInvNTTToMont(&t1)
 
 	/* Add noise vector s2 */
-	polyVecKAdd(&t, &t, &s2)
+	polyVecKAdd(&t1, &t1, &s2)
 
 	/* Extract t1 and write public key */
-	polyVecKFreeze(&t)
-	polyVecKPower2Round(&t1, &t0, &t)
-	packPk(pk, &rho, &t1)
+	polyVecKCAddQ(&t1)
+	polyVecKPower2Round(&t1, &t0, &t1)
+	packPk(pk, rho, &t1)
 
 	/* Compute tr = CRH(rho, t1) and write secret key */
 	sha3.ShakeSum256(tr[:], pk[:])
-	packSk(sk, &rho, &key, &tr, &s1, &s2, &t0)
+	packSk(sk, rho, tr, key, &t0, &s1, &s2)
 
 	return seed
 }
 
-func cryptoSignAttached(sm *[SigSizePacked]byte, m []byte, sk *[SKSizePacked]byte) {
-	z, h, c := cryptoSignRaw(m, sk)
-	/* Write signature */
-	packSig(sm, z, h, c)
-}
-func cryptoSignDetached(sm *[SigSizePacked]byte, m []byte, sk *[SKSizePacked]byte) []byte {
-	z, h, c := cryptoSignRaw(m, sk)
-	/* Write signature */
-	return packSigDetached(sm, z, h, c)
-}
-
-func cryptoSignRaw(m []byte, sk *[SKSizePacked]byte) (*polyVecL, *polyVecK, *poly) {
-	var rho, key [SeedBytes]byte
-	var tr, mu [CrhBytes]byte
-	var s1, y, yhat, z polyVecL
+func cryptoSignSignature(sig, m []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) int {
+	var rho, key, tr [SeedBytes]uint8
+	var mu, rhoPrime [CRHBytes]uint8
+	var s1, y, z polyVecL
 	var mat [K]polyVecL
-	var s2, t0, w, w1, h, wcs2, wcs20, ct0, tmp polyVecK
+	var s2, t0, w1, h, w0 polyVecK
+	var cp poly
 	var nonce uint16
-	var c, chat poly
 
-	unpackSk(&rho, &key, &tr, &s1, &s2, &t0, sk)
+	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
 
 	/* Compute CRH(tr, msg) */
 	state := sha3.NewShake256()
@@ -176,8 +76,20 @@ func cryptoSignRaw(m []byte, sk *[SKSizePacked]byte) (*polyVecL, *polyVecK, *pol
 	state.Write(m)
 	state.Read(mu[:])
 
+	if randomizedSigning {
+		_, err := rand.Read(rhoPrime[:])
+		if err != nil {
+			panic("failed to generate random rhoPrime")
+		}
+	} else {
+		var dataToBeHashed [SeedBytes + CRHBytes]uint8
+		copy(dataToBeHashed[:], key[:SeedBytes])
+		copy(dataToBeHashed[SeedBytes:], mu[:CRHBytes])
+		sha3.ShakeSum256(rhoPrime[:], dataToBeHashed[:])
+	}
+
 	/* Expand matrix and transform vectors */
-	expandMat(&mat, &rho)
+	polyVecMatrixExpand(&mat, &rho)
 	polyVecLNTT(&s1)
 	polyVecKNTT(&s2)
 	polyVecKNTT(&t0)
@@ -185,148 +97,127 @@ func cryptoSignRaw(m []byte, sk *[SKSizePacked]byte) (*polyVecL, *polyVecK, *pol
 rej:
 
 	/* Sample intermediate vector y */
-	for i := 0; i < L; i++ {
-		polyUniformGamma1m1(&y.vec[i], &key, &mu, nonce)
-		nonce++
-	}
+	polyVecLUniformGamma1(&y, rhoPrime, nonce)
+	nonce++
 
 	/* Matrix-vector multiplication */
-	yhat = y
-	polyVecLNTT(&yhat)
-	for i := 0; i < K; i++ {
-		polyVecLPointWiseAccInvMontgomery(&w.vec[i], &mat[i], &yhat)
-		polyInvNTTMontgomery(&w.vec[i])
-	}
+	z = y
+	polyVecLNTT(&z)
+	polyVecMatrixPointWiseMontgomery(&w1, &mat, &z)
+	polyVecKReduce(&w1)
+	polyVecKInvNTTToMont(&w1)
 
 	/* Decompose w and call the random oracle */
-	polyVecKFreeze(&w)
-	polyVecKDecompose(&w1, &tmp, &w)
-	challenge(&c, &mu, &w1)
+	polyVecKCAddQ(&w1)
+	polyVecKDecompose(&w1, &w0, &w1)
+	polyVecKPackW1(sig[:K*PolyW1PackedBytes], &w1)
+
+	state = sha3.NewShake256()
+	state.Write(mu[:])
+	state.Write(sig[:K*PolyW1PackedBytes])
+	state.Read(sig[:SeedBytes])
+	polyChallenge(&cp, sig[:SeedBytes])
+	polyNTT(&cp)
 
 	/* Compute z, reject if it reveals secret */
-	chat = c
-	polyNTT(&chat)
-	for i := 0; i < L; i++ {
-		polyPointWiseInvMontgomery(&z.vec[i], &chat, &s1.vec[i])
-		polyInvNTTMontgomery(&z.vec[i])
-	}
+	polyVecLPointWisePolyMontgomery(&z, &cp, &s1)
+	polyVecLInvNTTToMont(&z)
 	polyVecLAdd(&z, &z, &y)
-	polyVecLFreeze(&z)
+	polyVecLReduce(&z)
 	if polyVecLChkNorm(&z, GAMMA1-BETA) != 0 {
 		goto rej
 	}
 
-	/* Compute w - cs2, reject if w1 can not be computed from it */
-	for i := 0; i < K; i++ {
-		polyPointWiseInvMontgomery(&wcs2.vec[i], &chat, &s2.vec[i])
-		polyInvNTTMontgomery(&wcs2.vec[i])
-	}
-	polyVecKSub(&wcs2, &w, &wcs2)
-	polyVecKFreeze(&wcs2)
-	polyVecKDecompose(&tmp, &wcs20, &wcs2)
-	polyVecKFreeze(&wcs20)
-	if polyVecKChkNorm(&wcs20, GAMMA2-BETA) != 0 {
+	/* Check that subtracting cs2 does not change high bits of w and low bits
+	 * do not reveal secret information */
+	polyVecKPointWisePolyMontgomery(&h, &cp, &s2)
+	polyVecKInvNTTToMont(&h)
+	polyVecKSub(&w0, &w0, &h)
+	polyVecKReduce(&w0)
+	if polyVecKChkNorm(&w0, GAMMA2-BETA) != 0 {
 		goto rej
-	}
-
-	for i := 0; i < K; i++ {
-		for j := 0; j < N; j++ {
-			if tmp.vec[i].coeffs[j] != w1.vec[i].coeffs[j] {
-				goto rej
-			}
-		}
 	}
 
 	/* Compute hints for w1 */
-	for i := 0; i < K; i++ {
-		polyPointWiseInvMontgomery(&ct0.vec[i], &chat, &t0.vec[i])
-		polyInvNTTMontgomery(&ct0.vec[i])
-	}
-
-	polyVecKFreeze(&ct0)
-	if polyVecKChkNorm(&ct0, GAMMA2) != 0 {
+	polyVecKPointWisePolyMontgomery(&h, &cp, &t0)
+	polyVecKInvNTTToMont(&h)
+	polyVecKReduce(&h)
+	if polyVecKChkNorm(&h, GAMMA2) != 0 {
 		goto rej
 	}
 
-	polyVecKAdd(&tmp, &wcs2, &ct0)
-	polyVecKNeg(&ct0)
-	polyVecKFreeze(&tmp)
-	n := polyVecKMakeHint(&h, &tmp, &ct0)
+	polyVecKAdd(&w0, &w0, &h)
+	n := polyVecKMakeHint(&h, &w0, &w1)
 	if n > OMEGA {
 		goto rej
 	}
 
-	return &z, &h, &c
+	packSig(sig[:CryptoBytes], sig[:SeedBytes], &z, &h)
+	return 0
 }
 
-func cryptoVerifyAttached(sm *[SigSizePacked]byte, m []byte, pk *[PKSizePacked]byte) bool {
-	var z polyVecL
-	var h polyVecK
-	var c poly
-	if !unpackSig(&z, &h, &c, sm) {
-		return false
+// attached sig wrappers
+func cryptoSign(msg []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) []uint8 {
+	sm := make([]uint8, CryptoBytes+len(msg))
+	copy(sm[CryptoBytes:], msg)
+	if cryptoSignSignature(sm[:CryptoBytes], sm[CryptoBytes:], sk, randomizedSigning) != 0 {
+		panic("failed to sign")
 	}
-	return cryptoVerifyRaw(&z, &h, &c, m, pk)
+	return sm
 }
 
-func cryptoVerifyDetached(sm []byte, m []byte, pk *[PKSizePacked]byte) bool {
+func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyBytes]uint8) bool {
+	var buf [K * PolyW1PackedBytes]uint8
+	var rho, c, c2 [SeedBytes]uint8
+	var mu [CRHBytes]uint8
 	var z polyVecL
-	var h polyVecK
-	var c poly
-	if !unpackSigDetached(&z, &h, &c, sm) {
-		return false
-	}
-	return cryptoVerifyRaw(&z, &h, &c, m, pk)
-}
-
-func cryptoVerifyRaw(z *polyVecL, h *polyVecK, c *poly, m []byte, pk *[PKSizePacked]byte) bool {
-	var rho [SeedBytes]byte
-	var tr, mu [CrhBytes]byte
-	var chat, cp poly
 	var mat [K]polyVecL
-	var t1, w1, tmp1, tmp2 polyVecK
+	var t1, w1, h polyVecK
+	var cp poly
 
 	unpackPk(&rho, &t1, pk)
-	if polyVecLChkNorm(z, GAMMA1-BETA) != 0 {
+	if unpackSig(&c, &z, &h, sig) != 0 {
+		return false
+	}
+	if polyVecLChkNorm(&z, GAMMA1-BETA) != 0 {
 		return false
 	}
 
-	/* Compute mu = CRH(CRH(pk), msg) (pk = (rho, t1))  */
-	sha3.ShakeSum256(tr[:], pk[:])
+	/* Compute CRH(H(rho, t1), msg) */
+	sha3.ShakeSum256(mu[:SeedBytes], pk[:CryptoPublicKeyBytes])
 	state := sha3.NewShake256()
-	state.Write(tr[:])
+	state.Write(mu[:SeedBytes])
 	state.Write(m)
-	state.Read(mu[:])
-
-	/* Expand rho matrix */
-	expandMat(&mat, &rho)
+	state.Read(mu[:CRHBytes])
 
 	/* Matrix-vector multiplication; compute Az - c2^dt1 */
-	polyVecLNTT(z)
-	for i := 0; i < K; i++ {
-		polyVecLPointWiseAccInvMontgomery(&tmp1.vec[i], &mat[i], z)
-	}
+	polyChallenge(&cp, c[:])
+	polyVecMatrixExpand(&mat, &rho)
 
-	chat = *c
-	polyNTT(&chat)
-	polyVecKShiftL(&t1, D)
+	polyVecLNTT(&z)
+	polyVecMatrixPointWiseMontgomery(&w1, &mat, &z)
+
+	polyNTT(&cp)
+	polyVecKShiftL(&t1)
 	polyVecKNTT(&t1)
-	for i := 0; i < K; i++ {
-		polyPointWiseInvMontgomery(&tmp2.vec[i], &chat, &t1.vec[i])
-	}
+	polyVecKPointWisePolyMontgomery(&t1, &cp, &t1)
 
-	polyVecKSub(&tmp1, &tmp1, &tmp2)
-	polyVecKFreeze(&tmp1) // reduce32 would be sufficient
-	polyVecKInvNTTMontgomery(&tmp1)
+	polyVecKSub(&w1, &w1, &t1)
+	polyVecKReduce(&w1)
+	polyVecKInvNTTToMont(&w1)
 
 	/* Reconstruct w1 */
-	polyVecKFreeze(&tmp1)
-	polyVecKUseHint(&w1, &tmp1, h)
+	polyVecKCAddQ(&w1)
+	polyVecKUseHint(&w1, &w1, &h)
+	polyVecKPackW1(buf[:], &w1)
 
 	/* Call random oracle and verify challenge */
-	challenge(&cp, &mu, &w1)
-	for i := 0; i < N; i++ {
-		if c.coeffs[i] != cp.coeffs[i] {
+	state = sha3.NewShake256()
+	state.Write(mu[:CRHBytes])
+	state.Write(buf[:K*PolyW1PackedBytes])
+	state.Read(c2[:SeedBytes])
+	for i := 0; i < SeedBytes; i++ {
+		if c[i] != c2[i] {
 			return false
 		}
 	}
@@ -334,22 +225,20 @@ func cryptoVerifyRaw(z *polyVecL, h *polyVecK, c *poly, m []byte, pk *[PKSizePac
 	return true
 }
 
-// attached sig wrappers
-func cryptoSign(msg []byte, sk *[SKSizePacked]byte) []byte {
-	var sig [SigSizePacked]byte
-	cryptoSignAttached(&sig, msg, sk)
-	return append(sig[:], msg...)
-}
-
-func cryptoSignOpen(msg []byte, pk *[PKSizePacked]byte) []byte {
-	var sig [SigSizePacked]byte
-	if len(msg) < SigSizePacked {
+func cryptoSignOpen(sm []uint8, pk *[CryptoPublicKeyBytes]uint8) []uint8 {
+	if len(sm) < CryptoBytes {
 		return nil
 	}
-	copy(sig[:], msg)
-	d := msg[SigSizePacked:]
-	if cryptoVerifyAttached(&sig, d, pk) {
-		return d
+
+	var sig [CryptoBytes]uint8
+	msg := make([]uint8, len(sm)-CryptoBytes)
+
+	copy(sig[:], sm)
+	copy(msg, sm[CryptoBytes:])
+
+	if !cryptoSignVerify(sig, msg, pk) {
+		return nil
 	}
-	return nil
+
+	return msg
 }
