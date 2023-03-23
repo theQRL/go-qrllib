@@ -1,5 +1,9 @@
 package dilithium
 
+import (
+	"fmt"
+)
+
 type polyVecK struct {
 	vec [K]poly
 }
@@ -44,12 +48,15 @@ func polyVecLPointWisePolyMontgomery(r *polyVecL, a *poly, v *polyVecL) {
 	}
 }
 
-func polyVecMatrixExpand(mat *[K]polyVecL, rho *[SeedBytes]uint8) {
+func polyVecMatrixExpand(mat *[K]polyVecL, rho *[SeedBytes]uint8) error {
 	for i := 0; i < K; i++ {
 		for j := 0; j < L; j++ {
-			polyUniform(&mat[i].vec[j], rho, (uint16(i)<<8)+uint16(j))
+			if err := polyUniform(&mat[i].vec[j], rho, (uint16(i)<<8)+uint16(j)); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func polyVecLChkNorm(v *polyVecL, bound int32) (ret int) {
@@ -147,18 +154,24 @@ func polyVecMatrixPointWiseMontgomery(t *polyVecK, mat *[K]polyVecL, v *polyVecL
 	}
 }
 
-func polyVecLUniformETA(v *polyVecL, seed *[CRHBytes]uint8, nonce uint16) {
+func polyVecLUniformETA(v *polyVecL, seed *[CRHBytes]uint8, nonce uint16) error {
 	for i := 0; i < L; i++ {
-		polyUniformEta(&v.vec[i], seed, nonce)
+		if err := polyUniformEta(&v.vec[i], seed, nonce); err != nil {
+			return err
+		}
 		nonce++
 	}
+	return nil
 }
 
-func polyVecKUniformETA(v *polyVecK, seed *[CRHBytes]uint8, nonce uint16) {
+func polyVecKUniformETA(v *polyVecK, seed *[CRHBytes]uint8, nonce uint16) error {
 	for i := 0; i < K; i++ {
-		polyUniformEta(&v.vec[i], seed, nonce)
+		if err := polyUniformEta(&v.vec[i], seed, nonce); err != nil {
+			return err
+		}
 		nonce++
 	}
+	return nil
 }
 
 func polyVecKReduce(v *polyVecK) {
@@ -173,11 +186,12 @@ func polyVecKCAddQ(v *polyVecK) {
 	}
 }
 
-func polyVecKPackW1(r []uint8, w1 *polyVecK) {
+func polyVecKPackW1(r []uint8, w1 *polyVecK) error {
 	if len(r) != K*PolyW1PackedBytes {
-		panic("invalid length")
+		return fmt.Errorf("invalid length | length expected %d | found %d", K*PolyW1PackedBytes, len(r))
 	}
 	for i := 0; i < K; i++ {
 		polyW1Pack(r[i*PolyW1PackedBytes:], &w1.vec[i])
 	}
+	return nil
 }
