@@ -1,5 +1,7 @@
 package dilithium
 
+import "fmt"
+
 func packPk(pkb *[CryptoPublicKeyBytes]uint8, rho [SeedBytes]uint8, t1 *polyVecK) {
 	pk := pkb[:]
 	copy(pk[:], rho[:])
@@ -76,12 +78,12 @@ func unpackSk(rho,
 	}
 }
 
-func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) {
+func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CryptoBytes {
-		panic("invalid sigb length")
+		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CryptoBytes, len(sigb))
 	}
 	if len(c) != SeedBytes {
-		panic("invalid c length")
+		return fmt.Errorf("invalid c length | length expected %v | found %v", SeedBytes, len(c))
 	}
 	sig := sigb[:]
 
@@ -108,6 +110,7 @@ func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) {
 			sig[OMEGA+i] = uint8(k)
 		}
 	}
+	return nil
 }
 
 func unpackSig(c *[SeedBytes]uint8,

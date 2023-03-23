@@ -1,6 +1,7 @@
 package dilithium
 
 import (
+	"errors"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -104,22 +105,19 @@ func polyChkNorm(a *poly, B int32) int {
 	return 0
 }
 
-func polyUniform(a *poly, seed *[SeedBytes]uint8, nonce uint16) {
+func polyUniform(a *poly, seed *[SeedBytes]uint8, nonce uint16) error {
 	bufLen := PolyUniformNBlocks * Stream128BlockBytes
 	var buf [PolyUniformNBlocks*Stream128BlockBytes + 2]uint8
 
 	state := sha3.NewShake128()
-	_, err := state.Write(seed[:])
-	if err != nil {
-
+	if _, err := state.Write(seed[:]); err != nil {
+		return err
 	}
-	_, err = state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)})
-	if err != nil {
-
+	if _, err := state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)}); err != nil {
+		return err
 	}
-	_, err = state.Read(buf[:])
-	if err != nil {
-
+	if _, err := state.Read(buf[:]); err != nil {
+		return err
 	}
 
 	ctr := rejUniform(a.coeffs[:], buf[:])
@@ -130,13 +128,13 @@ func polyUniform(a *poly, seed *[SeedBytes]uint8, nonce uint16) {
 			buf[i] = buf[bufLen-off+i]
 		}
 
-		_, err = state.Read(buf[off : Stream128BlockBytes+off])
-		if err != nil {
-
+		if _, err := state.Read(buf[off : Stream128BlockBytes+off]); err != nil {
+			return err
 		}
 		bufLen = Stream128BlockBytes + off
 		ctr += rejUniform(a.coeffs[ctr:], buf[:bufLen])
 	}
+	return nil
 }
 
 func rejUniform(a []int32, buf []uint8) uint32 {
@@ -182,28 +180,28 @@ func rejEta(a []int32, buf []uint8) uint32 {
 	return ctr
 }
 
-func polyUniformEta(a *poly, seed *[CRHBytes]uint8, nonce uint16) {
+func polyUniformEta(a *poly, seed *[CRHBytes]uint8, nonce uint16) error {
 	var buf [PolyUniformETANBlocks * Stream256BlockBytes]uint8
 	state := sha3.NewShake256()
 
-	_, err := state.Write(seed[:])
-	if err != nil {
-		panic("error writing shake256 state")
+	if _, err := state.Write(seed[:]); err != nil {
+		return err
 	}
-	_, err = state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)})
-	if err != nil {
-		panic("error writing shake256 state")
+	if _, err := state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)}); err != nil {
+		return err
 	}
-	_, err = state.Read(buf[:])
-	if err != nil {
-		panic("error reading shake256 output")
+	if _, err := state.Read(buf[:]); err != nil {
+		return err
 	}
 
 	ctr := rejEta(a.coeffs[:], buf[:])
 	for ctr < N {
-		state.Read(buf[:Stream256BlockBytes])
+		if _, err := state.Read(buf[:Stream256BlockBytes]); err != nil {
+			return err
+		}
 		ctr += rejEta(a.coeffs[ctr:], buf[:Stream256BlockBytes])
 	}
+	return nil
 }
 
 func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
@@ -226,15 +224,19 @@ func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
 	polyZUnpack(a, buf[:])
 }
 
-func polyChallenge(c *poly, seed []uint8) {
+func polyChallenge(c *poly, seed []uint8) error {
 	var pos, b uint
 	if len(seed) != SeedBytes {
-		panic("invalid seed length")
+		return errors.New("invalid seed length")
 	}
 	var buf [Shake256Rate]uint8
 	state := sha3.NewShake256()
-	state.Write(seed)
-	state.Read(buf[:])
+	if _, err := state.Write(seed); err != nil {
+		return err
+	}
+	if _, err := state.Read(buf[:]); err != nil {
+		return err
+	}
 
 	signs := uint64(0)
 	for i := uint64(0); i < 8; i++ {
@@ -248,7 +250,9 @@ func polyChallenge(c *poly, seed []uint8) {
 	for i := N - TAU; i < N; i++ {
 		for {
 			if pos >= Shake256Rate {
-				state.Read(buf[:])
+				if _, err := state.Read(buf[:]); err != nil {
+					return err
+				}
 				pos = 0
 			}
 
@@ -263,6 +267,7 @@ func polyChallenge(c *poly, seed []uint8) {
 		c.coeffs[b] = int32(1 - 2*(signs&1))
 		signs >>= 1
 	}
+	return nil
 }
 
 func polyEtaPack(r []uint8, a *poly) {
