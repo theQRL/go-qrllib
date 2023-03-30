@@ -52,6 +52,19 @@ func NewDilithiumFromMnemonic(mnemonic string) *Dilithium {
     return NewDilithiumFromSeed(seed)
 }
 
+func NewDilithiumFromHexSeed(hexseed string) *Dilithium {
+	seed, err := hex.DecodeString(hexseed)
+	if err != nil {
+		panic("Failed to decode hexseed to bin")
+	}
+	if len(seed) != common.SeedSize {
+		panic("Seed is not equal to SeedSize")
+	}
+	var binSeed [common.SeedSize]uint8
+	copy(binSeed[:], seed[:common.SeedSize])
+	return NewDilithiumFromSeed(binSeed)
+}
+
 //func NewFromKeys(pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) *Dilithium {
 //	return &Dilithium{*pk, *sk}
 //}
