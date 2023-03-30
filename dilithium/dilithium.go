@@ -47,6 +47,11 @@ func NewDilithiumFromSeed(seed [common.SeedSize]uint8) (*Dilithium, error) {
 	return &Dilithium{pk, sk, seed, false}, nil
 }
 
+func NewDilithiumFromMnemonic(mnemonic string) *Dilithium {
+    seed := misc.MnemonicToSeedBin(mnemonic)
+    return NewDilithiumFromSeed(seed)
+}
+
 //func NewFromKeys(pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) *Dilithium {
 //	return &Dilithium{*pk, *sk}
 //}
