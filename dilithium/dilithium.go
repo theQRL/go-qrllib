@@ -48,8 +48,8 @@ func NewDilithiumFromSeed(seed [common.SeedSize]uint8) (*Dilithium, error) {
 }
 
 func NewDilithiumFromMnemonic(mnemonic string) *Dilithium {
-    seed := misc.MnemonicToSeedBin(mnemonic)
-    return NewDilithiumFromSeed(seed)
+    	seed := misc.MnemonicToSeedBin(mnemonic)
+    	return NewDilithiumFromSeed(seed)
 }
 
 func NewDilithiumFromHexSeed(hexseed string) *Dilithium {
