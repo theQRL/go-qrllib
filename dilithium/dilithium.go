@@ -47,13 +47,13 @@ func NewDilithiumFromSeed(seed [common.SeedSize]uint8) (*Dilithium, error) {
 	return &Dilithium{pk, sk, seed, false}, nil
 }
 
-func NewDilithiumFromMnemonic(mnemonic string) *Dilithium {
-    	seed := misc.MnemonicToSeedBin(mnemonic)
-    	return NewDilithiumFromSeed(seed)
+func NewDilithiumFromMnemonic(mnemonic string) (*Dilithium, error) {
+	seed := misc.MnemonicToSeedBin(mnemonic)
+	return NewDilithiumFromSeed(seed)
 }
 
-func NewDilithiumFromHexSeed(hexseed string) *Dilithium {
-	seed, err := hex.DecodeString(hexseed)
+func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
+	seed, err := hex.DecodeString(hexSeed)
 	if err != nil {
 		panic("Failed to decode hexseed to bin")
 	}
