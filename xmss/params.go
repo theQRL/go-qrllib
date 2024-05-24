@@ -29,6 +29,9 @@ type XMSSParams struct {
 
 func NewWOTSParams(n, w uint32) *WOTSParams {
 	logW := uint32(math.Log2(float64(w)))
+	if logW != 2 && logW != 4 && logW != 8 {
+		panic("logW should be either 2, 4 or 8")
+	}
 	len1 := uint32(math.Ceil(float64((8 * n) / logW)))
 	len2 := uint32(math.Floor(math.Log2(float64(len1*(w-1)))/float64(logW)) + 1)
 	totalLen := len1 + len2
