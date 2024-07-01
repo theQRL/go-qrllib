@@ -5,9 +5,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/misc"
-	"reflect"
 )
 
 type HashFunction uint
