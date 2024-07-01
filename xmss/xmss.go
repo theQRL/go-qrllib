@@ -5,9 +5,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/misc"
-	"reflect"
 )
 
 type HashFunction uint
@@ -598,7 +599,7 @@ func IsValidXMSSAddress(address [common.AddressSize]uint8) bool {
 
 // Deprecated: Generates legacy XMSS address, not compatible with the QVM.
 func GetLegacyXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [LegacyAddressSize]uint8 {
-	desc := NewQRLDescriptorFromExtendedPK(&ePK)
+	desc := LegacyQRLDescriptorFromExtendedPK(&ePK)
 
 	if desc.GetAddrFormatType() != common.SHA256_2X {
 		panic("Address format type not supported")

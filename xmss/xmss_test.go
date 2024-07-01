@@ -2,8 +2,9 @@ package xmss
 
 import (
 	"encoding/hex"
-	"github.com/theQRL/go-qrllib/common"
 	"testing"
+
+	"github.com/theQRL/go-qrllib/common"
 )
 
 func TestXMSS_GetAddress(t *testing.T) {
@@ -25,7 +26,7 @@ func TestXMSS_GetLegacyAddress(t *testing.T) {
 	var seed [common.SeedSize]uint8 // seed initialized with 0 (default) value
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
-	expectedAddress := "11020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a666cb98a4"
+	expectedAddress := "01020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a6da13cc82"
 	address := xmss.GetLegacyAddress()
 	if expectedAddress != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
@@ -87,7 +88,7 @@ func TestXMSSCreationHeight4(t *testing.T) {
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11020013b5158e1e45d28c5c2dee4abfaf7e4ebf"
-	expectedLegacyAddress := "11020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a666cb98a4"
+	expectedLegacyAddress := "01020065fc3554e22701accc43271fcd39f72e587074558a72db729f41b09d0031d5a6da13cc82"
 	expectedPK := "110200c25188b585f731c128e2b457069e" +
 		"afd1e3fa3961605af8c58a1aec4d82ac" +
 		"316d3191da3442686282b3d5160f25cf" +
@@ -136,7 +137,7 @@ func TestXMSSCreationHeight6(t *testing.T) {
 	xmss := NewXMSSFromSeed(seed, height, SHAKE_128, common.SHA256_2X)
 
 	expectedAddress := "11030084aa70bdb5f610cd0d75c9ae1b86606885"
-	expectedLegacyAddress := "110300eb5a9f44d54af73cd4caac865954b5b81b8a7b1024403bd97134a3fffa16f658c364f04a"
+	expectedLegacyAddress := "010300eb5a9f44d54af73cd4caac865954b5b81b8a7b1024403bd97134a3fffa16f65861ad2f67"
 	expectedPK := "110300859060f15adc3825adeec85c7483" +
 		"d868e898bc5117d0cff04ab1343916d4" +
 		"07af3191da3442686282b3d5160f25cf" +
