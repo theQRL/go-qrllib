@@ -26,7 +26,24 @@ func NewQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescr
 	return NewQRLDescriptorFromBytes(extendedPK[:common.DescriptorSize])
 }
 
+func LegacyQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescriptor {
+	return LegacyQRLDescriptorFromBytes(extendedPK[:common.DescriptorSize])
+}
+
 func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
+	if len(descriptorBytes) != 3 {
+		panic("Descriptor size should be 3 bytes")
+	}
+
+	return &QRLDescriptor{
+		hashFunction:   HashFunction(descriptorBytes[0] & 0x0f),
+		signatureType:  common.SignatureType((descriptorBytes[0] >> 4) & 0xF0),
+		height:         (descriptorBytes[1] & 0x0f) << 1,
+		addrFormatType: common.AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
+	}
+}
+
+func LegacyQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
 	if len(descriptorBytes) != 3 {
 		panic("Descriptor size should be 3 bytes")
 	}

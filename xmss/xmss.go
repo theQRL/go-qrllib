@@ -599,7 +599,7 @@ func IsValidXMSSAddress(address [common.AddressSize]uint8) bool {
 
 // Deprecated: Generates legacy XMSS address, not compatible with the QVM.
 func GetLegacyXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [LegacyAddressSize]uint8 {
-	desc := NewQRLDescriptorFromExtendedPK(&ePK)
+	desc := LegacyQRLDescriptorFromExtendedPK(&ePK)
 
 	if desc.GetAddrFormatType() != common.SHA256_2X {
 		panic("Address format type not supported")
