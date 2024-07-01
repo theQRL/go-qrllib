@@ -2,10 +2,11 @@ package dilithiumjs
 
 import (
 	"encoding/hex"
+	"strings"
+
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/dilithium"
-	"strings"
 )
 
 type DilithiumJS struct {
@@ -38,7 +39,7 @@ func newDilithiumJS(d *dilithium.Dilithium) *js.Object {
 }
 
 func NewDilithiumJS() *js.Object {
-	d := dilithium.New()
+	d, _ := dilithium.New()
 	return newDilithiumJS(d)
 }
 
@@ -50,7 +51,7 @@ func NewDilithiumJSFromSeed(seed string) *js.Object {
 	}
 	var sizedBinSeed [common.SeedSize]uint8
 	copy(sizedBinSeed[:], binSeed)
-	d := dilithium.NewDilithiumFromSeed(sizedBinSeed)
+	d, _ := dilithium.NewDilithiumFromSeed(sizedBinSeed)
 
 	return newDilithiumJS(d)
 }
@@ -73,7 +74,7 @@ func (d *DilithiumJS) GetAddress() string {
 }
 
 func (d *DilithiumJS) Sign(message []uint8) string {
-	binSignature := d.d.Sign(message)
+	binSignature, _ := d.d.Sign(message)
 	return "0x" + hex.EncodeToString(binSignature[:])
 }
 
@@ -90,10 +91,13 @@ func DilithiumVerify(message []uint8, signature string, pk string) bool {
 		return false
 	}
 
-	var sizedBinPK [dilithium.PKSizePacked]uint8
+	var sizedBinPK [dilithium.CryptoPublicKeyBytes]uint8
 	copy(sizedBinPK[:], binPK)
 
-	return dilithium.Verify(message, binSignature, &sizedBinPK)
+	var sizedBinSignature [dilithium.CryptoBytes]uint8
+	copy(sizedBinSignature[:], binSignature)
+
+	return dilithium.Verify(message, sizedBinSignature, &sizedBinPK)
 }
 
 func GetDilithiumAddressFromPK(pk string) string {
@@ -103,7 +107,7 @@ func GetDilithiumAddressFromPK(pk string) string {
 		return ""
 	}
 
-	var sizedBinPK [dilithium.PKSizePacked]uint8
+	var sizedBinPK [dilithium.CryptoPublicKeyBytes]uint8
 	copy(sizedBinPK[:], binPK)
 
 	binAddress := dilithium.GetDilithiumAddressFromPK(sizedBinPK)
