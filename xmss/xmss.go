@@ -28,7 +28,7 @@ const (
 )
 
 const (
-	MaxHeight = 254
+	MaxHeight = 30 // MaxHeight set to 30, as lastNode datatype is uint32 anything more than height 30 will result into overflow
 )
 
 const (
