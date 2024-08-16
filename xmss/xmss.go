@@ -73,7 +73,7 @@ type XMSS struct {
 func NewXMSSFromSeed(seed [common.SeedSize]uint8, height uint8, hashFunction HashFunction, addrFormatType common.AddrFormatType) *XMSS {
 	signatureType := common.XMSSSig // Signature Type hard coded for now
 	if height > MaxHeight {
-		panic("Height should be <= 254")
+		panic(fmt.Sprintf("Height should be <= %d", MaxHeight))
 	}
 	desc := NewQRLDescriptor(height, hashFunction, signatureType, addrFormatType)
 
