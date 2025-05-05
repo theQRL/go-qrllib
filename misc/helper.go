@@ -1,13 +1,8 @@
 package misc
 
 import (
-	"bytes"
 	"crypto/sha256"
-	"fmt"
-	"github.com/theQRL/go-qrllib/common"
-	"github.com/theQRL/go-qrllib/qrl"
 	"golang.org/x/crypto/sha3"
-	"strings"
 	"unsafe"
 )
 
@@ -115,112 +110,4 @@ func ToByteBigEndian(out []uint8, in uint32, bytes uint32) {
 		out[i] = uint8(in & 0xff)
 		in = in >> 8
 	}
-}
-
-func ExtendedSeedBinToMnemonic(input [common.ExtendedSeedSize]uint8) string {
-	return binToMnemonic(input[:])
-}
-
-func SeedBinToMnemonic(input [common.SeedSize]uint8) string {
-	return binToMnemonic(input[:])
-}
-
-func binToMnemonic(input []uint8) string {
-	if len(input)%3 != 0 {
-		panic("byte count needs to be a multiple of 3")
-	}
-	buf := bytes.NewBuffer(nil)
-	separator := ""
-	for nibble := 0; nibble < len(input)*2; nibble += 3 {
-		p := nibble >> 1
-		b1 := uint32(input[p])
-		b2 := uint32(0)
-		if p+1 < len(input) {
-			b2 = uint32(input[p+1])
-		}
-		idx := uint32(0)
-		if nibble%2 == 0 {
-			idx = (b1 << 4) + (b2 >> 4)
-		} else {
-			idx = ((b1 & 0x0F) << 8) + b2
-		}
-		_, err := fmt.Fprint(buf, separator, qrl.WordList[idx])
-		if err != nil {
-			panic(fmt.Sprintf("ExtendedSeedBinToMnemonic error %s", err))
-		}
-		separator = " "
-	}
-
-	return buf.String()
-}
-
-func MnemonicToExtendedSeedBin(mnemonic string) [common.ExtendedSeedSize]uint8 {
-	output := mnemonicToBin(mnemonic)
-
-	if len(output) != common.ExtendedSeedSize {
-		panic("unexpected MnemonicToExtendedSeedBin output size")
-	}
-
-	var sizedOutput [common.ExtendedSeedSize]uint8
-	copy(sizedOutput[:], output)
-	return sizedOutput
-}
-
-func MnemonicToSeedBin(mnemonic string) [common.SeedSize]uint8 {
-	output := mnemonicToBin(mnemonic)
-
-	if len(output) != common.SeedSize {
-		panic("unexpected MnemonicToSeedBin output size")
-	}
-
-	var sizedOutput [common.SeedSize]uint8
-	copy(sizedOutput[:], output)
-	return sizedOutput
-}
-
-func mnemonicToBin(mnemonic string) []uint8 {
-	mnemonicWords := strings.Split(mnemonic, " ")
-	wordCount := len(mnemonicWords)
-	if wordCount%2 != 0 {
-		panic(fmt.Sprintf("word count = %d must be even", wordCount))
-	}
-
-	// Prepare lookup
-	// FIXME: Create the look up in advance
-	wordLookup := make(map[string]int)
-
-	for i, word := range qrl.WordList {
-		wordLookup[word] = i
-	}
-
-	result := make([]uint8, wordCount*15/10)
-	current := 0
-	buffering := 0
-	resultIndex := 0
-	for _, w := range mnemonicWords {
-		value, found := wordLookup[w]
-		if !found {
-			panic("invalid word in mnemonic")
-		}
-
-		buffering += 3
-		current = (current << 12) + value
-
-		for buffering > 2 {
-			shift := 4 * (buffering - 2)
-			mask := (1 << shift) - 1
-			tmp := current >> shift
-			buffering -= 2
-			current &= mask
-			result[resultIndex] = uint8(tmp)
-			resultIndex++
-		}
-	}
-
-	if buffering > 0 {
-		result[resultIndex] = uint8(current & 0xFF)
-		resultIndex++
-	}
-
-	return result
 }

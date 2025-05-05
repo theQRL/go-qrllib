@@ -1,11 +1,13 @@
 package xmss
 
 import (
+	"fmt"
+
 	"github.com/theQRL/go-qrllib/misc"
 )
 
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
-	pk, sk []uint8, bdsState *BDSState, seed [48]uint8) {
+	pk, sk []uint8, bdsState *BDSState, seed []uint8) {
 
 	if xmssParams.h&1 == 1 {
 		panic("Not a valid h, only even numbers supported! Try again with an even number")
@@ -22,7 +24,7 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	// Copy PUB_SEED to public key
 	randombits := make([]uint8, 3*n)
 
-	misc.SHAKE256(randombits, seed[:])
+	misc.SHAKE256(randombits, seed)
 	//shake256(randombits, 3 * n, seed, 48);  // FIXME: seed size has been hardcoded to 48
 
 	rnd := 96
@@ -33,6 +35,74 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	addr := make([]uint32, 8)
 	treeHashSetup(hashFunction, pk, 0, bdsState, sk[4:4+n], xmssParams, sk[4+2*n:4+2*n+n], addr)
 	copy(sk[4+3*n:], pk[:pks])
+}
+
+func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uint8, bdsState *BDSState, message []uint8) ([]uint8, error) {
+	n := params.n
+
+	idx := (uint32(sk[0]) << 24) | (uint32(sk[1]) << 16) | (uint32(sk[2]) << 8) | uint32(sk[3])
+
+	skSeed := make([]uint8, n)
+	copy(skSeed, sk[4:4+n])
+	skPRF := make([]uint8, n)
+	copy(skPRF, sk[4+n:4+n+n])
+	pubSeed := make([]uint8, n)
+	copy(pubSeed, sk[4+2*n:4+2*n+n])
+
+	var idxBytes32 [32]uint8
+	misc.ToByteLittleEndian(idxBytes32[:], idx, 32)
+
+	hashKey := make([]uint8, 3*n)
+
+	sk[0] = uint8((idx + 1) >> 24 & 0xff)
+	sk[1] = uint8((idx + 1) >> 16 & 0xff)
+	sk[2] = uint8((idx + 1) >> 8 & 0xff)
+	sk[3] = uint8((idx + 1) & 0xff)
+
+	R := make([]uint8, n)
+	var otsAddr [8]uint32
+
+	prf(hashFunction, R, idxBytes32[:], skPRF, n)
+	copy(hashKey[:n], R)
+	copy(hashKey[n:n+n], sk[4+3*n:4+3*n+n])
+	misc.ToByteLittleEndian(hashKey[2*n:2*n+n], idx, n)
+	msgHash := make([]uint8, n)
+	err := hMsg(hashFunction, msgHash, message, hashKey, n)
+	if err != nil {
+		return nil, err
+	}
+	sigMsgLen := uint32(0)
+	sigMsg := make([]uint8, getSignatureSize(params))
+	sigMsg[0] = uint8((idx >> 24) & 0xff)
+	sigMsg[1] = uint8((idx >> 16) & 0xff)
+	sigMsg[2] = uint8((idx >> 8) & 0xff)
+	sigMsg[3] = uint8(idx & 0xff)
+
+	sigMsgLen += 4
+	for i := uint32(0); i < n; i++ {
+		sigMsg[sigMsgLen+i] = R[i]
+	}
+
+	sigMsgLen += n
+
+	misc.SetType(&otsAddr, 0)
+	misc.SetOTSAddr(&otsAddr, idx)
+
+	otsSeed := make([]uint8, n)
+	getSeed(hashFunction, otsSeed, skSeed, n, &otsAddr)
+
+	wotsSign(hashFunction, sigMsg[sigMsgLen:], msgHash, otsSeed, params.wotsParams, pubSeed, &otsAddr)
+
+	sigMsgLen += params.wotsParams.keySize
+
+	copy(sigMsg[sigMsgLen:sigMsgLen+params.h*params.n], bdsState.auth[:params.h*params.n])
+
+	if idx < (uint32(1)<<params.h)-1 {
+		bdsRound(hashFunction, bdsState, idx, skSeed, params, pubSeed, &otsAddr)
+		bdsTreeHashUpdate(hashFunction, bdsState, (params.h-params.k)>>1, skSeed, params, pubSeed, &otsAddr)
+	}
+
+	return sigMsg, nil
 }
 
 func treeHashSetup(hashFunction HashFunction, node []uint8, index uint32, bdsState *BDSState, skSeed []uint8, xmssParams *XMSSParams, pubSeed []uint8, addr []uint32) {
@@ -218,17 +288,17 @@ func lTree(hashFunction HashFunction, params *WOTSParams, leaf, wotsPK, pubSeed 
 	copy(leaf[:n], wotsPK[:n])
 }
 
-func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, bdsState *BDSState, newIdx uint32) int32 {
+func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, bdsState *BDSState, newIdx uint32) error {
 	numElems := uint32(1 << params.h)
 
 	currentIdx := uint32(sk[0])<<24 | uint32(sk[1])<<16 | uint32(sk[2])<<8 | uint32(sk[3])
 
 	if newIdx >= numElems {
-		panic("index too high")
+		return fmt.Errorf("index %v too high | Max Index should be %v", newIdx, numElems-1)
 	}
 
 	if newIdx < currentIdx {
-		panic("cannot rewind")
+		return fmt.Errorf("current index %v | cannot rewind to index %v", currentIdx, newIdx)
 	}
 
 	skSeed := make([]uint8, params.n)
@@ -242,7 +312,7 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 
 	for j := currentIdx; j < newIdx; j++ {
 		if j >= numElems {
-			return -1
+			panic(fmt.Sprintf("index out of bounds: j=%d >= numElems=%d", j, numElems))
 		}
 
 		bdsRound(hashFunction, bdsState, j, skSeed, params, pubSeed, &otsAddr)
@@ -254,7 +324,7 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 	sk[2] = uint8(newIdx >> 8 & 0xff)
 	sk[3] = uint8(newIdx & 0xff)
 
-	return 0
+	return nil
 }
 
 func bdsRound(hashFunction HashFunction, bdsState *BDSState, leafIdx uint32, skSeed []uint8, params *XMSSParams, pubSeed []uint8, addr *[8]uint32) {
@@ -421,4 +491,224 @@ func treeHashUpdate(hashFunction HashFunction, treeHash *TreeHashInst, bdsState 
 		bdsState.stackOffset++
 		treeHash.nextIdx++
 	}
+}
+
+func wotsSign(hashFunction HashFunction, sig, msg, sk []uint8, params *WOTSParams, pubSeed []uint8, addr *[8]uint32) {
+	baseW := make([]uint8, params.len)
+	csum := uint32(0)
+
+	calcBaseW(baseW, params.len1, msg, params)
+
+	for i := uint32(0); i < params.len1; i++ {
+		csum += params.w - 1 - uint32(baseW[i])
+	}
+
+	csum = csum << (8 - ((params.len2 * params.logW) % 8))
+
+	len2Bytes := ((params.len2 * params.logW) + 7) / 8
+
+	cSumBytes := make([]uint8, len2Bytes)
+	misc.ToByteLittleEndian(cSumBytes, csum, len2Bytes)
+
+	cSumBaseW := make([]uint8, params.len2)
+
+	calcBaseW(cSumBaseW, params.len2, cSumBytes, params)
+
+	for i := uint32(0); i < params.len2; i++ {
+		baseW[params.len1+i] = cSumBaseW[i]
+	}
+
+	expandSeed(hashFunction, sig, sk, params.n, params.len)
+
+	for i := uint32(0); i < params.len; i++ {
+		misc.SetChainAddr(addr, i)
+		offset := i * params.n
+		genChain(hashFunction, sig[offset:offset+params.n], sig[offset:offset+params.n], 0, uint32(baseW[i]), params, pubSeed, addr)
+	}
+}
+
+func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, pk []uint8, h uint32) bool {
+
+	sigMsgOffset := uint32(0)
+
+	n := wotsParams.n
+
+	wotsPK := make([]uint8, wotsParams.keySize)
+	pkHash := make([]uint8, n)
+	root := make([]uint8, n)
+	hashKey := make([]uint8, 3*n)
+
+	pubSeed := make([]uint8, n)
+	copy(pubSeed, pk[n:n+n])
+
+	// Init addresses
+	var otsAddr [8]uint32
+	var lTreeAddr [8]uint32
+	var nodeAddr [8]uint32
+
+	misc.SetType(&otsAddr, 0)
+	misc.SetType(&lTreeAddr, 1)
+	misc.SetType(&nodeAddr, 2)
+
+	// Extract index
+	idx := (uint32(sigMsg[0]) << 24) |
+		(uint32(sigMsg[1]) << 16) |
+		(uint32(sigMsg[2]) << 8) |
+		uint32(sigMsg[3])
+
+	// printf("verify:: idx = %lu\n", idx);
+
+	// Generate hash key (R || root || idx)
+	copy(hashKey[:n], sigMsg[4:4+n])
+	copy(hashKey[n:n+n], pk[:n])
+	misc.ToByteLittleEndian(hashKey[2*n:2*n+n], idx, n)
+
+	sigMsgOffset += n + 4
+
+	// hash message
+	msgHash := make([]uint8, n)
+	err := hMsg(hashFunction, msgHash, msg, hashKey, n)
+	if err != nil {
+		return false
+	}
+	//-----------------------
+	// Verify signature
+	//-----------------------
+
+	// Prepare Address
+	misc.SetOTSAddr(&otsAddr, idx)
+	// Check WOTS signature
+	wotsPKFromSig(hashFunction, wotsPK, sigMsg[sigMsgOffset:], msgHash, wotsParams, pubSeed, &otsAddr)
+
+	sigMsgOffset += wotsParams.keySize
+
+	// Compute Ltree
+	misc.SetLTreeAddr(&lTreeAddr, idx)
+	lTree(hashFunction, wotsParams, pkHash, wotsPK, pubSeed, &lTreeAddr)
+
+	// Compute root
+	validateAuthPath(hashFunction, root, pkHash, idx, sigMsg[sigMsgOffset:], n, h, pubSeed, &nodeAddr)
+
+	for i := uint32(0); i < n; i++ {
+		if root[i] != pk[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func validateAuthPath(hashFunc HashFunction, root, leaf []uint8, leafIdx uint32, authpath []uint8, n, h uint32, pub_seed []uint8, addr *[8]uint32) {
+
+	buffer := make([]uint8, 2*n)
+
+	// If leafidx is odd (last bit = 1), current path element is a right child and authpath has to go to the left.
+	// Otherwise, it is the other way around
+	if leafIdx&1 == 1 {
+		for j := uint32(0); j < n; j++ {
+			buffer[n+j] = leaf[j]
+		}
+		for j := uint32(0); j < n; j++ {
+			buffer[j] = authpath[j]
+		}
+	} else {
+		for j := uint32(0); j < n; j++ {
+			buffer[j] = leaf[j]
+		}
+		for j := uint32(0); j < n; j++ {
+			buffer[n+j] = authpath[j]
+		}
+	}
+	authPathOffset := n
+
+	for i := uint32(0); i < h-1; i++ {
+		misc.SetTreeHeight(addr, i)
+		leafIdx >>= 1
+		misc.SetTreeIndex(addr, leafIdx)
+		if leafIdx&1 == 1 {
+			hashH(hashFunc, buffer[n:n+n], buffer, pub_seed, addr, n)
+			for j := uint32(0); j < n; j++ {
+				buffer[j] = authpath[authPathOffset+j]
+			}
+		} else {
+			hashH(hashFunc, buffer[:n], buffer, pub_seed, addr, n)
+			for j := uint32(0); j < n; j++ {
+				buffer[j+n] = authpath[authPathOffset+j]
+			}
+		}
+		authPathOffset += n
+	}
+	misc.SetTreeHeight(addr, h-1)
+	leafIdx >>= 1
+	misc.SetTreeIndex(addr, leafIdx)
+	hashH(hashFunc, root[:n], buffer, pub_seed, addr, n)
+}
+
+func wotsPKFromSig(hashfunction HashFunction, pk, sig, msg []uint8, wotsParams *WOTSParams, pubSeed []uint8, addr *[8]uint32) {
+	XMSSWOTSLEN := wotsParams.len
+	XMSSWOTSLEN1 := wotsParams.len1
+	XMSSWOTSLEN2 := wotsParams.len2
+	XMSSWOTSLOGW := wotsParams.logW
+	XMSSWOTSW := wotsParams.w
+	XMSSN := wotsParams.n
+
+	baseW := make([]uint8, XMSSWOTSLEN)
+	cSum := uint32(0)
+	cSumBytes := make([]uint8, ((XMSSWOTSLEN2*XMSSWOTSLOGW)+7)/8)
+	cSumBaseW := make([]uint8, XMSSWOTSLEN2)
+
+	calcBaseW(baseW, XMSSWOTSLEN1, msg, wotsParams)
+
+	for i := uint32(0); i < XMSSWOTSLEN1; i++ {
+		cSum += XMSSWOTSW - 1 - uint32(baseW[i])
+	}
+
+	cSum = cSum << (8 - ((XMSSWOTSLEN2 * XMSSWOTSLOGW) % 8))
+
+	misc.ToByteLittleEndian(cSumBytes, cSum, ((XMSSWOTSLEN2*XMSSWOTSLOGW)+7)/8)
+	calcBaseW(cSumBaseW, XMSSWOTSLEN2, cSumBytes, wotsParams)
+
+	for i := uint32(0); i < XMSSWOTSLEN2; i++ {
+		baseW[XMSSWOTSLEN1+i] = cSumBaseW[i]
+	}
+	for i := uint32(0); i < XMSSWOTSLEN; i++ {
+		misc.SetChainAddr(addr, i)
+		offset := i * XMSSN
+		genChain(hashfunction, pk[offset:offset+XMSSN], sig[offset:offset+XMSSN], uint32(baseW[i]), XMSSWOTSW-1-uint32(baseW[i]), wotsParams, pubSeed, addr)
+	}
+}
+
+func calcBaseW(output []uint8, outputLen uint32, input []uint8, params *WOTSParams) {
+	in := 0
+	out := 0
+	total := uint32(0)
+	bits := uint32(0)
+
+	for consumed := uint32(0); consumed < outputLen; consumed++ {
+		if bits == 0 {
+			total = uint32(input[in])
+			in++
+			bits += 8
+		}
+		bits -= params.logW
+		output[out] = uint8((total >> bits) & (params.w - 1))
+		out++
+	}
+}
+
+func calculateSignatureBaseSize(keySize uint32) uint32 {
+	return 4 + 32 + keySize
+}
+
+func getSignatureSize(params *XMSSParams) uint32 {
+	signatureBaseSize := calculateSignatureBaseSize(params.wotsParams.keySize)
+	return signatureBaseSize + params.h*32
+}
+
+func hMsg(hashFunction HashFunction, out, in, key []uint8, n uint32) error {
+	if uint32(len(key)) != 3*n {
+		return fmt.Errorf("H_msg takes 3n-bit keys, we got n=%d but a keylength of %d.\n", n, len(key))
+	}
+	coreHash(hashFunction, out, 2, key, uint32(len(key)), in, uint32(len(in)), n)
+	return nil
 }
