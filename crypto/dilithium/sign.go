@@ -1,15 +1,15 @@
 package dilithium
 
 import (
+	"crypto/rand"
 	"fmt"
+
 	"golang.org/x/crypto/sha3"
 )
-import "crypto/rand"
 
 // Take a random seed, and compute sk/pk pair.
 func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) ([]uint8, error) {
-	var tr [SeedBytes]uint8
-	//var rho, rhoprime, key [SeedBytes]byte
+	var tr [TRBytes]uint8
 	var rho, key [SeedBytes]uint8
 	var rhoPrime [CRHBytes]uint8
 
@@ -27,6 +27,10 @@ func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[Crypt
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
 	state := sha3.NewShake256()
 	if _, err := state.Write(seed); err != nil {
+		return nil, err
+	}
+	extraData := []byte{K, L}
+	if _, err := state.Write(extraData); err != nil {
 		return nil, err
 	}
 	if _, err := state.Read(rho[:]); err != nil {
@@ -74,8 +78,9 @@ func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[Crypt
 	return seed, nil
 }
 
-func cryptoSignSignature(sig, m []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) error {
-	var rho, key, tr [SeedBytes]uint8
+func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RNDBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) error {
+	var rho, key [SeedBytes]uint8
+	var tr [TRBytes]uint8
 	var mu, rhoPrime [CRHBytes]uint8
 	var s1, y, z polyVecL
 	var mat [K]polyVecL
@@ -85,22 +90,19 @@ func cryptoSignSignature(sig, m []uint8, sk *[CryptoSecretKeyBytes]uint8, random
 
 	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
 
-	/* Compute CRH(tr, msg) */
+	/* Compute mu = CRH(tr, 0, ctxlen, ctx, msg) */
 	state := sha3.NewShake256()
 	state.Write(tr[:])
+	state.Write(pre)
 	state.Write(m)
 	state.Read(mu[:])
 
-	if randomizedSigning {
-		if _, err := rand.Read(rhoPrime[:]); err != nil {
-			return err
-		}
-	} else {
-		var dataToBeHashed [SeedBytes + CRHBytes]uint8
-		copy(dataToBeHashed[:], key[:SeedBytes])
-		copy(dataToBeHashed[SeedBytes:], mu[:CRHBytes])
-		sha3.ShakeSum256(rhoPrime[:], dataToBeHashed[:])
-	}
+	/* Compute rhoprime = CRH(key, rnd, mu) */
+	state = sha3.NewShake256()
+	state.Write(key[:])
+	state.Write(rnd[:])
+	state.Write(mu[:])
+	state.Read(rhoPrime[:])
 
 	/* Expand matrix and transform vectors */
 	if err := polyVecMatrixExpand(&mat, &rho); err != nil {
@@ -137,7 +139,7 @@ rej:
 	if _, err := state.Write(sig[:K*PolyW1PackedBytes]); err != nil {
 		return err
 	}
-	if _, err := state.Read(sig[:SeedBytes]); err != nil {
+	if _, err := state.Read(sig[:CTILDEBytes]); err != nil {
 		return err
 	}
 	if err := polyChallenge(&cp, sig[:SeedBytes]); err != nil {
@@ -184,17 +186,40 @@ rej:
 	return nil
 }
 
+func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) error {
+	if len(ctx) > 255 {
+		return fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
+	}
+
+	var rnd [RNDBytes]uint8
+
+	var pre [257]uint8
+	pre[0] = 0
+	pre[1] = uint8(len(ctx))
+	copy(pre[2:], ctx)
+
+	if randomizedSigning {
+		_, err := rand.Read(rnd[:])
+		if err != nil {
+			return fmt.Errorf("failed to generate random seed: %v", err)
+		}
+	}
+
+	return cryptoSignSignatureInternal(sig, m, pre[:], rnd, sk)
+}
+
 // attached sig wrappers
-func cryptoSign(msg []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) ([]uint8, error) {
+func cryptoSign(msg []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) ([]uint8, error) {
 	sm := make([]uint8, CryptoBytes+len(msg))
 	copy(sm[CryptoBytes:], msg)
-	err := cryptoSignSignature(sm[:CryptoBytes], sm[CryptoBytes:], sk, randomizedSigning)
+	err := cryptoSignSignature(sm[:CryptoBytes], sm[CryptoBytes:], ctx, sk, randomizedSigning)
 	return sm, err
 }
 
-func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
+func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
 	var buf [K * PolyW1PackedBytes]uint8
-	var rho, c, c2 [SeedBytes]uint8
+	var rho [SeedBytes]uint8
+	var c, c2 [CTILDEBytes]uint8
 	var mu [CRHBytes]uint8
 	var z polyVecL
 	var mat [K]polyVecL
@@ -209,10 +234,13 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 		return false, nil
 	}
 
-	/* Compute CRH(H(rho, t1), msg) */
-	sha3.ShakeSum256(mu[:SeedBytes], pk[:CryptoPublicKeyBytes])
+	/* Compute CRH(H(rho, t1), pre, msg) */
+	sha3.ShakeSum256(mu[:TRBytes], pk[:CryptoPublicKeyBytes])
 	state := sha3.NewShake256()
-	if _, err := state.Write(mu[:SeedBytes]); err != nil {
+	if _, err := state.Write(mu[:TRBytes]); err != nil {
+		return false, err
+	}
+	if _, err := state.Write(pre); err != nil {
 		return false, err
 	}
 	if _, err := state.Write(m); err != nil {
@@ -257,10 +285,10 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 	if _, err := state.Write(buf[:K*PolyW1PackedBytes]); err != nil {
 		return false, err
 	}
-	if _, err := state.Read(c2[:SeedBytes]); err != nil {
+	if _, err := state.Read(c2[:CTILDEBytes]); err != nil {
 		return false, err
 	}
-	for i := 0; i < SeedBytes; i++ {
+	for i := 0; i < CTILDEBytes; i++ {
 		if c[i] != c2[i] {
 			return false, nil
 		}
@@ -269,7 +297,20 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 	return true, nil
 }
 
-func cryptoSignOpen(sm []uint8, pk *[CryptoPublicKeyBytes]uint8) ([]uint8, error) {
+func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, ctx []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
+	if len(ctx) > 255 {
+		return false, fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
+	}
+
+	var pre [257]uint8
+	pre[0] = 0
+	pre[1] = uint8(len(ctx))
+	copy(pre[2:], ctx)
+
+	return cryptoSignVerifyInternal(sig, m, pre[:], pk)
+}
+
+func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CryptoPublicKeyBytes]uint8) ([]uint8, error) {
 	if len(sm) < CryptoBytes {
 		return nil, nil
 	}
@@ -280,7 +321,7 @@ func cryptoSignOpen(sm []uint8, pk *[CryptoPublicKeyBytes]uint8) ([]uint8, error
 	copy(sig[:], sm)
 	copy(msg, sm[CryptoBytes:])
 
-	if result, err := cryptoSignVerify(sig, msg, pk); err != nil || !result {
+	if result, err := cryptoSignVerify(sig, msg, ctx, pk); err != nil || !result {
 		return nil, err
 	}
 

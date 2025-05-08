@@ -226,7 +226,7 @@ func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
 
 func polyChallenge(c *poly, seed []uint8) error {
 	var pos, b uint
-	if len(seed) != SeedBytes {
+	if len(seed) != CTILDEBytes {
 		return errors.New("invalid seed length")
 	}
 	var buf [Shake256Rate]uint8
