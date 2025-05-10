@@ -78,12 +78,9 @@ func unpackSk(rho *[SeedBytes]byte,
 	}
 }
 
-func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
+func packSig(sigb []uint8, c [CTILDEBytes]uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CryptoBytes {
 		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CryptoBytes, len(sigb))
-	}
-	if len(c) != CTILDEBytes {
-		return fmt.Errorf("invalid c length | length expected %v | found %v", CTILDEBytes, len(c))
 	}
 	sig := sigb[:]
 

@@ -13,6 +13,7 @@ import (
 type Wallet struct {
 	desc Descriptor
 	d    *dilithium.Dilithium
+	seed common.Seed
 }
 
 func NewWallet() (*Wallet, error) {
@@ -26,7 +27,7 @@ func NewWallet() (*Wallet, error) {
 
 func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc := NewDilithiumDescriptor()
-	d, err := dilithium.NewDilithiumFromSeed(seed.ToBytes())
+	d, err := dilithium.NewDilithiumFromSeed(seed.HashSHA256())
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +35,7 @@ func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	return &Wallet{
 		desc,
 		d,
+		seed,
 	}, nil
 }
 
@@ -48,7 +50,7 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 		return nil, fmt.Errorf("failed to convert extended seed from extended seed to seed: %v", err)
 	}
 
-	d, err := dilithium.NewDilithiumFromSeed(seed.ToBytes())
+	d, err := dilithium.NewDilithiumFromSeed(seed.HashSHA256())
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +58,7 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 	return &Wallet{
 		desc,
 		d,
+		seed,
 	}, nil
 }
 
@@ -74,11 +77,7 @@ func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 }
 
 func (w *Wallet) GetSeed() common.Seed {
-	seed, err := common.ToSeed(w.d.GetSeed())
-	if err != nil {
-		panic(fmt.Errorf("failed to GetSeed: %v", err))
-	}
-	return seed
+	return w.seed
 }
 
 func (w *Wallet) GetExtendedSeed() common.ExtendedSeed {
@@ -122,11 +121,11 @@ func (w *Wallet) GetAddressStr() string {
 	return fmt.Sprintf("Z%x", addr[:])
 }
 
-func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
-	return w.d.Sign(message)
+func (w *Wallet) Sign(ctx, message []uint8) ([SigSize]uint8, error) {
+	return w.d.Sign(ctx, message)
 }
 
-func Verify(message, signature []uint8, pk *PK, descriptor []byte) (result bool) {
+func Verify(ctx, message, signature []uint8, pk *PK, descriptor []byte) (result bool) {
 	_, err := NewDilithiumDescriptorFromDescriptorBytes(descriptor)
 	if err != nil {
 		return false
@@ -142,5 +141,5 @@ func Verify(message, signature []uint8, pk *PK, descriptor []byte) (result bool)
 	var pk2 [dilithium.CryptoPublicKeyBytes]uint8
 	copy(pk2[:], pk[:])
 
-	return dilithium.Verify(message, sig, &pk2)
+	return dilithium.Verify(ctx, message, sig, &pk2)
 }

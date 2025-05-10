@@ -4,43 +4,37 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-
-	"github.com/theQRL/go-qrllib/misc"
 )
 
 type Dilithium struct {
 	pk                [CryptoPublicKeyBytes]uint8
 	sk                [CryptoSecretKeyBytes]uint8
-	seed              []uint8
+	seed              [SeedBytes]uint8
 	randomizedSigning bool
 }
 
 func New() (*Dilithium, error) {
 	var sk [CryptoSecretKeyBytes]uint8
 	var pk [CryptoPublicKeyBytes]uint8
-	var seed []uint8
+	var seed [SeedBytes]uint8
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate random seed for Dilithium address: %v", err)
 	}
 
-	var hashedSeed [32]uint8
-	misc.SHAKE256(hashedSeed[:], seed[:])
-	if _, err := cryptoSignKeypair(hashedSeed[:], &pk, &sk); err != nil {
+	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
 		return nil, err
 	}
 
 	return &Dilithium{pk, sk, seed, false}, nil
 }
 
-func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
+func NewDilithiumFromSeed(seed [SeedBytes]uint8) (*Dilithium, error) {
 	var sk [CryptoSecretKeyBytes]uint8
 	var pk [CryptoPublicKeyBytes]uint8
 
-	var hashedSeed [32]uint8
-	misc.SHAKE256(hashedSeed[:], seed[:])
-	if _, err := cryptoSignKeypair(hashedSeed[:], &pk, &sk); err != nil {
+	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
 		return nil, err
 	}
 
@@ -48,10 +42,12 @@ func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
 }
 
 func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
-	seed, err := hex.DecodeString(hexSeed)
+	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		panic("Failed to decode hexseed to bin")
+		return nil, fmt.Errorf("failed to decode hexseed to bin %v", err.Error())
 	}
+	var seed [SeedBytes]uint8
+	copy(seed[:], unsizedSeed)
 	return NewDilithiumFromSeed(seed)
 }
 
@@ -63,7 +59,7 @@ func (d *Dilithium) GetSK() [CryptoSecretKeyBytes]uint8 {
 	return d.sk
 }
 
-func (d *Dilithium) GetSeed() []uint8 {
+func (d *Dilithium) GetSeed() [SeedBytes]uint8 {
 	return d.seed
 }
 
@@ -73,16 +69,16 @@ func (d *Dilithium) GetHexSeed() string {
 }
 
 // Seal the message, returns signature attached with message.
-func (d *Dilithium) Seal(message []uint8) ([]uint8, error) {
-	return cryptoSign(message, &d.sk, d.randomizedSigning)
+func (d *Dilithium) Seal(ctx, message []uint8) ([]uint8, error) {
+	return cryptoSign(message, ctx, &d.sk, d.randomizedSigning)
 }
 
 // Sign the message, and return a detached signature. Detached signatures are
 // variable sized, but never larger than SIG_SIZE_PACKED.
-func (d *Dilithium) Sign(message []uint8) ([CryptoBytes]uint8, error) {
+func (d *Dilithium) Sign(ctx, message []uint8) ([CryptoBytes]uint8, error) {
 	var signature [CryptoBytes]uint8
 
-	sm, err := cryptoSign(message, &d.sk, d.randomizedSigning)
+	sm, err := cryptoSign(message, ctx, &d.sk, d.randomizedSigning)
 	if err == nil {
 		copy(signature[:CryptoBytes], sm[:CryptoBytes])
 	}
@@ -91,13 +87,13 @@ func (d *Dilithium) Sign(message []uint8) ([CryptoBytes]uint8, error) {
 
 // Open the sealed message m. Returns the original message sealed with signature.
 // In case the signature is invalid, nil is returned.
-func Open(signatureMessage []uint8, pk *[CryptoPublicKeyBytes]uint8) []uint8 {
-	msg, _ := cryptoSignOpen(signatureMessage, pk)
+func Open(ctx, signatureMessage []uint8, pk *[CryptoPublicKeyBytes]uint8) []uint8 {
+	msg, _ := cryptoSignOpen(signatureMessage, ctx, pk)
 	return msg
 }
 
-func Verify(message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPublicKeyBytes]uint8) bool {
-	result, err := cryptoSignVerify(signature, message, pk)
+func Verify(ctx, message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPublicKeyBytes]uint8) bool {
+	result, err := cryptoSignVerify(signature, message, ctx, pk)
 	if err != nil {
 		return false
 	}

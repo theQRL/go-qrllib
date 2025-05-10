@@ -8,7 +8,7 @@ import (
 )
 
 // Take a random seed, and compute sk/pk pair.
-func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) ([]uint8, error) {
+func cryptoSignKeypair(seed *[SeedBytes]uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) (*[SeedBytes]uint8, error) {
 	var tr [TRBytes]uint8
 	var rho, key [SeedBytes]uint8
 	var rhoPrime [CRHBytes]uint8
@@ -18,15 +18,15 @@ func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[Crypt
 	var s2, t1, t0 polyVecK
 
 	if seed == nil {
-		seed = make([]uint8, SeedBytes)
-		_, err := rand.Read(seed)
+		seed = new([SeedBytes]uint8)
+		_, err := rand.Read(seed[:])
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random seed: %v", err)
 		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
 	state := sha3.NewShake256()
-	if _, err := state.Write(seed); err != nil {
+	if _, err := state.Write(seed[:]); err != nil {
 		return nil, err
 	}
 	extraData := []byte{K, L}
@@ -142,7 +142,7 @@ rej:
 	if _, err := state.Read(sig[:CTILDEBytes]); err != nil {
 		return err
 	}
-	if err := polyChallenge(&cp, sig[:SeedBytes]); err != nil {
+	if err := polyChallenge(&cp, sig[:CTILDEBytes]); err != nil {
 		return err
 	}
 	polyNTT(&cp)
@@ -179,8 +179,9 @@ rej:
 	if n > OMEGA {
 		goto rej
 	}
-
-	if err := packSig(sig[:CryptoBytes], sig[:SeedBytes], &z, &h); err != nil {
+	var c [CTILDEBytes]uint8
+	copy(c[:], sig[:CTILDEBytes])
+	if err := packSig(sig[:CryptoBytes], c, &z, &h); err != nil {
 		return err
 	}
 	return nil
@@ -193,7 +194,7 @@ func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]
 
 	var rnd [RNDBytes]uint8
 
-	var pre [257]uint8
+	pre := make([]uint8, len(ctx)+2)
 	pre[0] = 0
 	pre[1] = uint8(len(ctx))
 	copy(pre[2:], ctx)
@@ -219,12 +220,12 @@ func cryptoSign(msg []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]uint8, rando
 func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
 	var buf [K * PolyW1PackedBytes]uint8
 	var rho [SeedBytes]uint8
-	var c, c2 [CTILDEBytes]uint8
 	var mu [CRHBytes]uint8
-	var z polyVecL
-	var mat [K]polyVecL
-	var t1, w1, h polyVecK
+	var c, c2 [CTILDEBytes]uint8
 	var cp poly
+	var mat [K]polyVecL
+	var z polyVecL
+	var t1, w1, h polyVecK
 
 	unpackPk(&rho, &t1, pk)
 	if unpackSig(&c, &z, &h, sig) != 0 {
@@ -302,7 +303,7 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, ctx []uint8, pk *[Crypt
 		return false, fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
 	}
 
-	var pre [257]uint8
+	pre := make([]uint8, len(ctx)+2)
 	pre[0] = 0
 	pre[1] = uint8(len(ctx))
 	copy(pre[2:], ctx)
