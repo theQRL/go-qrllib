@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 import (
 	"errors"

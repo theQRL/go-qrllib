@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 func ntt(a *[N]int32) {
 	var count, start, j, k uint

@@ -1,18 +1,20 @@
-package dilithium
+package ml_dsa_87
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/theQRL/go-qrllib/crypto/dilithium"
+	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
+var ctx = []uint8{'Z', 'O', 'N', 'D'}
+
 type Wallet struct {
 	desc Descriptor
-	d    *dilithium.Dilithium
+	d    *ml_dsa_87.MLDSA87
 	seed common.Seed
 }
 
@@ -26,8 +28,8 @@ func NewWallet() (*Wallet, error) {
 }
 
 func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
-	desc := NewDilithiumDescriptor()
-	d, err := dilithium.NewDilithiumFromSeed(seed.HashSHA256())
+	desc := NewMLDSA87Descriptor()
+	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
 	if err != nil {
 		return nil, err
 	}
@@ -40,9 +42,9 @@ func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
 }
 
 func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error) {
-	desc, err := NewDilithiumDescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
+	desc, err := NewMLDSA87DescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate Dilithium descriptor from extended seed: %v", err)
+		return nil, fmt.Errorf("failed to generate MLDSA87 descriptor from extended seed: %v", err)
 	}
 
 	seed, err := common.ToSeed(extendedSeed.GetSeedBytes())
@@ -50,7 +52,7 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 		return nil, fmt.Errorf("failed to convert extended seed from extended seed to seed: %v", err)
 	}
 
-	d, err := dilithium.NewDilithiumFromSeed(seed.HashSHA256())
+	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
 	if err != nil {
 		return nil, err
 	}
@@ -121,12 +123,12 @@ func (w *Wallet) GetAddressStr() string {
 	return fmt.Sprintf("Z%x", addr[:])
 }
 
-func (w *Wallet) Sign(ctx, message []uint8) ([SigSize]uint8, error) {
+func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 	return w.d.Sign(ctx, message)
 }
 
-func Verify(ctx, message, signature []uint8, pk *PK, descriptor []byte) (result bool) {
-	_, err := NewDilithiumDescriptorFromDescriptorBytes(descriptor)
+func Verify(message, signature []uint8, pk *PK, descriptor []byte) (result bool) {
+	_, err := NewMLDSA87DescriptorFromDescriptorBytes(descriptor)
 	if err != nil {
 		return false
 	}
@@ -138,8 +140,8 @@ func Verify(ctx, message, signature []uint8, pk *PK, descriptor []byte) (result 
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	var pk2 [dilithium.CryptoPublicKeyBytes]uint8
+	var pk2 [ml_dsa_87.CryptoPublicKeyBytes]uint8
 	copy(pk2[:], pk[:])
 
-	return dilithium.Verify(ctx, message, sig, &pk2)
+	return ml_dsa_87.Verify(ctx, message, sig, &pk2)
 }

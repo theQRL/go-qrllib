@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 const (
 	CryptoPublicKeyBytes = SeedBytes + K*PolyT1PackedBytes

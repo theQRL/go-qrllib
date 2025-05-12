@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 import (
 	"bytes"
@@ -42,33 +42,33 @@ func SKHStrToBin(skHStr string) [CryptoSecretKeyBytes]uint8 {
 func TestNew(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			t.Error("Panic while creating dilithium ", err)
+			t.Error("Panic while creating ml-dsa-87", err)
 		}
 	}()
 	if _, err := New(); err != nil {
-		t.Error("failed to generate new dilithium ", err.Error())
+		t.Error("failed to generate new ml-dsa-87", err.Error())
 	}
 }
 
-func TestNewDilithiumFromSeed(t *testing.T) {
+func TestNewMLDSA87FromSeed(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			t.Error("Panic while creating dilithium ", err)
+			t.Error("Panic while creating ml-dsa-87", err)
 		}
 	}()
 
 	binUnsizeSeed, err := hex.DecodeString(HexSeed)
 	if err != nil {
-		t.Fatal("failed to decode hexseed ", err.Error())
+		t.Fatal("failed to decode hexseed", err.Error())
 	}
 	var binSeed [SeedBytes]uint8
 	copy(binSeed[:], binUnsizeSeed)
-	d, err := NewDilithiumFromSeed(binSeed)
+	d, err := NewMLDSA87FromSeed(binSeed)
 	if err != nil {
-		t.Fatal("failed to generate new dilithium from seed ", err.Error())
+		t.Fatal("failed to generate new ml-dsa-87 from seed", err.Error())
 	}
 	if d == nil {
-		t.Fatal("dilithium is nil")
+		t.Fatal("ml-dsa-87 is nil")
 	}
 
 	pk := d.GetPK()
@@ -89,18 +89,18 @@ func TestNewDilithiumFromSeed(t *testing.T) {
 	}
 }
 
-func TestNewDilithiumFromHexSeed(t *testing.T) {
+func TestNewMLDSA87FromHexSeed(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
-			t.Error("Panic while creating dilithium ", err)
+			t.Error("Panic while creating ml-dsa-87", err)
 		}
 	}()
-	d, err := NewDilithiumFromHexSeed(HexSeed)
+	d, err := NewMLDSA87FromHexSeed(HexSeed)
 	if err != nil {
-		t.Error("failed to generate new dilithium from hex seed ", err.Error())
+		t.Error("failed to generate new ml-dsa-87 from hex seed", err.Error())
 	}
 	if d == nil {
-		t.Fatal("dilithium is nil")
+		t.Fatal("ml-dsa-87 is nil")
 	}
 
 	pk := d.GetPK()
@@ -121,34 +121,34 @@ func TestNewDilithiumFromHexSeed(t *testing.T) {
 	}
 }
 
-func TestDilithium_GetPK(t *testing.T) {
+func TestMLDSA87_GetPK(t *testing.T) {
 	pk := PKHStrToBin(PK)
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	if !reflect.DeepEqual(pk, d.GetPK()) {
 		t.Errorf("PK mismatch\nExpected: %x\nFound: %x", pk, d.GetPK())
 	}
 }
 
-func TestDilithium_GetSK(t *testing.T) {
+func TestMLDSA87_GetSK(t *testing.T) {
 	sk := SKHStrToBin(SK)
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	if !reflect.DeepEqual(sk, d.GetSK()) {
 		t.Errorf("SK mismatch\nExpected: %x\nFound: %x", sk, d.GetSK())
 	}
 }
 
-func TestDilithium_GetSeed(t *testing.T) {
+func TestMLDSA87_GetSeed(t *testing.T) {
 	binUnsizeSeed, err := hex.DecodeString(HexSeed)
 	if err != nil {
-		t.Error("failed to decode hexseed ", err.Error())
+		t.Error("failed to decode hexseed", err.Error())
 	}
 	var binSeed [SeedBytes]uint8
 	copy(binSeed[:], binUnsizeSeed)
-	d, err := NewDilithiumFromSeed(binSeed)
+	d, err := NewMLDSA87FromSeed(binSeed)
 	if err != nil {
-		t.Error("failed to generate new dilithium from seed ", err.Error())
+		t.Error("failed to generate new ml-dsa-87 from seed", err.Error())
 	}
 
 	if !reflect.DeepEqual(binSeed, d.GetSeed()) {
@@ -156,18 +156,18 @@ func TestDilithium_GetSeed(t *testing.T) {
 	}
 }
 
-func TestDilithium_GetHexSeed(t *testing.T) {
-	d := newDilithiumFromSeed(t, HexSeed)
+func TestMLDSA87_GetHexSeed(t *testing.T) {
+	d := newMLDSA87FromSeed(t, HexSeed)
 	if "0x"+HexSeed != d.GetHexSeed() {
 		t.Errorf("HexSeed mismatch\nExpected: 0x%s\nFound: %s", HexSeed, d.GetHexSeed())
 	}
 }
 
-func TestDilithium_Seal(t *testing.T) {
+func TestMLDSA87_Seal(t *testing.T) {
 	ctx := []uint8("randomContext")
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	signatureMessage, err := d.Seal(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal", err.Error())
@@ -180,12 +180,12 @@ func TestDilithium_Seal(t *testing.T) {
 	}
 }
 
-func TestDilithium_Open(t *testing.T) {
+func TestMLDSA87_Open(t *testing.T) {
 	ctx := []uint8("randomContext")
 	pk := PKHStrToBin(PK)
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	signatureMessage, err := d.Seal(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal", err.Error())
@@ -203,11 +203,11 @@ func TestDilithium_Open(t *testing.T) {
 	}
 }
 
-func TestDilithium_Sign(t *testing.T) {
+func TestMLDSA87_Sign(t *testing.T) {
 	ctx := []uint8("randomContext")
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	signature, err := d.Sign(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to sign", err.Error())
@@ -221,12 +221,12 @@ func TestDilithium_Sign(t *testing.T) {
 	}
 }
 
-func TestDilithium_Verify(t *testing.T) {
+func TestMLDSA87_Verify(t *testing.T) {
 	ctx := []uint8("randomContext")
 	pk := PKHStrToBin(PK)
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 	signature, err := d.Sign(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to sign", err.Error())
@@ -248,7 +248,7 @@ func TestDilithium_Verify(t *testing.T) {
 func TestExtractMessage(t *testing.T) {
 	ctx := []uint8("randomContext")
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 
 	signatureMessage, err := d.Seal(ctx, msg)
 	if err != nil {
@@ -264,7 +264,7 @@ func TestExtractMessage(t *testing.T) {
 func TestExtractSignature(t *testing.T) {
 	ctx := []uint8("randomContext")
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
-	d := newDilithiumFromSeed(t, HexSeed)
+	d := newMLDSA87FromSeed(t, HexSeed)
 
 	signatureMessage, err := d.Seal(ctx, msg)
 	if err != nil {
@@ -277,7 +277,7 @@ func TestExtractSignature(t *testing.T) {
 	}
 }
 
-func newDilithiumFromSeed(t *testing.T, hexSeed string) *Dilithium {
+func newMLDSA87FromSeed(t *testing.T, hexSeed string) *MLDSA87 {
 	t.Helper()
 
 	binUnsizeSeed, err := hex.DecodeString(hexSeed)
@@ -288,12 +288,12 @@ func newDilithiumFromSeed(t *testing.T, hexSeed string) *Dilithium {
 	var binSeed [SeedBytes]uint8
 	copy(binSeed[:], binUnsizeSeed)
 
-	d, err := NewDilithiumFromSeed(binSeed)
+	d, err := NewMLDSA87FromSeed(binSeed)
 	if err != nil {
-		t.Fatal("failed to generate new dilithium from seed", err.Error())
+		t.Fatal("failed to generate new ml-dsa-87 from seed", err.Error())
 	}
 	if d == nil {
-		t.Fatal("dilithium is nil")
+		t.Fatal("ml-dsa-87 is nil")
 	}
 
 	return d

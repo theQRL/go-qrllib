@@ -6,7 +6,7 @@ type WalletType uint8
 
 const (
 	XMSS WalletType = iota
-	Dilithium
+	ML_DSA_87
 )
 
 func ToWalletType(val uint8) WalletType {
@@ -27,7 +27,7 @@ func ToWalletTypeOf(val uint8, walletType WalletType) WalletType {
 
 func (w WalletType) IsValid() bool {
 	switch w {
-	case XMSS, Dilithium:
+	case XMSS, ML_DSA_87:
 		return true
 	default:
 		return false
@@ -38,8 +38,8 @@ func (w WalletType) String() string {
 	switch w {
 	case XMSS:
 		return "XMSS"
-	case Dilithium:
-		return "Dilithium"
+	case ML_DSA_87:
+		return "ML_DSA_87"
 	default:
 		return fmt.Sprintf("UnknownWalletType(%d)", uint8(w))
 	}
