@@ -7,7 +7,7 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
-	"github.com/theQRL/go-qrllib/wallet/dilithium"
+	"github.com/theQRL/go-qrllib/wallet/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/xmss"
 )
 
@@ -25,12 +25,12 @@ func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error
 		if err != nil {
 			return err
 		}
-	case wallettype.Dilithium:
-		_, err := dilithium.BytesToPK(pk)
+	case wallettype.ML_DSA_87:
+		_, err := ml_dsa_87.BytesToPK(pk)
 		if err != nil {
 			return err
 		}
-		_, err = dilithium.NewDilithiumDescriptorFromDescriptor(descriptor)
+		_, err = ml_dsa_87.NewMLDSA87DescriptorFromDescriptor(descriptor)
 		if err != nil {
 			return err
 		}

@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 func montgomeryReduce(a int64) int32 {
 	var t int32

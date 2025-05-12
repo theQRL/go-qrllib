@@ -1,10 +1,10 @@
-package dilithium
+package ml_dsa_87
 
 const (
 	CryptoPublicKeyBytes = SeedBytes + K*PolyT1PackedBytes
-	CryptoSecretKeyBytes = 3*SeedBytes + L*PolyETAPackedBytes + K*PolyETAPackedBytes + K*PolyT0PackedBytes
+	CryptoSecretKeyBytes = 2*SeedBytes + TRBytes + L*PolyETAPackedBytes + K*PolyETAPackedBytes + K*PolyT0PackedBytes
 	// CryptoBytes is the signature size in bytes
-	CryptoBytes = SeedBytes + L*PolyZPackedBytes + PolyVecHPackedBytes
+	CryptoBytes = CTILDEBytes + L*PolyZPackedBytes + PolyVecHPackedBytes
 
 	Shake128Rate        = 168
 	Shake256Rate        = 136
@@ -17,19 +17,22 @@ const (
 
 	SeedBytes = 32
 	CRHBytes  = 64 // hash of public key
+	TRBytes   = 64
+	RNDBytes  = 32
 	N         = 256
 	Q         = 8380417
 	QInv      = 58728449 // -q^(-1) mod 2^32
 	D         = 13
 
-	K      = 8
-	L      = 7
-	ETA    = 2
-	TAU    = 60
-	BETA   = 120
-	GAMMA1 = 1 << 19
-	GAMMA2 = (Q - 1) / 32
-	OMEGA  = 75
+	K           = 8
+	L           = 7
+	ETA         = 2
+	TAU         = 60
+	BETA        = 120
+	GAMMA1      = 1 << 19
+	GAMMA2      = (Q - 1) / 32
+	OMEGA       = 75
+	CTILDEBytes = 64
 
 	// Polynomial sizes
 	PolyT1PackedBytes   = 320

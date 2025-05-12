@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 func power2Round(a0 *int32, a int32) int32 {
 	var a1 int32

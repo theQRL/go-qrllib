@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -19,6 +20,14 @@ func ToSeed(seedBytes []byte) (Seed, error) {
 	return seed, nil
 }
 
+func (s Seed) ToBytes() []byte {
+	return s[:]
+}
+
+func (s Seed) HashSHA256() [32]byte {
+	return sha256.Sum256(s[:])
+}
+
 func HexStrToSeed(hexStr string) (Seed, error) {
 	if strings.HasPrefix(hexStr, "0x") {
 		hexStr = hexStr[2:]
@@ -29,8 +38,4 @@ func HexStrToSeed(hexStr string) (Seed, error) {
 		return Seed{}, err
 	}
 	return ToSeed(seedBytes)
-}
-
-func (s Seed) ToBytes() []byte {
-	return s[:]
 }

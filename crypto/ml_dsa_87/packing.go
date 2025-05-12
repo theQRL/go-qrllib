@@ -1,4 +1,4 @@
-package dilithium
+package ml_dsa_87
 
 import "fmt"
 
@@ -23,7 +23,7 @@ func unpackPk(rho *[SeedBytes]uint8,
 }
 
 func packSk(skb *[CryptoSecretKeyBytes]uint8,
-	rho, tr, key [SeedBytes]uint8,
+	rho [SeedBytes]uint8, tr [TRBytes]uint8, key [SeedBytes]uint8,
 	t0 *polyVecK,
 	s1 *polyVecL,
 	s2 *polyVecK) {
@@ -33,7 +33,7 @@ func packSk(skb *[CryptoSecretKeyBytes]uint8,
 	copy(sk[SeedBytes:], key[:])
 	copy(sk[SeedBytes*2:], tr[:])
 
-	sk = sk[SeedBytes*3:]
+	sk = sk[SeedBytes*2+TRBytes:]
 
 	for i := 0; i < L; i++ {
 		polyEtaPack(sk[i*PolyETAPackedBytes:], &s1.vec[i])
@@ -50,8 +50,8 @@ func packSk(skb *[CryptoSecretKeyBytes]uint8,
 	}
 }
 
-func unpackSk(rho,
-	tr,
+func unpackSk(rho *[SeedBytes]byte,
+	tr *[TRBytes]byte,
 	key *[SeedBytes]byte,
 	t0 *polyVecK,
 	s1 *polyVecL,
@@ -61,7 +61,7 @@ func unpackSk(rho,
 	copy(rho[:], sk[:])
 	copy(key[:], sk[SeedBytes:])
 	copy(tr[:], sk[SeedBytes*2:])
-	sk = sk[SeedBytes*3:]
+	sk = sk[SeedBytes*2+TRBytes:]
 
 	for i := 0; i < L; i++ {
 		polyEtaUnpack(&s1.vec[i], sk[i*PolyETAPackedBytes:])
@@ -78,17 +78,14 @@ func unpackSk(rho,
 	}
 }
 
-func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
+func packSig(sigb []uint8, c [CTILDEBytes]uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CryptoBytes {
 		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CryptoBytes, len(sigb))
 	}
-	if len(c) != SeedBytes {
-		return fmt.Errorf("invalid c length | length expected %v | found %v", SeedBytes, len(c))
-	}
 	sig := sigb[:]
 
-	copy(sig[:SeedBytes], c[:SeedBytes])
-	sig = sig[SeedBytes:]
+	copy(sig[:CTILDEBytes], c[:CTILDEBytes])
+	sig = sig[CTILDEBytes:]
 
 	for i := 0; i < L; i++ {
 		polyZPack(sig[i*PolyZPackedBytes:], &z.vec[i])
@@ -113,15 +110,15 @@ func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	return nil
 }
 
-func unpackSig(c *[SeedBytes]uint8,
+func unpackSig(c *[CTILDEBytes]uint8,
 	z *polyVecL,
 	h *polyVecK,
 	sigBytes [CryptoBytes]uint8) int {
 
 	sig := sigBytes[:]
-	copy(c[:SeedBytes], sig[:SeedBytes])
+	copy(c[:CTILDEBytes], sig[:CTILDEBytes])
 
-	sig = sig[SeedBytes:]
+	sig = sig[CTILDEBytes:]
 	for i := 0; i < L; i++ {
 		polyZUnpack(&z.vec[i], sig[i*PolyZPackedBytes:])
 	}
