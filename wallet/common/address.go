@@ -7,8 +7,8 @@ import (
 
 /*
 UnsafeGetAddress - It is unsafe as it doesn't validate the pk and descriptor. This function
-should only be called after validating the pk and descriptor. If it's being called by the method of XMSS or ML-DSA-87,
-in that case no validation is required as the objects of those classes are made after the validation.
+should only be called after validating the pk and descriptor. If it's being called by the method of SPHINCS+-256s
+or ML-DSA-87, in that case no validation is required as the objects of those classes are made after the validation.
 */
 func UnsafeGetAddress(pk []uint8, descriptor descriptor.Descriptor) [AddressSize]uint8 {
 	var hashedKey [32]uint8

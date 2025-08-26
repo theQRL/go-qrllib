@@ -222,7 +222,7 @@ func TestVerify(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to decode signature ", err.Error())
 			}
-			if !Verify([]byte(tc.message), sig, &pk, desc.ToDescriptor().ToBytes()) {
+			if !Verify([]byte(tc.message), sig, &pk, desc.ToDescriptor()) {
 				t.Errorf("signature verification failed")
 			}
 		})
@@ -272,7 +272,7 @@ func TestWallet_SignAndVerify(t *testing.T) {
 
 			// Verify the signature
 			pk := wallet.GetPK()
-			desc := wallet.desc.ToDescriptor().ToBytes()
+			desc := wallet.desc.ToDescriptor()
 
 			if !Verify(tt.message, signature[:], &pk, desc) {
 				t.Error("Verify() failed for valid signature")
@@ -324,7 +324,7 @@ func TestWallet_SignMultiple(t *testing.T) {
 
 		pk := wallet.GetPK()
 		// Verify each signature
-		if !Verify(msg, signature[:], &pk, wallet.desc.ToDescriptor().ToBytes()) {
+		if !Verify(msg, signature[:], &pk, wallet.desc.ToDescriptor()) {
 			t.Errorf("Failed to verify signature for message %d", i+1)
 		}
 	}

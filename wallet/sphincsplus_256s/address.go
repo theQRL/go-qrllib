@@ -1,4 +1,4 @@
-package ml_dsa_87
+package sphincsplus_256s
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
-func GetMLDSA87Address(pk PK, descriptor Descriptor) ([common.AddressSize]uint8, error) {
+func GetSphincsPlus256sAddress(pk PK, descriptor Descriptor) ([common.AddressSize]uint8, error) {
 	var address [common.AddressSize]uint8
 	if !descriptor.IsValid() {
-		return address, fmt.Errorf(common.ErrInvalidDescriptor, wallettype.ML_DSA_87)
+		return address, fmt.Errorf(common.ErrInvalidDescriptor, wallettype.SPHINCSPLUS_256S)
 	}
 	return common.UnsafeGetAddress(pk[:], descriptor.ToDescriptor()), nil
 }

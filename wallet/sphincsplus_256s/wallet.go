@@ -1,22 +1,20 @@
-package ml_dsa_87
+package sphincsplus_256s
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
+	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
-var ctx = []uint8{'Z', 'O', 'N', 'D'}
-
 type Wallet struct {
 	desc Descriptor
-	d    *ml_dsa_87.MLDSA87
+	s    *sphincsplus_256s.SphincsPlus256s
 	seed common.Seed
 }
 
@@ -24,14 +22,20 @@ func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err))
+		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err))
 	}
 	return newWalletFromSeed(seed)
 }
 
+func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8 {
+	var sphincsPlus256sSeed [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8
+	copy(sphincsPlus256sSeed[:], seed)
+	return sphincsPlus256sSeed
+}
+
 func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
-	desc := NewMLDSA87Descriptor()
-	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
+	desc := NewSphincsPlus256sDescriptor()
+	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
 	if err != nil {
 		return nil, err
 	}
@@ -44,17 +48,17 @@ func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
 }
 
 func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error) {
-	desc, err := NewMLDSA87DescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
+	desc, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrDescriptorFromExtendedSeed, wallettype.ML_DSA_87, err)
+		return nil, fmt.Errorf(common.ErrDescriptorFromExtendedSeed, wallettype.SPHINCSPLUS_256S, err)
 	}
 
 	seed, err := common.ToSeed(extendedSeed.GetSeedBytes())
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrExtendedSeedToSeed, wallettype.ML_DSA_87, err)
+		return nil, fmt.Errorf(common.ErrExtendedSeedToSeed, wallettype.SPHINCSPLUS_256S, err)
 	}
 
-	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
+	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +73,12 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 	bin, err := misc.MnemonicToBin(mnemonic)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrMnemonicToBin, wallettype.ML_DSA_87, err)
+		return nil, fmt.Errorf(common.ErrMnemonicToBin, wallettype.SPHINCSPLUS_256S, err)
 	}
 
 	extendedSeed, err := common.NewExtendedSeedFromBytes(bin)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrExtendedSeedFromMnemonic, wallettype.ML_DSA_87, err)
+		return nil, fmt.Errorf(common.ErrExtendedSeedFromMnemonic, wallettype.SPHINCSPLUS_256S, err)
 	}
 
 	return NewWalletFromExtendedSeed(extendedSeed)
@@ -87,7 +91,7 @@ func (w *Wallet) GetSeed() common.Seed {
 func (w *Wallet) GetExtendedSeed() common.ExtendedSeed {
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
-		panic(fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.ML_DSA_87, err))
+		panic(fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.SPHINCSPLUS_256S, err))
 	}
 	return extendedSeed
 }
@@ -107,11 +111,11 @@ func (w *Wallet) GetMnemonic() string {
 }
 
 func (w *Wallet) GetPK() PK {
-	return w.d.GetPK()
+	return w.s.GetPK()
 }
 
 func (w *Wallet) GetSK() [SKSize]uint8 {
-	return w.d.GetSK()
+	return w.s.GetSK()
 }
 
 func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
@@ -125,24 +129,24 @@ func (w *Wallet) GetAddressStr() string {
 }
 
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
-	return w.d.Sign(ctx, message)
+	return w.s.Sign(message)
 }
 
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
-	_, err := NewMLDSA87DescriptorFromDescriptorBytes(desc)
+	_, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(desc)
 	if err != nil {
 		return false
 	}
 
 	if len(signature) != SigSize {
-		panic(fmt.Errorf(common.ErrInvalidSignatureSize, wallettype.ML_DSA_87, len(signature), SigSize))
+		panic(fmt.Errorf(common.ErrInvalidSignatureSize, wallettype.SPHINCSPLUS_256S, len(signature), SigSize))
 	}
 
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	var pk2 [ml_dsa_87.CryptoPublicKeyBytes]uint8
+	var pk2 [PKSize]uint8
 	copy(pk2[:], pk[:])
 
-	return ml_dsa_87.Verify(ctx, message, sig, &pk2)
+	return sphincsplus_256s.Verify(message, sig, &pk2)
 }

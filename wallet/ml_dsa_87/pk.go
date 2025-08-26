@@ -3,16 +3,18 @@ package ml_dsa_87
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
+
+	"github.com/theQRL/go-qrllib/wallet/common"
+	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
-type PK [ml_dsa_87.CryptoPublicKeyBytes]byte
+type PK [PKSize]byte
 
 func BytesToPK(pkBytes []byte) (PK, error) {
 	var pk PK
 
 	if len(pkBytes) != PKSize {
-		return pk, fmt.Errorf("invalid pkBytes size %d, expected %d", len(pkBytes), PKSize)
+		return pk, fmt.Errorf(common.ErrInvalidPKSize, wallettype.ML_DSA_87, len(pkBytes), PKSize)
 	}
 
 	copy(pk[:], pkBytes)
