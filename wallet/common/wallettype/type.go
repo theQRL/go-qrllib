@@ -5,7 +5,7 @@ import "fmt"
 type WalletType uint8
 
 const (
-	XMSS WalletType = iota
+	SPHINCSPLUS_256S WalletType = iota
 	ML_DSA_87
 )
 
@@ -27,7 +27,7 @@ func ToWalletTypeOf(val uint8, walletType WalletType) WalletType {
 
 func (w WalletType) IsValid() bool {
 	switch w {
-	case XMSS, ML_DSA_87:
+	case SPHINCSPLUS_256S, ML_DSA_87:
 		return true
 	default:
 		return false
@@ -36,8 +36,8 @@ func (w WalletType) IsValid() bool {
 
 func (w WalletType) String() string {
 	switch w {
-	case XMSS:
-		return "XMSS"
+	case SPHINCSPLUS_256S:
+		return "SPHINCSPLUS_256S"
 	case ML_DSA_87:
 		return "ML_DSA_87"
 	default:

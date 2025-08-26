@@ -4,6 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/theQRL/go-qrllib/wallet/common"
+	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
 type MLDSA87 struct {
@@ -20,7 +23,7 @@ func New() (*MLDSA87, error) {
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate random seed for MLDSA87 address: %v", err)
+		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
 	}
 
 	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
@@ -44,7 +47,7 @@ func NewMLDSA87FromSeed(seed [SeedBytes]uint8) (*MLDSA87, error) {
 func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hexseed to bin %v", err.Error())
+		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
 	}
 	var seed [SeedBytes]uint8
 	copy(seed[:], unsizedSeed)

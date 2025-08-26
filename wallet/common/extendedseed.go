@@ -31,7 +31,9 @@ func NewExtendedSeedFromBytes(extendedSeedBytes []byte) (ExtendedSeed, error) {
 		return ExtendedSeed{}, fmt.Errorf("invalid length of extendedSeedBytes")
 	}
 
-	desc := descriptor.NewDescriptor(extendedSeedBytes[:descriptor.DescriptorSize])
+	var d [descriptor.DescriptorSize]byte
+	copy(d[:], extendedSeedBytes[:descriptor.DescriptorSize])
+	desc := descriptor.NewDescriptor(d)
 	seed, err := ToSeed(extendedSeedBytes[descriptor.DescriptorSize:])
 	if err != nil {
 		return ExtendedSeed{}, err
@@ -52,8 +54,10 @@ func NewExtendedSeedFromHexString(extendedSeedStr string) (ExtendedSeed, error) 
 	return NewExtendedSeedFromBytes(extendedSeedBytes)
 }
 
-func (e ExtendedSeed) GetDescriptorBytes() []byte {
-	return e[:descriptor.DescriptorSize]
+func (e ExtendedSeed) GetDescriptorBytes() [descriptor.DescriptorSize]byte {
+	var d [descriptor.DescriptorSize]byte
+	copy(d[:], e[:descriptor.DescriptorSize])
+	return d
 }
 
 func (e ExtendedSeed) GetSeedBytes() []byte {

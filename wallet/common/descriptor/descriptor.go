@@ -1,7 +1,7 @@
 package descriptor
 
 import (
-	"fmt"
+	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
 const (
@@ -25,12 +25,9 @@ type CryptoDescriptor interface {
 
 type Descriptor [DescriptorSize]byte
 
-func NewDescriptor(descriptorBytes []byte) Descriptor {
-	if len(descriptorBytes) != DescriptorSize {
-		panic(fmt.Sprintf("Descriptor size should be %v byte", DescriptorSize))
-	}
+func NewDescriptor(descriptorBytes [DescriptorSize]byte) Descriptor {
 	var d Descriptor
-	copy(d[:], descriptorBytes)
+	copy(d[:], descriptorBytes[:])
 	return d
 }
 
@@ -45,4 +42,8 @@ func (d Descriptor) IsValid() bool {
 
 func (d Descriptor) ToBytes() []byte {
 	return d[:]
+}
+
+func GetDescriptorBytes(walletType wallettype.WalletType, metadata [2]byte) [DescriptorSize]byte {
+	return [DescriptorSize]byte{byte(walletType), metadata[0], metadata[1]}
 }
