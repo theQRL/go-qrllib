@@ -121,7 +121,7 @@ func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
 
 func (w *Wallet) GetAddressStr() string {
 	addr := w.GetAddress()
-	return fmt.Sprintf("Z%x", addr[:])
+	return fmt.Sprintf("Q%x", addr[:])
 }
 
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
