@@ -372,9 +372,9 @@ func createWalletFromSeed(t *testing.T, tc *walletTestCase) *Wallet {
 	if err != nil {
 		t.Fatalf("failed to create extended seed: %v", err)
 	}
-	w, err := newWalletFromSeed(extendedSeed.GetSeed())
+	w, err := NewWalletFromSeed(extendedSeed.GetSeed())
 	if err != nil {
-		t.Fatalf("newWalletFromSeed() error = %v", err)
+		t.Fatalf("NewWalletFromSeed() error = %v", err)
 	}
 	return w
 }

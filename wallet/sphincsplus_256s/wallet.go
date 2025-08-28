@@ -24,7 +24,7 @@ func NewWallet() (*Wallet, error) {
 	if err != nil {
 		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err))
 	}
-	return newWalletFromSeed(seed)
+	return NewWalletFromSeed(seed)
 }
 
 func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8 {
@@ -33,7 +33,7 @@ func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8
 	return sphincsPlus256sSeed
 }
 
-func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
+func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc := NewSphincsPlus256sDescriptor()
 	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
 	if err != nil {
