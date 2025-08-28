@@ -26,10 +26,10 @@ func NewWallet() (*Wallet, error) {
 	if err != nil {
 		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err))
 	}
-	return newWalletFromSeed(seed)
+	return NewWalletFromSeed(seed)
 }
 
-func newWalletFromSeed(seed common.Seed) (*Wallet, error) {
+func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc := NewMLDSA87Descriptor()
 	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
 	if err != nil {
