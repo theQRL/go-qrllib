@@ -118,6 +118,10 @@ func (w *Wallet) GetSK() [SKSize]uint8 {
 	return w.s.GetSK()
 }
 
+func (w *Wallet) GetDescriptor() Descriptor {
+	return w.desc
+}
+
 func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
 	pk := w.GetPK()
 	return common.UnsafeGetAddress(pk[:], w.desc.ToDescriptor())
