@@ -15,8 +15,9 @@ func NewExtendedSeed(desc descriptor.Descriptor, seed Seed) (ExtendedSeed, error
 		return ExtendedSeed{}, fmt.Errorf("invalid descriptor")
 	}
 
+	// Check in case the value of ExtendedSeedSize changes to some inappropriate value in future
 	if len(desc)+len(seed) != ExtendedSeedSize {
-		return ExtendedSeed{}, fmt.Errorf("invalid length of descriptor bytes and seed")
+		return ExtendedSeed{}, fmt.Errorf("len(extended seed) != len(desc)+len(seed) | %d != %d", len(desc)+len(seed), ExtendedSeedSize)
 	}
 
 	var e ExtendedSeed
@@ -33,7 +34,7 @@ func NewExtendedSeedFromBytes(extendedSeedBytes []byte) (ExtendedSeed, error) {
 
 	var d [descriptor.DescriptorSize]byte
 	copy(d[:], extendedSeedBytes[:descriptor.DescriptorSize])
-	desc := descriptor.NewDescriptor(d)
+	desc := descriptor.New(d)
 	seed, err := ToSeed(extendedSeedBytes[descriptor.DescriptorSize:])
 	if err != nil {
 		return ExtendedSeed{}, err

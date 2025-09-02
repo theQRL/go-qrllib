@@ -28,7 +28,7 @@ func NewSphincsPlus256sDescriptorFromDescriptor(descriptor descriptor.Descriptor
 }
 
 func NewSphincsPlus256sDescriptorFromDescriptorBytes(descriptorBytes [descriptor.DescriptorSize]uint8) (Descriptor, error) {
-	d := descriptor.NewDescriptor(descriptorBytes)
+	d := descriptor.New(descriptorBytes)
 	return NewSphincsPlus256sDescriptorFromDescriptor(d)
 }
 

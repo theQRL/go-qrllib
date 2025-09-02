@@ -28,7 +28,7 @@ func NewMLDSA87DescriptorFromDescriptor(descriptor descriptor.Descriptor) (Descr
 }
 
 func NewMLDSA87DescriptorFromDescriptorBytes(descriptorBytes [descriptor.DescriptorSize]uint8) (Descriptor, error) {
-	d := descriptor.NewDescriptor(descriptorBytes)
+	d := descriptor.New(descriptorBytes)
 	return NewMLDSA87DescriptorFromDescriptor(d)
 }
 
