@@ -41,8 +41,8 @@ func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error
 }
 
 func GetAddressFromPKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) ([common.AddressSize]uint8, error) {
-	if validatePKAndDescriptor(pk, descriptor) != nil {
-		return [common.AddressSize]uint8{}, errors.New("invalid pk or descriptor")
+	if err := validatePKAndDescriptor(pk, descriptor); err != nil {
+		return [common.AddressSize]uint8{}, fmt.Errorf("invalid pk or descriptor: %v", err)
 	}
 	return common.UnsafeGetAddress(pk, descriptor), nil
 }
