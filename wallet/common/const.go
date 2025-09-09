@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	AddressSize      = 24
+	AddressSize      = 20
 	SeedSize         = 48
 	ExtendedSeedSize = descriptor.DescriptorSize + SeedSize
 )

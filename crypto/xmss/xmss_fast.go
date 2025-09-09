@@ -3,6 +3,7 @@ package xmss
 import (
 	"fmt"
 
+	"github.com/theQRL/go-qrllib/legacywallet/common"
 	"github.com/theQRL/go-qrllib/misc"
 )
 
@@ -294,11 +295,11 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 	currentIdx := uint32(sk[0])<<24 | uint32(sk[1])<<16 | uint32(sk[2])<<8 | uint32(sk[3])
 
 	if newIdx >= numElems {
-		return fmt.Errorf("index %v too high | Max Index should be %v", newIdx, numElems-1)
+		return fmt.Errorf(common.ErrOTSIndexTooHigh, newIdx, numElems-1)
 	}
 
 	if newIdx < currentIdx {
-		return fmt.Errorf("current index %v | cannot rewind to index %v", currentIdx, newIdx)
+		return fmt.Errorf(common.ErrCannotRewindOTSIndex, currentIdx, newIdx)
 	}
 
 	skSeed := make([]uint8, params.n)

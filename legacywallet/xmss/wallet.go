@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+
 	misc2 "github.com/theQRL/go-qrllib/wallet/misc"
 
 	"github.com/theQRL/go-qrllib/common"
@@ -53,8 +54,8 @@ func NewWalletFromHeight(height xmss.Height, hashFunction xmss.HashFunction) *XM
 	return NewWalletFromSeed(seed, height, hashFunction, common.SHA256_2X)
 }
 
-func (w *XMSSWallet) SetIndex(newIndex uint32) {
-	w.xmss.SetIndex(newIndex)
+func (w *XMSSWallet) SetIndex(newIndex uint32) error {
+	return w.xmss.SetIndex(newIndex)
 }
 
 func (w *XMSSWallet) GetHeight() xmss.Height {
