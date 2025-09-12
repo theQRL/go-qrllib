@@ -11,4 +11,6 @@ const (
 	ErrInvalidSignatureSize              = "%s unexpected signature size %d, expected signature size %d"
 	ErrDecodeHexSeed                     = "failed to decode hex seed for %s: %v"
 	ErrInvalidPKSize                     = "%s invalid pkBytes size %d, expected %d"
+	ErrInvalidSeedLength                 = "%s invalid seed length %d, expected %d"
+	ErrInvalidExtendedSeedLength         = "%s invalid extended seed length %d, expected %d"
 )
