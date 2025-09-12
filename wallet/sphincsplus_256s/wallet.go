@@ -89,7 +89,7 @@ func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
 	}
 	if len(binExtendedSeed) != common.ExtendedSeedSize {
-		return nil, fmt.Errorf(common.ErrInvalidSeedLength, wallettype.ML_DSA_87, len(binExtendedSeed), common.ExtendedSeedSize)
+		return nil, fmt.Errorf(common.ErrInvalidExtendedSeedLength, wallettype.ML_DSA_87, len(binExtendedSeed), common.ExtendedSeedSize)
 	}
 	var extendedSeed common.ExtendedSeed
 	copy(extendedSeed[:], binExtendedSeed[:])
