@@ -50,10 +50,10 @@ func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 	binSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
+		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())
 	}
 	if len(binSeed) != common.SeedSize {
-		return nil, fmt.Errorf(common.ErrInvalidSeedLength, wallettype.ML_DSA_87, len(binSeed), common.SeedSize)
+		return nil, fmt.Errorf(common.ErrInvalidSeedLength, wallettype.SPHINCSPLUS_256S, len(binSeed), common.SeedSize)
 	}
 	var seed common.Seed
 	copy(seed[:], binSeed[:])
@@ -86,10 +86,10 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 	binExtendedSeed, err := hex.DecodeString(hexExtendedSeed)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
+		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())
 	}
 	if len(binExtendedSeed) != common.ExtendedSeedSize {
-		return nil, fmt.Errorf(common.ErrInvalidExtendedSeedLength, wallettype.ML_DSA_87, len(binExtendedSeed), common.ExtendedSeedSize)
+		return nil, fmt.Errorf(common.ErrInvalidExtendedSeedLength, wallettype.SPHINCSPLUS_256S, len(binExtendedSeed), common.ExtendedSeedSize)
 	}
 	var extendedSeed common.ExtendedSeed
 	copy(extendedSeed[:], binExtendedSeed[:])
