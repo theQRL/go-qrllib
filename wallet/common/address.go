@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/theQRL/go-qrllib/misc"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
+	"golang.org/x/crypto/sha3"
 )
 
 /*
@@ -10,20 +10,17 @@ UnsafeGetAddress - It is unsafe as it doesn't validate the pk and descriptor. Th
 should only be called after validating the pk and descriptor. If it's being called by the method of SPHINCS+-256s
 or ML-DSA-87, in that case no validation is required as the objects of those classes are made after the validation.
 */
-func UnsafeGetAddress(pk []uint8, descriptor descriptor.Descriptor) [AddressSize]uint8 {
-	var hashedKey [32]uint8
-
+func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
 	// noinspection GoBoolExpressions
-	if len(hashedKey) < AddressSize {
-		panic("Address size is not sufficient")
+	if AddressSize > 32 {
+		panic("AddressSize must be <= 32")
 	}
 
-	hashInput := make([]byte, len(descriptor)+len(pk))
-	hashInput = append(hashInput, descriptor.ToBytes()...)
-	hashInput = append(hashInput, pk[:]...)
-	misc.SHAKE256(hashedKey[:], hashInput)
+	sh := sha3.NewShake256()
+	_, _ = sh.Write(desc.ToBytes())
+	_, _ = sh.Write(pk)
 
-	var address [AddressSize]uint8
-	copy(address[:], hashedKey[len(hashedKey)-AddressSize:])
-	return address
+	var addr [AddressSize]byte
+	_, _ = sh.Read(addr[:]) // take the first N bytes
+	return addr
 }
