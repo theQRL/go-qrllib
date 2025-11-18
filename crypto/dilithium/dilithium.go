@@ -113,3 +113,19 @@ func ExtractMessage(signatureMessage []uint8) []uint8 {
 func ExtractSignature(signatureMessage []uint8) []uint8 {
 	return signatureMessage[:CryptoBytes]
 }
+
+// SignWithSecretKey signs a message using a secret key directly.
+// This is a package-level function similar to Verify, allowing signing
+// without needing a Dilithium instance.
+func SignWithSecretKey(message []uint8, sk *[CryptoSecretKeyBytes]uint8) ([CryptoBytes]uint8, error) {
+	var signature [CryptoBytes]uint8
+
+	// Use cryptoSignSignature directly with the provided secret key
+	// randomizedSigning is set to false (deterministic signing)
+	err := cryptoSignSignature(signature[:], message, sk, false)
+	if err != nil {
+		return signature, err
+	}
+
+	return signature, nil
+}
