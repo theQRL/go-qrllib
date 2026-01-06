@@ -44,6 +44,8 @@ jobs:
       # You can test your matrix by printing the current Go version
       - name: Display Go version
         run: go version
+      - name: Verify dependencies
+        run: go mod verify
       - name: Install dependencies
         run: |
           go get -v ./...

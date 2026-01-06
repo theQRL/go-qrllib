@@ -1,0 +1,5 @@
+# Code Owners for go-qrllib
+# These users will be requested for review when PRs are opened
+
+# Default owners for everything in the repo
+* @cyyber @jplomas @surg0r
