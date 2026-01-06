@@ -98,12 +98,25 @@ func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (
 func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []uint8, pk []uint8, wotsParamW uint32) (result bool) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
-	if uint32(len(signature)) > signatureBaseSize+uint32(MaxHeight)*32 {
-		// Invalid signature size - return false instead of panicking
+
+	sigSize := uint32(len(signature))
+
+	// Check for undersized signatures
+	if sigSize < signatureBaseSize {
 		return false
 	}
 
-	height := GetHeightFromSigSize(uint32(len(signature)), wotsParamW)
+	// Check signature size alignment (must be 4 + n*32 for some n)
+	if (sigSize-4)%32 != 0 {
+		return false
+	}
+
+	// Check for oversized signatures
+	if sigSize > signatureBaseSize+uint32(MaxHeight)*32 {
+		return false
+	}
+
+	height := GetHeightFromSigSize(sigSize, wotsParamW)
 	if !height.IsValid() {
 		return false
 	}
