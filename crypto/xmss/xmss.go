@@ -116,6 +116,13 @@ func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []
 		return false
 	}
 
+	// Pre-validate the computed height before calling GetHeightFromSigSize
+	// Height must be valid: even, >= 2, <= MaxHeight
+	computedHeight := (sigSize - signatureBaseSize) / 32
+	if computedHeight < 2 || computedHeight > MaxHeight || computedHeight%2 != 0 {
+		return false
+	}
+
 	height := GetHeightFromSigSize(sigSize, wotsParamW)
 	if !height.IsValid() {
 		return false

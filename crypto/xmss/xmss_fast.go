@@ -534,6 +534,11 @@ func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, p
 
 	n := wotsParams.n
 
+	// Validate public key length (must be at least 2*n bytes: root + pubSeed)
+	if uint32(len(pk)) < 2*n {
+		return false
+	}
+
 	wotsPK := make([]uint8, wotsParams.keySize)
 	pkHash := make([]uint8, n)
 	root := make([]uint8, n)

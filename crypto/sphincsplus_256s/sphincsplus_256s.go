@@ -98,6 +98,10 @@ func (s *SphincsPlus256s) Sign(message []uint8) ([params.SPX_BYTES]uint8, error)
 // Open the sealed message m. Returns the original message sealed with signature.
 // In case the signature is invalid, nil is returned.
 func Open(signatureMessage []uint8, pk *[params.SPX_PK_BYTES]uint8) []uint8 {
+	// Check for undersized input
+	if len(signatureMessage) < params.SPX_BYTES {
+		return nil
+	}
 	m := make([]uint8, len(signatureMessage)-params.SPX_BYTES)
 	result := cryptoSignOpen(m, signatureMessage, pk[:])
 	if !result {
