@@ -265,7 +265,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 // TestEdgeCaseSeedBoundaries tests seed handling edge cases
 func TestEdgeCaseSeedBoundaries(t *testing.T) {
 	t.Run("zero_seed", func(t *testing.T) {
-		zeroSeed := make([]byte, 48)
+		var zeroSeed [SeedBytes]uint8
 		dil, err := NewDilithiumFromSeed(zeroSeed)
 		if err != nil {
 			t.Fatalf("Failed to create from zero seed: %v", err)
@@ -284,7 +284,7 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 	})
 
 	t.Run("max_seed", func(t *testing.T) {
-		maxSeed := make([]byte, 48)
+		var maxSeed [SeedBytes]uint8
 		for i := range maxSeed {
 			maxSeed[i] = 0xFF
 		}
@@ -302,25 +302,6 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 		pk := dil.GetPK()
 		if !Verify(msg, sig, &pk) {
 			t.Error("Failed to verify with max seed keypair")
-		}
-	})
-
-	t.Run("short_seed", func(t *testing.T) {
-		shortSeed := make([]byte, 16)
-		dil, err := NewDilithiumFromSeed(shortSeed)
-		if err != nil {
-			t.Fatalf("Failed to create from short seed: %v", err)
-		}
-
-		msg := []byte("test")
-		sig, err := dil.Sign(msg)
-		if err != nil {
-			t.Fatalf("Failed to sign with short seed: %v", err)
-		}
-
-		pk := dil.GetPK()
-		if !Verify(msg, sig, &pk) {
-			t.Error("Failed to verify with short seed keypair")
 		}
 	})
 }

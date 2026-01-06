@@ -11,36 +11,32 @@ import (
 // Known Answer Test (KAT) vectors for Dilithium
 // These test vectors verify deterministic key generation and signing.
 //
-// NOTE: Dilithium in go-qrllib uses a 48-byte seed that gets hashed with
-// SHAKE256 to 32 bytes before key generation. This differs from the
-// standard NIST KAT format which uses 32-byte seeds directly.
-//
-// For cross-verification with other Dilithium implementations:
-// 1. Hash the 48-byte seed with SHAKE256 to get 32 bytes
-// 2. Use the 32-byte result as the seed for key generation
+// NOTE: Dilithium in go-qrllib uses a 32-byte seed (SeedBytes) that gets
+// hashed with SHAKE256 before key generation. This matches the standard
+// approach used by ML-DSA-87 and ensures type safety.
 
 // Test vector structure for KAT
 type katVector struct {
 	name    string
-	seed    string // 48 bytes hex (go-qrllib format)
+	seed    string // 32 bytes hex (SeedBytes)
 	message string // Message to sign (hex)
 }
 
-// Test vectors with known 48-byte seeds
+// Test vectors with known 32-byte seeds
 var katVectors = []katVector{
 	{
 		name:    "zero_seed",
-		seed:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		seed:    "0000000000000000000000000000000000000000000000000000000000000000",
 		message: "",
 	},
 	{
 		name:    "incremental_seed",
-		seed:    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
+		seed:    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
 		message: "48656c6c6f2c20576f726c6421", // "Hello, World!"
 	},
 	{
 		name:    "random_seed_1",
-		seed:    "deadbeefcafebabe0123456789abcdef00112233445566778899aabbccddeeff0011223344556677889900aabbccddee",
+		seed:    "deadbeefcafebabe0123456789abcdef00112233445566778899aabbccddeeff",
 		message: "54657374206d65737361676520666f72204b415420766572696669636174696f6e", // "Test message for KAT verification"
 	},
 }
@@ -49,18 +45,20 @@ var katVectors = []katVector{
 func TestKATDeterministicKeypair(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_deterministic", func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.seed)
+			seedSlice, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
 
 			// Generate keypair twice with same seed
-			dil1, err := NewDilithiumFromSeed(seedBytes)
+			dil1, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium (1): %v", err)
 			}
 
-			dil2, err := NewDilithiumFromSeed(seedBytes)
+			dil2, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium (2): %v", err)
 			}
@@ -86,17 +84,19 @@ func TestKATDeterministicKeypair(t *testing.T) {
 func TestKATDeterministicSignature(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_sig_deterministic", func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.seed)
+			seedSlice, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
 			if err != nil {
 				t.Fatalf("Failed to decode message: %v", err)
 			}
 
-			dil, err := NewDilithiumFromSeed(seedBytes)
+			dil, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium: %v", err)
 			}
@@ -130,17 +130,19 @@ func TestKATDeterministicSignature(t *testing.T) {
 func TestKATSignVerifyRoundTrip(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_roundtrip", func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.seed)
+			seedSlice, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
 			if err != nil {
 				t.Fatalf("Failed to decode message: %v", err)
 			}
 
-			dil, err := NewDilithiumFromSeed(seedBytes)
+			dil, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium: %v", err)
 			}
@@ -185,17 +187,19 @@ func TestKATSignVerifyRoundTrip(t *testing.T) {
 func TestKATSealOpenRoundTrip(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_seal_open", func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.seed)
+			seedSlice, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
 			if err != nil {
 				t.Fatalf("Failed to decode message: %v", err)
 			}
 
-			dil, err := NewDilithiumFromSeed(seedBytes)
+			dil, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium: %v", err)
 			}
@@ -290,11 +294,13 @@ func TestKATParameters(t *testing.T) {
 
 // TestKATSeedHashing verifies the seed hashing behavior
 func TestKATSeedHashing(t *testing.T) {
-	// Verify that the 48-byte seed is hashed correctly with SHAKE256
-	seed48, _ := hex.DecodeString(katVectors[1].seed)
+	// Verify that the 32-byte seed is hashed correctly with SHAKE256
+	seedSlice, _ := hex.DecodeString(katVectors[1].seed)
+	var seed [SeedBytes]uint8
+	copy(seed[:], seedSlice)
 
 	var hashedSeed [32]uint8
-	misc.SHAKE256(hashedSeed[:], seed48)
+	misc.SHAKE256(hashedSeed[:], seed[:])
 
 	// The hashed seed should be non-zero
 	allZero := true
@@ -320,8 +326,10 @@ func TestKATHexSeedParsing(t *testing.T) {
 			}
 
 			// Create from binary seed
-			seedBytes, _ := hex.DecodeString(vec.seed)
-			dil2, err := NewDilithiumFromSeed(seedBytes)
+			seedSlice, _ := hex.DecodeString(vec.seed)
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
+			dil2, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium from binary seed: %v", err)
 			}
@@ -342,15 +350,18 @@ func TestKATDifferentSeeds(t *testing.T) {
 		t.Skip("Need at least 2 test vectors")
 	}
 
-	seedBytes1, _ := hex.DecodeString(katVectors[0].seed)
-	seedBytes2, _ := hex.DecodeString(katVectors[1].seed)
+	seedSlice1, _ := hex.DecodeString(katVectors[0].seed)
+	seedSlice2, _ := hex.DecodeString(katVectors[1].seed)
+	var seed1, seed2 [SeedBytes]uint8
+	copy(seed1[:], seedSlice1)
+	copy(seed2[:], seedSlice2)
 
-	dil1, err := NewDilithiumFromSeed(seedBytes1)
+	dil1, err := NewDilithiumFromSeed(seed1)
 	if err != nil {
 		t.Fatalf("Failed to create Dilithium (1): %v", err)
 	}
 
-	dil2, err := NewDilithiumFromSeed(seedBytes2)
+	dil2, err := NewDilithiumFromSeed(seed2)
 	if err != nil {
 		t.Fatalf("Failed to create Dilithium (2): %v", err)
 	}
@@ -372,17 +383,19 @@ func TestKATDifferentSeeds(t *testing.T) {
 func TestKATSignWithSecretKey(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_sign_with_sk", func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.seed)
+			seedSlice, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
+			var seed [SeedBytes]uint8
+			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
 			if err != nil {
 				t.Fatalf("Failed to decode message: %v", err)
 			}
 
-			dil, err := NewDilithiumFromSeed(seedBytes)
+			dil, err := NewDilithiumFromSeed(seed)
 			if err != nil {
 				t.Fatalf("Failed to create Dilithium: %v", err)
 			}
@@ -419,9 +432,11 @@ func TestKATSignWithSecretKey(t *testing.T) {
 
 // TestKATZeroize verifies zeroization of sensitive material
 func TestKATZeroize(t *testing.T) {
-	seedBytes, _ := hex.DecodeString(katVectors[0].seed)
+	seedSlice, _ := hex.DecodeString(katVectors[0].seed)
+	var seed [SeedBytes]uint8
+	copy(seed[:], seedSlice)
 
-	dil, err := NewDilithiumFromSeed(seedBytes)
+	dil, err := NewDilithiumFromSeed(seed)
 	if err != nil {
 		t.Fatalf("Failed to create Dilithium: %v", err)
 	}

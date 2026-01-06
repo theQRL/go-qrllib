@@ -11,7 +11,7 @@ import (
 type Dilithium struct {
 	pk                [CryptoPublicKeyBytes]uint8
 	sk                [CryptoSecretKeyBytes]uint8
-	seed              []uint8
+	seed              [SeedBytes]uint8
 	randomizedSigning bool
 }
 
@@ -31,10 +31,10 @@ func New() (*Dilithium, error) {
 		return nil, err
 	}
 
-	return &Dilithium{pk, sk, seed[:], false}, nil
+	return &Dilithium{pk, sk, seed, false}, nil
 }
 
-func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
+func NewDilithiumFromSeed(seed [SeedBytes]uint8) (*Dilithium, error) {
 	var sk [CryptoSecretKeyBytes]uint8
 	var pk [CryptoPublicKeyBytes]uint8
 
@@ -48,10 +48,12 @@ func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
 }
 
 func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
-	seed, err := hex.DecodeString(hexSeed)
+	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode hex seed: %w", err)
 	}
+	var seed [SeedBytes]uint8
+	copy(seed[:], unsizedSeed)
 	return NewDilithiumFromSeed(seed)
 }
 
@@ -63,7 +65,7 @@ func (d *Dilithium) GetSK() [CryptoSecretKeyBytes]uint8 {
 	return d.sk
 }
 
-func (d *Dilithium) GetSeed() []uint8 {
+func (d *Dilithium) GetSeed() [SeedBytes]uint8 {
 	return d.seed
 }
 
