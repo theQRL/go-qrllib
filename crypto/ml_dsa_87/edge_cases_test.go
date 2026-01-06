@@ -136,7 +136,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 
 	t.Run("random_signature", func(t *testing.T) {
 		var randomSig [CryptoBytes]uint8
-		rand.Read(randomSig[:])
+		_, _ = rand.Read(randomSig[:])
 		if Verify(ctx, msg, randomSig, &pk) {
 			t.Error("Random signature should not verify")
 		}
@@ -182,7 +182,7 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 
 	t.Run("random_pk", func(t *testing.T) {
 		var randomPK [CryptoPublicKeyBytes]uint8
-		rand.Read(randomPK[:])
+		_, _ = rand.Read(randomPK[:])
 		if Verify(ctx, msg, sig, &randomPK) {
 			t.Error("Random public key should not verify")
 		}
@@ -302,7 +302,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	t.Run("invalid_signature_in_sealed", func(t *testing.T) {
 		// Create a sealed message with invalid signature
 		invalidSealed := make([]byte, CryptoBytes+10)
-		rand.Read(invalidSealed)
+		_, _ = rand.Read(invalidSealed)
 		if Open(ctx, invalidSealed, &pk) != nil {
 			t.Error("Open with invalid signature should return nil")
 		}

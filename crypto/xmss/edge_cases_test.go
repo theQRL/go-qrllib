@@ -117,7 +117,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 
 	t.Run("random_signature", func(t *testing.T) {
 		randomSig := make([]byte, getTestSignatureSize(4))
-		rand.Read(randomSig)
+		_, _ = rand.Read(randomSig)
 		if Verify(xmss.GetHashFunction(), msg, randomSig, pk) {
 			t.Error("Random signature should not verify")
 		}
@@ -162,7 +162,7 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 
 	t.Run("random_pk", func(t *testing.T) {
 		randomPK := make([]byte, 64)
-		rand.Read(randomPK)
+		_, _ = rand.Read(randomPK)
 		if Verify(xmss.GetHashFunction(), msg, sig, randomPK) {
 			t.Error("Random public key should not verify")
 		}
