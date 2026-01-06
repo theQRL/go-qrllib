@@ -1,4 +1,4 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread
+.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
@@ -37,6 +37,43 @@ test-race:
 test-verbose:
 	@echo "Running tests (verbose)..."
 	@go test -v ./...
+
+# Run tests with coverage (generates coverage.out and coverage.html)
+test-coverage:
+	@echo "Running tests with coverage..."
+	@go test -coverprofile=coverage.out -covermode=atomic ./...
+	@go tool cover -html=coverage.out -o coverage.html
+	@go tool cover -func=coverage.out
+	@echo ""
+	@echo "Coverage report: coverage.html"
+
+# Run fast tests with coverage (excludes SPHINCS+)
+test-coverage-fast:
+	@echo "Running fast tests with coverage (excludes SPHINCS+)..."
+	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/internal/... ./wallet/... ./legacywallet/...
+	@go tool cover -html=coverage.out -o coverage.html
+	@go tool cover -func=coverage.out
+	@echo ""
+	@echo "Coverage report: coverage.html"
+
+# Run all benchmarks
+bench:
+	@echo "Running benchmarks..."
+	@go test -bench=. -benchmem ./...
+
+# Run fast benchmarks (excludes SPHINCS+)
+bench-fast:
+	@echo "Running benchmarks (excludes SPHINCS+)..."
+	@go test -bench=. -benchmem ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/...
+
+# Run benchmarks for a specific package
+bench-dilithium:
+	@echo "Running Dilithium benchmarks..."
+	@go test -bench=. -benchmem ./crypto/dilithium/...
+
+bench-mldsa:
+	@echo "Running ML-DSA-87 benchmarks..."
+	@go test -bench=. -benchmem ./crypto/ml_dsa_87/...
 
 # Run KAT (Known Answer Test) tests only
 test-kat:
@@ -129,9 +166,10 @@ vulncheck:
 	@echo "Running govulncheck..."
 	@$(GOVULNCHECK) ./...
 
-# Clean test cache and fuzz cache
+# Clean test cache, fuzz cache, and coverage files
 clean:
 	@go clean -testcache -fuzzcache
+	@rm -f coverage.out coverage.html
 
 # Help
 help:
@@ -143,6 +181,8 @@ help:
 	@echo "  test-fast    - Run fast tests only (excludes SPHINCS+)"
 	@echo "  test-race    - Run tests with race detector"
 	@echo "  test-verbose - Run tests with verbose output"
+	@echo "  test-coverage - Run tests with coverage report"
+	@echo "  test-coverage-fast - Run fast tests with coverage (excludes SPHINCS+)"
 	@echo "  test-kat      - Run KAT tests only"
 	@echo "  test-kat-fast - Run KAT tests (fast packages only)"
 	@echo "  test-edge     - Run edge case tests"
@@ -156,6 +196,10 @@ help:
 	@echo "  fuzz-mldsa   - Fuzz ML-DSA-87 operations"
 	@echo "  fuzz-sphincs - Fuzz SPHINCS+ operations"
 	@echo "  fuzz-mnemonic- Fuzz mnemonic operations"
+	@echo "  bench        - Run all benchmarks"
+	@echo "  bench-fast   - Run fast benchmarks (excludes SPHINCS+)"
+	@echo "  bench-dilithium - Run Dilithium benchmarks"
+	@echo "  bench-mldsa  - Run ML-DSA-87 benchmarks"
 	@echo "  tools        - Install development tools"
 	@echo "  vulncheck    - Run govulncheck"
 	@echo "  clean        - Clean test and fuzz cache"

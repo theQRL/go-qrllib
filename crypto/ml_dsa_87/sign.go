@@ -8,24 +8,25 @@ import (
 )
 
 // Take a random seed, and compute sk/pk pair.
-func cryptoSignKeypair(seed *[SeedBytes]uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) (*[SeedBytes]uint8, error) {
-	var tr [TRBytes]uint8
-	var rho, key [SeedBytes]uint8
-	var rhoPrime [CRHBytes]uint8
+func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) (*[SEED_BYTES]uint8, error) {
+	var tr [TR_BYTES]uint8
+	var rho, key [SEED_BYTES]uint8
+	var rhoPrime [CRH_BYTES]uint8
 
 	var mat [K]polyVecL
 	var s1, s1hat polyVecL
 	var s2, t1, t0 polyVecK
 
 	if seed == nil {
-		seed = new([SeedBytes]uint8)
+		seed = new([SEED_BYTES]uint8)
 		_, err := rand.Read(seed[:])
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random seed: %v", err)
 		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
-	state := sha3.NewShake256()
+	state := getShake256()
+	defer putShake256(state)
 	if _, err := state.Write(seed[:]); err != nil {
 		return nil, err
 	}
@@ -78,10 +79,10 @@ func cryptoSignKeypair(seed *[SeedBytes]uint8, pk *[CryptoPublicKeyBytes]uint8, 
 	return seed, nil
 }
 
-func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RNDBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) error {
-	var rho, key [SeedBytes]uint8
-	var tr [TRBytes]uint8
-	var mu, rhoPrime [CRHBytes]uint8
+func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) error {
+	var rho, key [SEED_BYTES]uint8
+	var tr [TR_BYTES]uint8
+	var mu, rhoPrime [CRH_BYTES]uint8
 	var s1, y, z polyVecL
 	var mat [K]polyVecL
 	var s2, t0, w1, h, w0 polyVecK
@@ -91,14 +92,15 @@ func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RNDBytes]uint
 	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
 
 	/* Compute mu = CRH(tr, 0, ctxlen, ctx, msg) */
-	state := sha3.NewShake256()
+	state := getShake256()
+	defer putShake256(state)
 	_, _ = state.Write(tr[:])
 	_, _ = state.Write(pre)
 	_, _ = state.Write(m)
 	_, _ = state.Read(mu[:]) // ShakeHash.Read never returns an error
 
 	/* Compute rhoprime = CRH(key, rnd, mu) */
-	state = sha3.NewShake256()
+	state.Reset() // Reuse pooled hasher
 	_, _ = state.Write(key[:])
 	_, _ = state.Write(rnd[:])
 	_, _ = state.Write(mu[:])
@@ -128,21 +130,21 @@ rej:
 	/* Decompose w and call the random oracle */
 	polyVecKCAddQ(&w1)
 	polyVecKDecompose(&w1, &w0, &w1)
-	if err := polyVecKPackW1(sig[:K*PolyW1PackedBytes], &w1); err != nil {
+	if err := polyVecKPackW1(sig[:K*POLY_W1_PACKED_BYTES], &w1); err != nil {
 		return err
 	}
 
-	state = sha3.NewShake256()
+	state.Reset() // Reuse pooled hasher
 	if _, err := state.Write(mu[:]); err != nil {
 		return err
 	}
-	if _, err := state.Write(sig[:K*PolyW1PackedBytes]); err != nil {
+	if _, err := state.Write(sig[:K*POLY_W1_PACKED_BYTES]); err != nil {
 		return err
 	}
-	if _, err := state.Read(sig[:CTILDEBytes]); err != nil {
+	if _, err := state.Read(sig[:C_TILDE_BYTES]); err != nil {
 		return err
 	}
-	if err := polyChallenge(&cp, sig[:CTILDEBytes]); err != nil {
+	if err := polyChallenge(&cp, sig[:C_TILDE_BYTES]); err != nil {
 		return err
 	}
 	polyNTT(&cp)
@@ -179,20 +181,20 @@ rej:
 	if n > OMEGA {
 		goto rej
 	}
-	var c [CTILDEBytes]uint8
-	copy(c[:], sig[:CTILDEBytes])
-	if err := packSig(sig[:CryptoBytes], c, &z, &h); err != nil {
+	var c [C_TILDE_BYTES]uint8
+	copy(c[:], sig[:C_TILDE_BYTES])
+	if err := packSig(sig[:CRYPTO_BYTES], c, &z, &h); err != nil {
 		return err
 	}
 	return nil
 }
 
-func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) error {
+func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) error {
 	if len(ctx) > 255 {
 		return fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
 	}
 
-	var rnd [RNDBytes]uint8
+	var rnd [RND_BYTES]uint8
 
 	pre := make([]uint8, len(ctx)+2)
 	pre[0] = 0
@@ -210,18 +212,18 @@ func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]
 }
 
 // attached sig wrappers
-func cryptoSign(msg []uint8, ctx []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) ([]uint8, error) {
-	sm := make([]uint8, CryptoBytes+len(msg))
-	copy(sm[CryptoBytes:], msg)
-	err := cryptoSignSignature(sm[:CryptoBytes], sm[CryptoBytes:], ctx, sk, randomizedSigning)
+func cryptoSign(msg []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) ([]uint8, error) {
+	sm := make([]uint8, CRYPTO_BYTES+len(msg))
+	copy(sm[CRYPTO_BYTES:], msg)
+	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], ctx, sk, randomizedSigning)
 	return sm, err
 }
 
-func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
-	var buf [K * PolyW1PackedBytes]uint8
-	var rho [SeedBytes]uint8
-	var mu [CRHBytes]uint8
-	var c, c2 [CTILDEBytes]uint8
+func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
+	var buf [K * POLY_W1_PACKED_BYTES]uint8
+	var rho [SEED_BYTES]uint8
+	var mu [CRH_BYTES]uint8
+	var c, c2 [C_TILDE_BYTES]uint8
 	var cp poly
 	var mat [K]polyVecL
 	var z polyVecL
@@ -236,9 +238,10 @@ func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk
 	}
 
 	/* Compute CRH(H(rho, t1), pre, msg) */
-	sha3.ShakeSum256(mu[:TRBytes], pk[:CryptoPublicKeyBytes])
-	state := sha3.NewShake256()
-	if _, err := state.Write(mu[:TRBytes]); err != nil {
+	sha3.ShakeSum256(mu[:TR_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
+	state := getShake256()
+	defer putShake256(state)
+	if _, err := state.Write(mu[:TR_BYTES]); err != nil {
 		return false, err
 	}
 	if _, err := state.Write(pre); err != nil {
@@ -247,7 +250,7 @@ func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk
 	if _, err := state.Write(m); err != nil {
 		return false, err
 	}
-	if _, err := state.Read(mu[:CRHBytes]); err != nil {
+	if _, err := state.Read(mu[:CRH_BYTES]); err != nil {
 		return false, err
 	}
 
@@ -279,17 +282,17 @@ func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk
 	}
 
 	/* Call random oracle and verify challenge */
-	state = sha3.NewShake256()
-	if _, err := state.Write(mu[:CRHBytes]); err != nil {
+	state.Reset() // Reuse pooled hasher
+	if _, err := state.Write(mu[:CRH_BYTES]); err != nil {
 		return false, err
 	}
-	if _, err := state.Write(buf[:K*PolyW1PackedBytes]); err != nil {
+	if _, err := state.Write(buf[:K*POLY_W1_PACKED_BYTES]); err != nil {
 		return false, err
 	}
-	if _, err := state.Read(c2[:CTILDEBytes]); err != nil {
+	if _, err := state.Read(c2[:C_TILDE_BYTES]); err != nil {
 		return false, err
 	}
-	for i := 0; i < CTILDEBytes; i++ {
+	for i := 0; i < C_TILDE_BYTES; i++ {
 		if c[i] != c2[i] {
 			return false, nil
 		}
@@ -298,7 +301,7 @@ func cryptoSignVerifyInternal(sig [CryptoBytes]uint8, m []uint8, pre []uint8, pk
 	return true, nil
 }
 
-func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, ctx []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
+func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
 	if len(ctx) > 255 {
 		return false, fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
 	}
@@ -311,16 +314,16 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, ctx []uint8, pk *[Crypt
 	return cryptoSignVerifyInternal(sig, m, pre[:], pk)
 }
 
-func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CryptoPublicKeyBytes]uint8) ([]uint8, error) {
-	if len(sm) < CryptoBytes {
+func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	if len(sm) < CRYPTO_BYTES {
 		return nil, nil
 	}
 
-	var sig [CryptoBytes]uint8
-	msg := make([]uint8, len(sm)-CryptoBytes)
+	var sig [CRYPTO_BYTES]uint8
+	msg := make([]uint8, len(sm)-CRYPTO_BYTES)
 
 	copy(sig[:], sm)
-	copy(msg, sm[CryptoBytes:])
+	copy(msg, sm[CRYPTO_BYTES:])
 
 	if result, err := cryptoSignVerify(sig, msg, ctx, pk); err != nil || !result {
 		return nil, err

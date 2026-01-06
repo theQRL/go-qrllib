@@ -112,14 +112,14 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 	pk := dil.GetPK()
 
 	t.Run("all_zeros_signature", func(t *testing.T) {
-		var zeroSig [CryptoBytes]uint8
+		var zeroSig [CRYPTO_BYTES]uint8
 		if Verify(msg, zeroSig, &pk) {
 			t.Error("All-zeros signature should not verify")
 		}
 	})
 
 	t.Run("all_ones_signature", func(t *testing.T) {
-		var onesSig [CryptoBytes]uint8
+		var onesSig [CRYPTO_BYTES]uint8
 		for i := range onesSig {
 			onesSig[i] = 0xFF
 		}
@@ -129,7 +129,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 	})
 
 	t.Run("random_signature", func(t *testing.T) {
-		var randomSig [CryptoBytes]uint8
+		var randomSig [CRYPTO_BYTES]uint8
 		_, _ = rand.Read(randomSig[:])
 		if Verify(msg, randomSig, &pk) {
 			t.Error("Random signature should not verify")
@@ -167,14 +167,14 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 	}
 
 	t.Run("all_zeros_pk", func(t *testing.T) {
-		var zeroPK [CryptoPublicKeyBytes]uint8
+		var zeroPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
 		if Verify(msg, sig, &zeroPK) {
 			t.Error("All-zeros public key should not verify")
 		}
 	})
 
 	t.Run("random_pk", func(t *testing.T) {
-		var randomPK [CryptoPublicKeyBytes]uint8
+		var randomPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
 		_, _ = rand.Read(randomPK[:])
 		if Verify(msg, sig, &randomPK) {
 			t.Error("Random public key should not verify")
@@ -203,7 +203,7 @@ func TestEdgeCaseExtractFunctions(t *testing.T) {
 	})
 
 	t.Run("too_short_input", func(t *testing.T) {
-		short := make([]byte, CryptoBytes-1)
+		short := make([]byte, CRYPTO_BYTES-1)
 		if ExtractMessage(short) != nil {
 			t.Error("ExtractMessage(short) should return nil")
 		}
@@ -213,13 +213,13 @@ func TestEdgeCaseExtractFunctions(t *testing.T) {
 	})
 
 	t.Run("exact_signature_size", func(t *testing.T) {
-		exact := make([]byte, CryptoBytes)
+		exact := make([]byte, CRYPTO_BYTES)
 		msg := ExtractMessage(exact)
 		if msg == nil || len(msg) != 0 {
 			t.Error("ExtractMessage should return empty slice for exact size")
 		}
 		sig := ExtractSignature(exact)
-		if sig == nil || len(sig) != CryptoBytes {
+		if sig == nil || len(sig) != CRYPTO_BYTES {
 			t.Error("ExtractSignature should return full signature for exact size")
 		}
 	})
@@ -246,7 +246,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	})
 
 	t.Run("too_short_input", func(t *testing.T) {
-		short := make([]byte, CryptoBytes-1)
+		short := make([]byte, CRYPTO_BYTES-1)
 		if Open(short, &pk) != nil {
 			t.Error("Open(short) should return nil")
 		}
@@ -254,7 +254,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 
 	t.Run("invalid_signature_in_sealed", func(t *testing.T) {
 		// Create a sealed message with invalid signature
-		invalidSealed := make([]byte, CryptoBytes+10)
+		invalidSealed := make([]byte, CRYPTO_BYTES+10)
 		_, _ = rand.Read(invalidSealed)
 		if Open(invalidSealed, &pk) != nil {
 			t.Error("Open with invalid signature should return nil")
@@ -265,7 +265,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 // TestEdgeCaseSeedBoundaries tests seed handling edge cases
 func TestEdgeCaseSeedBoundaries(t *testing.T) {
 	t.Run("zero_seed", func(t *testing.T) {
-		var zeroSeed [SeedBytes]uint8
+		var zeroSeed [SEED_BYTES]uint8
 		dil, err := NewDilithiumFromSeed(zeroSeed)
 		if err != nil {
 			t.Fatalf("Failed to create from zero seed: %v", err)
@@ -284,7 +284,7 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 	})
 
 	t.Run("max_seed", func(t *testing.T) {
-		var maxSeed [SeedBytes]uint8
+		var maxSeed [SEED_BYTES]uint8
 		for i := range maxSeed {
 			maxSeed[i] = 0xFF
 		}

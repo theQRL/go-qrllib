@@ -1,26 +1,26 @@
 package dilithium
 
 const (
-	CryptoPublicKeyBytes = SeedBytes + K*PolyT1PackedBytes
-	CryptoSecretKeyBytes = 3*SeedBytes + L*PolyETAPackedBytes + K*PolyETAPackedBytes + K*PolyT0PackedBytes
-	// CryptoBytes is the signature size in bytes
-	CryptoBytes = SeedBytes + L*PolyZPackedBytes + PolyVecHPackedBytes
+	CRYPTO_PUBLIC_KEY_BYTES = SEED_BYTES + K*POLY_T1_PACKED_BYTES
+	CRYPTO_SECRET_KEY_BYTES = 3*SEED_BYTES + L*POLY_ETA_PACKED_BYTES + K*POLY_ETA_PACKED_BYTES + K*POLY_T0_PACKED_BYTES
+	// CRYPTO_BYTES is the signature size in bytes
+	CRYPTO_BYTES = SEED_BYTES + L*POLY_Z_PACKED_BYTES + POLY_VEC_H_PACKED_BYTES
 
-	Shake128Rate        = 168
-	Shake256Rate        = 136
-	Stream128BlockBytes = Shake128Rate
-	Stream256BlockBytes = Shake256Rate
+	SHAKE128_RATE         = 168
+	SHAKE256_RATE         = 136
+	STREAM128_BLOCK_BYTES = SHAKE128_RATE
+	STREAM256_BLOCK_BYTES = SHAKE256_RATE
 
-	PolyUniformNBlocks       = (768 + Stream128BlockBytes - 1) / Stream128BlockBytes
-	PolyUniformETANBlocks    = (136 + Stream256BlockBytes - 1) / Stream256BlockBytes
-	PolyUniformGamma1NBlocks = (PolyZPackedBytes + Stream256BlockBytes - 1) / Stream256BlockBytes
+	POLY_UNIFORM_N_BLOCKS        = (768 + STREAM128_BLOCK_BYTES - 1) / STREAM128_BLOCK_BYTES
+	POLY_UNIFORM_ETA_N_BLOCKS    = (136 + STREAM256_BLOCK_BYTES - 1) / STREAM256_BLOCK_BYTES
+	POLY_UNIFORM_GAMMA1_N_BLOCKS = (POLY_Z_PACKED_BYTES + STREAM256_BLOCK_BYTES - 1) / STREAM256_BLOCK_BYTES
 
-	SeedBytes = 32
-	CRHBytes  = 64 // hash of public key
-	N         = 256
-	Q         = 8380417
-	QInv      = 58728449 // -q^(-1) mod 2^32
-	D         = 13
+	SEED_BYTES = 32
+	CRH_BYTES  = 64 // hash of public key
+	N          = 256
+	Q          = 8380417
+	Q_INV      = 58728449 // -q^(-1) mod 2^32
+	D          = 13
 
 	K      = 8
 	L      = 7
@@ -32,10 +32,10 @@ const (
 	OMEGA  = 75
 
 	// Polynomial sizes
-	PolyT1PackedBytes   = 320
-	PolyT0PackedBytes   = 416
-	PolyETAPackedBytes  = 96
-	PolyZPackedBytes    = 640
-	PolyVecHPackedBytes = OMEGA + K
-	PolyW1PackedBytes   = 128
+	POLY_T1_PACKED_BYTES    = 320
+	POLY_T0_PACKED_BYTES    = 416
+	POLY_ETA_PACKED_BYTES   = 96
+	POLY_Z_PACKED_BYTES     = 640
+	POLY_VEC_H_PACKED_BYTES = OMEGA + K
+	POLY_W1_PACKED_BYTES    = 128
 )

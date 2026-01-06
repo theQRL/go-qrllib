@@ -105,9 +105,9 @@ func polyChkNorm(a *poly, B int32) int {
 	return 0
 }
 
-func polyUniform(a *poly, seed *[SeedBytes]uint8, nonce uint16) error {
-	bufLen := PolyUniformNBlocks * Stream128BlockBytes
-	var buf [PolyUniformNBlocks*Stream128BlockBytes + 2]uint8
+func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
+	bufLen := POLY_UNIFORM_N_BLOCKS * STREAM128_BLOCK_BYTES
+	var buf [POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES + 2]uint8
 
 	state := sha3.NewShake128()
 	if _, err := state.Write(seed[:]); err != nil {
@@ -128,10 +128,10 @@ func polyUniform(a *poly, seed *[SeedBytes]uint8, nonce uint16) error {
 			buf[i] = buf[bufLen-off+i]
 		}
 
-		if _, err := state.Read(buf[off : Stream128BlockBytes+off]); err != nil {
+		if _, err := state.Read(buf[off : STREAM128_BLOCK_BYTES+off]); err != nil {
 			return err
 		}
-		bufLen = Stream128BlockBytes + off
+		bufLen = STREAM128_BLOCK_BYTES + off
 		ctr += rejUniform(a.coeffs[ctr:], buf[:bufLen])
 	}
 	return nil
@@ -180,8 +180,8 @@ func rejEta(a []int32, buf []uint8) uint32 {
 	return ctr
 }
 
-func polyUniformEta(a *poly, seed *[CRHBytes]uint8, nonce uint16) error {
-	var buf [PolyUniformETANBlocks * Stream256BlockBytes]uint8
+func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
+	var buf [POLY_UNIFORM_ETA_N_BLOCKS * STREAM256_BLOCK_BYTES]uint8
 	state := sha3.NewShake256()
 
 	if _, err := state.Write(seed[:]); err != nil {
@@ -196,16 +196,16 @@ func polyUniformEta(a *poly, seed *[CRHBytes]uint8, nonce uint16) error {
 
 	ctr := rejEta(a.coeffs[:], buf[:])
 	for ctr < N {
-		if _, err := state.Read(buf[:Stream256BlockBytes]); err != nil {
+		if _, err := state.Read(buf[:STREAM256_BLOCK_BYTES]); err != nil {
 			return err
 		}
-		ctr += rejEta(a.coeffs[ctr:], buf[:Stream256BlockBytes])
+		ctr += rejEta(a.coeffs[ctr:], buf[:STREAM256_BLOCK_BYTES])
 	}
 	return nil
 }
 
-func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
-	var buf [PolyUniformGamma1NBlocks * Stream256BlockBytes]uint8
+func polyUniformGamma1(a *poly, seed [CRH_BYTES]uint8, nonce uint16) {
+	var buf [POLY_UNIFORM_GAMMA1_N_BLOCKS * STREAM256_BLOCK_BYTES]uint8
 	state := sha3.NewShake256()
 
 	_, _ = state.Write(seed[:])
@@ -217,10 +217,10 @@ func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
 
 func polyChallenge(c *poly, seed []uint8) error {
 	var pos, b uint
-	if len(seed) != CTILDEBytes {
+	if len(seed) != C_TILDE_BYTES {
 		return errors.New("invalid seed length")
 	}
-	var buf [Shake256Rate]uint8
+	var buf [SHAKE256_RATE]uint8
 	state := sha3.NewShake256()
 	if _, err := state.Write(seed); err != nil {
 		return err
@@ -240,7 +240,7 @@ func polyChallenge(c *poly, seed []uint8) error {
 	}
 	for i := N - TAU; i < N; i++ {
 		for {
-			if pos >= Shake256Rate {
+			if pos >= SHAKE256_RATE {
 				if _, err := state.Read(buf[:]); err != nil {
 					return err
 				}

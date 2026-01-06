@@ -11,14 +11,14 @@ import (
 // Known Answer Test (KAT) vectors for Dilithium
 // These test vectors verify deterministic key generation and signing.
 //
-// NOTE: Dilithium in go-qrllib uses a 32-byte seed (SeedBytes) that gets
+// NOTE: Dilithium in go-qrllib uses a 32-byte seed (SEED_BYTES) that gets
 // hashed with SHAKE256 before key generation. This matches the standard
 // approach used by ML-DSA-87 and ensures type safety.
 
 // Test vector structure for KAT
 type katVector struct {
 	name    string
-	seed    string // 32 bytes hex (SeedBytes)
+	seed    string // 32 bytes hex (SEED_BYTES)
 	message string // Message to sign (hex)
 }
 
@@ -49,7 +49,7 @@ func TestKATDeterministicKeypair(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 
 			// Generate keypair twice with same seed
@@ -88,7 +88,7 @@ func TestKATDeterministicSignature(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
@@ -134,7 +134,7 @@ func TestKATSignVerifyRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
@@ -191,7 +191,7 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
@@ -211,8 +211,8 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			}
 
 			// Sealed message should be signature + message
-			if len(sealed) != CryptoBytes+len(msg) {
-				t.Errorf("Sealed message length: expected %d, got %d", CryptoBytes+len(msg), len(sealed))
+			if len(sealed) != CRYPTO_BYTES+len(msg) {
+				t.Errorf("Sealed message length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(sealed))
 			}
 
 			// Open
@@ -231,8 +231,8 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			if extractedSig == nil {
 				t.Error("ExtractSignature returned nil")
 			}
-			if len(extractedSig) != CryptoBytes {
-				t.Errorf("Extracted signature length: expected %d, got %d", CryptoBytes, len(extractedSig))
+			if len(extractedSig) != CRYPTO_BYTES {
+				t.Errorf("Extracted signature length: expected %d, got %d", CRYPTO_BYTES, len(extractedSig))
 			}
 
 			extractedMsg := ExtractMessage(sealed)
@@ -250,16 +250,16 @@ func TestKATKeySize(t *testing.T) {
 	expectedSKSize := 4864 // bytes (differs from ML-DSA-87 due to secret key format)
 	expectedSigSize := 4595 // bytes (differs from ML-DSA-87 due to c_tilde size)
 
-	if CryptoPublicKeyBytes != expectedPKSize {
-		t.Errorf("Public key size: expected %d, got %d", expectedPKSize, CryptoPublicKeyBytes)
+	if CRYPTO_PUBLIC_KEY_BYTES != expectedPKSize {
+		t.Errorf("Public key size: expected %d, got %d", expectedPKSize, CRYPTO_PUBLIC_KEY_BYTES)
 	}
 
-	if CryptoSecretKeyBytes != expectedSKSize {
-		t.Errorf("Secret key size: expected %d, got %d", expectedSKSize, CryptoSecretKeyBytes)
+	if CRYPTO_SECRET_KEY_BYTES != expectedSKSize {
+		t.Errorf("Secret key size: expected %d, got %d", expectedSKSize, CRYPTO_SECRET_KEY_BYTES)
 	}
 
-	if CryptoBytes != expectedSigSize {
-		t.Errorf("Signature size: expected %d, got %d", expectedSigSize, CryptoBytes)
+	if CRYPTO_BYTES != expectedSigSize {
+		t.Errorf("Signature size: expected %d, got %d", expectedSigSize, CRYPTO_BYTES)
 	}
 }
 
@@ -296,7 +296,7 @@ func TestKATParameters(t *testing.T) {
 func TestKATSeedHashing(t *testing.T) {
 	// Verify that the 32-byte seed is hashed correctly with SHAKE256
 	seedSlice, _ := hex.DecodeString(katVectors[1].seed)
-	var seed [SeedBytes]uint8
+	var seed [SEED_BYTES]uint8
 	copy(seed[:], seedSlice)
 
 	var hashedSeed [32]uint8
@@ -327,7 +327,7 @@ func TestKATHexSeedParsing(t *testing.T) {
 
 			// Create from binary seed
 			seedSlice, _ := hex.DecodeString(vec.seed)
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 			dil2, err := NewDilithiumFromSeed(seed)
 			if err != nil {
@@ -352,7 +352,7 @@ func TestKATDifferentSeeds(t *testing.T) {
 
 	seedSlice1, _ := hex.DecodeString(katVectors[0].seed)
 	seedSlice2, _ := hex.DecodeString(katVectors[1].seed)
-	var seed1, seed2 [SeedBytes]uint8
+	var seed1, seed2 [SEED_BYTES]uint8
 	copy(seed1[:], seedSlice1)
 	copy(seed2[:], seedSlice2)
 
@@ -387,7 +387,7 @@ func TestKATSignWithSecretKey(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
 			}
-			var seed [SeedBytes]uint8
+			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedSlice)
 
 			msg, err := hex.DecodeString(vec.message)
@@ -433,7 +433,7 @@ func TestKATSignWithSecretKey(t *testing.T) {
 // TestKATZeroize verifies zeroization of sensitive material
 func TestKATZeroize(t *testing.T) {
 	seedSlice, _ := hex.DecodeString(katVectors[0].seed)
-	var seed [SeedBytes]uint8
+	var seed [SEED_BYTES]uint8
 	copy(seed[:], seedSlice)
 
 	dil, err := NewDilithiumFromSeed(seed)

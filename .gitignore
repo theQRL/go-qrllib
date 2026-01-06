@@ -1,2 +1,4 @@
 \.idea
 coverage/
+coverage.out
+coverage.html

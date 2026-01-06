@@ -2,98 +2,98 @@ package dilithium
 
 import "fmt"
 
-func packPk(pkb *[CryptoPublicKeyBytes]uint8, rho [SeedBytes]uint8, t1 *polyVecK) {
+func packPk(pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8, rho [SEED_BYTES]uint8, t1 *polyVecK) {
 	pk := pkb[:]
 	copy(pk[:], rho[:])
-	pk = pk[SeedBytes:]
+	pk = pk[SEED_BYTES:]
 	for i := 0; i < K; i++ {
-		polyT1Pack(pk[i*PolyT1PackedBytes:], &t1.vec[i])
+		polyT1Pack(pk[i*POLY_T1_PACKED_BYTES:], &t1.vec[i])
 	}
 }
 
-func unpackPk(rho *[SeedBytes]uint8,
+func unpackPk(rho *[SEED_BYTES]uint8,
 	t1 *polyVecK,
-	pkb *[CryptoPublicKeyBytes]uint8) {
+	pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8) {
 	pk := pkb[:]
 	copy(rho[:], pk[:])
-	pk = pk[SeedBytes:]
+	pk = pk[SEED_BYTES:]
 	for i := 0; i < K; i++ {
-		polyT1Unpack(&t1.vec[i], pk[i*PolyT1PackedBytes:])
+		polyT1Unpack(&t1.vec[i], pk[i*POLY_T1_PACKED_BYTES:])
 	}
 }
 
-func packSk(skb *[CryptoSecretKeyBytes]uint8,
-	rho, tr, key [SeedBytes]uint8,
+func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
+	rho, tr, key [SEED_BYTES]uint8,
 	t0 *polyVecK,
 	s1 *polyVecL,
 	s2 *polyVecK) {
 	sk := skb[:]
 	copy(sk[:], rho[:])
 
-	copy(sk[SeedBytes:], key[:])
-	copy(sk[SeedBytes*2:], tr[:])
+	copy(sk[SEED_BYTES:], key[:])
+	copy(sk[SEED_BYTES*2:], tr[:])
 
-	sk = sk[SeedBytes*3:]
+	sk = sk[SEED_BYTES*3:]
 
 	for i := 0; i < L; i++ {
-		polyEtaPack(sk[i*PolyETAPackedBytes:], &s1.vec[i])
+		polyEtaPack(sk[i*POLY_ETA_PACKED_BYTES:], &s1.vec[i])
 	}
-	sk = sk[L*PolyETAPackedBytes:]
+	sk = sk[L*POLY_ETA_PACKED_BYTES:]
 
 	for i := 0; i < K; i++ {
-		polyEtaPack(sk[i*PolyETAPackedBytes:], &s2.vec[i])
+		polyEtaPack(sk[i*POLY_ETA_PACKED_BYTES:], &s2.vec[i])
 	}
-	sk = sk[K*PolyETAPackedBytes:]
+	sk = sk[K*POLY_ETA_PACKED_BYTES:]
 
 	for i := 0; i < K; i++ {
-		polyT0Pack(sk[i*PolyT0PackedBytes:], &t0.vec[i])
+		polyT0Pack(sk[i*POLY_T0_PACKED_BYTES:], &t0.vec[i])
 	}
 }
 
 func unpackSk(rho,
 	tr,
-	key *[SeedBytes]byte,
+	key *[SEED_BYTES]byte,
 	t0 *polyVecK,
 	s1 *polyVecL,
 	s2 *polyVecK,
-	skb *[CryptoSecretKeyBytes]byte) {
+	skb *[CRYPTO_SECRET_KEY_BYTES]byte) {
 	sk := skb[:]
 	copy(rho[:], sk[:])
-	copy(key[:], sk[SeedBytes:])
-	copy(tr[:], sk[SeedBytes*2:])
-	sk = sk[SeedBytes*3:]
+	copy(key[:], sk[SEED_BYTES:])
+	copy(tr[:], sk[SEED_BYTES*2:])
+	sk = sk[SEED_BYTES*3:]
 
 	for i := 0; i < L; i++ {
-		polyEtaUnpack(&s1.vec[i], sk[i*PolyETAPackedBytes:])
+		polyEtaUnpack(&s1.vec[i], sk[i*POLY_ETA_PACKED_BYTES:])
 	}
-	sk = sk[L*PolyETAPackedBytes:]
+	sk = sk[L*POLY_ETA_PACKED_BYTES:]
 
 	for i := 0; i < K; i++ {
-		polyEtaUnpack(&s2.vec[i], sk[i*PolyETAPackedBytes:])
+		polyEtaUnpack(&s2.vec[i], sk[i*POLY_ETA_PACKED_BYTES:])
 	}
-	sk = sk[K*PolyETAPackedBytes:]
+	sk = sk[K*POLY_ETA_PACKED_BYTES:]
 
 	for i := 0; i < K; i++ {
-		polyT0Unpack(&t0.vec[i], sk[i*PolyT0PackedBytes:])
+		polyT0Unpack(&t0.vec[i], sk[i*POLY_T0_PACKED_BYTES:])
 	}
 }
 
 func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
-	if len(sigb) != CryptoBytes {
-		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CryptoBytes, len(sigb))
+	if len(sigb) != CRYPTO_BYTES {
+		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
 	}
-	if len(c) != SeedBytes {
-		return fmt.Errorf("invalid c length | length expected %v | found %v", SeedBytes, len(c))
+	if len(c) != SEED_BYTES {
+		return fmt.Errorf("invalid c length | length expected %v | found %v", SEED_BYTES, len(c))
 	}
 	sig := sigb[:]
 
-	copy(sig[:SeedBytes], c[:SeedBytes])
-	sig = sig[SeedBytes:]
+	copy(sig[:SEED_BYTES], c[:SEED_BYTES])
+	sig = sig[SEED_BYTES:]
 
 	for i := 0; i < L; i++ {
-		polyZPack(sig[i*PolyZPackedBytes:], &z.vec[i])
+		polyZPack(sig[i*POLY_Z_PACKED_BYTES:], &z.vec[i])
 	}
-	sig = sig[L*PolyZPackedBytes:]
+	sig = sig[L*POLY_Z_PACKED_BYTES:]
 
 	/* Encode h */
 	for i := 0; i < OMEGA+K; i++ {
@@ -113,19 +113,19 @@ func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	return nil
 }
 
-func unpackSig(c *[SeedBytes]uint8,
+func unpackSig(c *[SEED_BYTES]uint8,
 	z *polyVecL,
 	h *polyVecK,
-	sigBytes [CryptoBytes]uint8) int {
+	sigBytes [CRYPTO_BYTES]uint8) int {
 
 	sig := sigBytes[:]
-	copy(c[:SeedBytes], sig[:SeedBytes])
+	copy(c[:SEED_BYTES], sig[:SEED_BYTES])
 
-	sig = sig[SeedBytes:]
+	sig = sig[SEED_BYTES:]
 	for i := 0; i < L; i++ {
-		polyZUnpack(&z.vec[i], sig[i*PolyZPackedBytes:])
+		polyZUnpack(&z.vec[i], sig[i*POLY_Z_PACKED_BYTES:])
 	}
-	sig = sig[L*PolyZPackedBytes:]
+	sig = sig[L*POLY_Z_PACKED_BYTES:]
 
 	/* Decode h */
 	k := uint(0)

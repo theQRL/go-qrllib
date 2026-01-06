@@ -13,21 +13,21 @@ const (
 	HexSeed = "c3317c917c365869a32ee99b46ea1587c5883ad4f38af9367a1bf676dddfb62f"
 )
 
-func PKHStrToBin(pkHStr string) [CryptoPublicKeyBytes]uint8 {
-	if len(pkHStr) != 2*CryptoPublicKeyBytes {
+func PKHStrToBin(pkHStr string) [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
+	if len(pkHStr) != 2*CRYPTO_PUBLIC_KEY_BYTES {
 		panic("Invalid pkHStr")
 	}
-	var pk [CryptoPublicKeyBytes]uint8
+	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
 	pkDecode, _ := hex.DecodeString(pkHStr)
 	copy(pk[:], pkDecode)
 	return pk
 }
 
-func SKHStrToBin(skHStr string) [CryptoSecretKeyBytes]uint8 {
-	if len(skHStr) != 2*CryptoSecretKeyBytes {
+func SKHStrToBin(skHStr string) [CRYPTO_SECRET_KEY_BYTES]uint8 {
+	if len(skHStr) != 2*CRYPTO_SECRET_KEY_BYTES {
 		panic("Invalid skHStr")
 	}
-	var sk [CryptoSecretKeyBytes]uint8
+	var sk [CRYPTO_SECRET_KEY_BYTES]uint8
 	skDecode, _ := hex.DecodeString(skHStr)
 	copy(sk[:], skDecode)
 	return sk
@@ -55,7 +55,7 @@ func TestNewMLDSA87FromSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to decode hexseed", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewMLDSA87FromSeed(binSeed)
 	if err != nil {
@@ -138,7 +138,7 @@ func TestMLDSA87_GetSeed(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewMLDSA87FromSeed(binSeed)
 	if err != nil {
@@ -266,8 +266,8 @@ func TestExtractSignature(t *testing.T) {
 	}
 
 	extractedSignature := ExtractSignature(signatureMessage)
-	if !bytes.Equal(signatureMessage[:CryptoBytes], extractedSignature) {
-		t.Errorf("ExtractedSignature mismatch\nExpected: %x\nFound: %x", signatureMessage[:CryptoBytes], extractedSignature)
+	if !bytes.Equal(signatureMessage[:CRYPTO_BYTES], extractedSignature) {
+		t.Errorf("ExtractedSignature mismatch\nExpected: %x\nFound: %x", signatureMessage[:CRYPTO_BYTES], extractedSignature)
 	}
 }
 
@@ -279,7 +279,7 @@ func newMLDSA87FromSeed(t *testing.T, hexSeed string) *MLDSA87 {
 		t.Fatal("failed to decode hexseed", err.Error())
 	}
 
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 
 	d, err := NewMLDSA87FromSeed(binSeed)

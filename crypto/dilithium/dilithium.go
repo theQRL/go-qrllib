@@ -9,16 +9,16 @@ import (
 )
 
 type Dilithium struct {
-	pk                [CryptoPublicKeyBytes]uint8
-	sk                [CryptoSecretKeyBytes]uint8
-	seed              [SeedBytes]uint8
+	pk                [CRYPTO_PUBLIC_KEY_BYTES]uint8
+	sk                [CRYPTO_SECRET_KEY_BYTES]uint8
+	seed              [SEED_BYTES]uint8
 	randomizedSigning bool
 }
 
 func New() (*Dilithium, error) {
-	var sk [CryptoSecretKeyBytes]uint8
-	var pk [CryptoPublicKeyBytes]uint8
-	var seed [SeedBytes]uint8
+	var sk [CRYPTO_SECRET_KEY_BYTES]uint8
+	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
+	var seed [SEED_BYTES]uint8
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
@@ -34,9 +34,9 @@ func New() (*Dilithium, error) {
 	return &Dilithium{pk, sk, seed, false}, nil
 }
 
-func NewDilithiumFromSeed(seed [SeedBytes]uint8) (*Dilithium, error) {
-	var sk [CryptoSecretKeyBytes]uint8
-	var pk [CryptoPublicKeyBytes]uint8
+func NewDilithiumFromSeed(seed [SEED_BYTES]uint8) (*Dilithium, error) {
+	var sk [CRYPTO_SECRET_KEY_BYTES]uint8
+	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
 
 	var hashedSeed [32]uint8
 	misc.SHAKE256(hashedSeed[:], seed[:])
@@ -52,20 +52,20 @@ func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode hex seed: %w", err)
 	}
-	var seed [SeedBytes]uint8
+	var seed [SEED_BYTES]uint8
 	copy(seed[:], unsizedSeed)
 	return NewDilithiumFromSeed(seed)
 }
 
-func (d *Dilithium) GetPK() [CryptoPublicKeyBytes]uint8 {
+func (d *Dilithium) GetPK() [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
 	return d.pk
 }
 
-func (d *Dilithium) GetSK() [CryptoSecretKeyBytes]uint8 {
+func (d *Dilithium) GetSK() [CRYPTO_SECRET_KEY_BYTES]uint8 {
 	return d.sk
 }
 
-func (d *Dilithium) GetSeed() [SeedBytes]uint8 {
+func (d *Dilithium) GetSeed() [SEED_BYTES]uint8 {
 	return d.seed
 }
 
@@ -81,24 +81,24 @@ func (d *Dilithium) Seal(message []uint8) ([]uint8, error) {
 
 // Sign the message, and return a detached signature. Detached signatures are
 // variable sized, but never larger than SIG_SIZE_PACKED.
-func (d *Dilithium) Sign(message []uint8) ([CryptoBytes]uint8, error) {
-	var signature [CryptoBytes]uint8
+func (d *Dilithium) Sign(message []uint8) ([CRYPTO_BYTES]uint8, error) {
+	var signature [CRYPTO_BYTES]uint8
 
 	sm, err := cryptoSign(message, &d.sk, d.randomizedSigning)
 	if err == nil {
-		copy(signature[:CryptoBytes], sm[:CryptoBytes])
+		copy(signature[:CRYPTO_BYTES], sm[:CRYPTO_BYTES])
 	}
 	return signature, err
 }
 
 // Open the sealed message m. Returns the original message sealed with signature.
 // In case the signature is invalid, nil is returned.
-func Open(signatureMessage []uint8, pk *[CryptoPublicKeyBytes]uint8) []uint8 {
+func Open(signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
 	msg, _ := cryptoSignOpen(signatureMessage, pk)
 	return msg
 }
 
-func Verify(message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPublicKeyBytes]uint8) bool {
+func Verify(message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
 	result, err := cryptoSignVerify(signature, message, pk)
 	if err != nil {
 		return false
@@ -109,19 +109,19 @@ func Verify(message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPublicKeyB
 // ExtractMessage extracts message from Signature attached with message.
 // Returns nil if the input is too short to contain a valid signature.
 func ExtractMessage(signatureMessage []uint8) []uint8 {
-	if len(signatureMessage) < CryptoBytes {
+	if len(signatureMessage) < CRYPTO_BYTES {
 		return nil
 	}
-	return signatureMessage[CryptoBytes:]
+	return signatureMessage[CRYPTO_BYTES:]
 }
 
 // ExtractSignature extracts signature from Signature attached with message.
 // Returns nil if the input is too short to contain a valid signature.
 func ExtractSignature(signatureMessage []uint8) []uint8 {
-	if len(signatureMessage) < CryptoBytes {
+	if len(signatureMessage) < CRYPTO_BYTES {
 		return nil
 	}
-	return signatureMessage[:CryptoBytes]
+	return signatureMessage[:CRYPTO_BYTES]
 }
 
 // Zeroize clears sensitive key material from memory.
@@ -138,8 +138,8 @@ func (d *Dilithium) Zeroize() {
 // SignWithSecretKey signs a message using a secret key directly.
 // This is a package-level function similar to Verify, allowing signing
 // without needing a Dilithium instance.
-func SignWithSecretKey(message []uint8, sk *[CryptoSecretKeyBytes]uint8) ([CryptoBytes]uint8, error) {
-	var signature [CryptoBytes]uint8
+func SignWithSecretKey(message []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([CRYPTO_BYTES]uint8, error) {
+	var signature [CRYPTO_BYTES]uint8
 
 	// Use cryptoSignSignature directly with the provided secret key
 	// randomizedSigning is set to false (deterministic signing)

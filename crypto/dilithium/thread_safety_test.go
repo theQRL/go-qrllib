@@ -204,7 +204,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			sig := ExtractSignature(sealed)
-			if sig == nil || len(sig) != CryptoBytes {
+			if sig == nil || len(sig) != CRYPTO_BYTES {
 				t.Error("ExtractSignature failed")
 			}
 		}()

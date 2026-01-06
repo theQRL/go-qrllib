@@ -7,25 +7,25 @@ import (
 )
 
 const (
-	// HexSeed is a 32-byte seed (SeedBytes) for consistent type-safe testing
+	// HexSeed is a 32-byte seed (SEED_BYTES) for consistent type-safe testing
 	HexSeed = "f29f58aff0b00de2844f7e20bd9eeaacc379150043beeb328335817512b29fbb"
 )
 
-func PKHStrToBin(pkHStr string) [CryptoPublicKeyBytes]uint8 {
-	if len(pkHStr) != 2*CryptoPublicKeyBytes {
+func PKHStrToBin(pkHStr string) [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
+	if len(pkHStr) != 2*CRYPTO_PUBLIC_KEY_BYTES {
 		panic("Invalid pkHStr")
 	}
-	var pk [CryptoPublicKeyBytes]uint8
+	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
 	pkDecode, _ := hex.DecodeString(pkHStr)
 	copy(pk[:], pkDecode)
 	return pk
 }
 
-func SKHStrToBin(skHStr string) [CryptoSecretKeyBytes]uint8 {
-	if len(skHStr) != 2*CryptoSecretKeyBytes {
+func SKHStrToBin(skHStr string) [CRYPTO_SECRET_KEY_BYTES]uint8 {
+	if len(skHStr) != 2*CRYPTO_SECRET_KEY_BYTES {
 		panic("Invalid skHStr")
 	}
-	var sk [CryptoSecretKeyBytes]uint8
+	var sk [CRYPTO_SECRET_KEY_BYTES]uint8
 	skDecode, _ := hex.DecodeString(skHStr)
 	copy(sk[:], skDecode)
 	return sk
@@ -53,7 +53,7 @@ func TestNewDilithiumFromSeed(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -138,7 +138,7 @@ func TestDilithium_GetPK(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -164,7 +164,7 @@ func TestDilithium_GetSK(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -190,7 +190,7 @@ func TestDilithium_GetSeed(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -207,7 +207,7 @@ func TestDilithium_GetHexSeed(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -226,7 +226,7 @@ func TestDilithium_Seal(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -239,8 +239,8 @@ func TestDilithium_Seal(t *testing.T) {
 	}
 
 	// Verify the sealed message has correct size (signature + message)
-	if len(signatureMessage) != CryptoBytes+len(msg) {
-		t.Errorf("sealed message size mismatch: got %d, want %d", len(signatureMessage), CryptoBytes+len(msg))
+	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
+		t.Errorf("sealed message size mismatch: got %d, want %d", len(signatureMessage), CRYPTO_BYTES+len(msg))
 	}
 
 	// Verify the sealed message can be opened with the correct public key
@@ -265,7 +265,7 @@ func TestDilithium_Open(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -298,7 +298,7 @@ func TestDilithium_Sign(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -311,8 +311,8 @@ func TestDilithium_Sign(t *testing.T) {
 	}
 
 	// Verify signature has correct size
-	if len(signature) != CryptoBytes {
-		t.Errorf("signature size mismatch: got %d, want %d", len(signature), CryptoBytes)
+	if len(signature) != CRYPTO_BYTES {
+		t.Errorf("signature size mismatch: got %d, want %d", len(signature), CRYPTO_BYTES)
 	}
 
 	// Verify signature verifies with correct public key
@@ -336,7 +336,7 @@ func TestDilithium_Verify(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -375,7 +375,7 @@ func TestExtractMessage(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -388,8 +388,8 @@ func TestExtractMessage(t *testing.T) {
 	}
 
 	// Verify sealed message has correct size
-	if len(signatureMessage) != CryptoBytes+len(msg) {
-		t.Errorf("signatureMessage length: expected %d, got %d", CryptoBytes+len(msg), len(signatureMessage))
+	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
+		t.Errorf("signatureMessage length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(signatureMessage))
 	}
 
 	extractedMessage := ExtractMessage(signatureMessage)
@@ -406,7 +406,7 @@ func TestExtractSignature(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -419,17 +419,17 @@ func TestExtractSignature(t *testing.T) {
 	}
 
 	// Verify sealed message has correct size
-	if len(signatureMessage) != CryptoBytes+len(msg) {
-		t.Errorf("signatureMessage length: expected %d, got %d", CryptoBytes+len(msg), len(signatureMessage))
+	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
+		t.Errorf("signatureMessage length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(signatureMessage))
 	}
 
 	extractedSignature := ExtractSignature(signatureMessage)
 
-	if len(extractedSignature) != CryptoBytes {
-		t.Errorf("extracted signature length: expected %d, got %d", CryptoBytes, len(extractedSignature))
+	if len(extractedSignature) != CRYPTO_BYTES {
+		t.Errorf("extracted signature length: expected %d, got %d", CRYPTO_BYTES, len(extractedSignature))
 	}
 
-	if !reflect.DeepEqual(signatureMessage[:CryptoBytes], extractedSignature) {
+	if !reflect.DeepEqual(signatureMessage[:CRYPTO_BYTES], extractedSignature) {
 		t.Error("ExtractedSignature mismatch")
 	}
 }
@@ -443,7 +443,7 @@ func TestSignWithSecretKey(t *testing.T) {
 	if err != nil {
 		t.Error("failed to decode hexseed ", err.Error())
 	}
-	var binSeed [SeedBytes]uint8
+	var binSeed [SEED_BYTES]uint8
 	copy(binSeed[:], binUnsizeSeed)
 	d, err := NewDilithiumFromSeed(binSeed)
 	if err != nil {
@@ -460,8 +460,8 @@ func TestSignWithSecretKey(t *testing.T) {
 	}
 
 	// Verify signature has correct size
-	if len(signature) != CryptoBytes {
-		t.Errorf("signature size: expected %d, got %d", CryptoBytes, len(signature))
+	if len(signature) != CRYPTO_BYTES {
+		t.Errorf("signature size: expected %d, got %d", CRYPTO_BYTES, len(signature))
 	}
 
 	// Verify signature is valid
