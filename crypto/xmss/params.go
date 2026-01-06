@@ -32,7 +32,7 @@ func NewWOTSParams(n, w uint32) *WOTSParams {
 	if logW != 2 && logW != 4 && logW != 8 {
 		panic("logW should be either 2, 4 or 8")
 	}
-	len1 := uint32(math.Ceil(float64((8 * n) / logW)))
+	len1 := (8*n + logW - 1) / logW // ceiling division
 	len2 := uint32(math.Floor(math.Log2(float64(len1*(w-1)))/float64(logW)) + 1)
 	totalLen := len1 + len2
 	keySize := totalLen * n

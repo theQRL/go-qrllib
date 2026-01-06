@@ -18,25 +18,19 @@ func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
 	addressOffset := 0
 	descBytes := desc.GetBytes()
 
-	for i := 0; i < len(descBytes); i++ {
-		address[i] = descBytes[i]
-	}
+	copy(address[:], descBytes[:])
 	addressOffset += len(descBytes)
 
 	var hashedKey [32]uint8
 	misc.SHA256(hashedKey[:], ePK[:])
-	for i := 0; i < len(hashedKey); i++ {
-		address[addressOffset+i] = hashedKey[i]
-	}
+	copy(address[addressOffset:], hashedKey[:])
 	addressOffset += len(hashedKey)
 
 	var hashedKey2 [32]uint8
 	misc.SHA256(hashedKey2[:], address[:addressOffset])
 	hashedKey2Offset := len(hashedKey2) - 4
 
-	for i := 0; i < 4; i++ {
-		address[addressOffset+i] = hashedKey2[hashedKey2Offset+i]
-	}
+	copy(address[addressOffset:], hashedKey2[hashedKey2Offset:])
 
 	return address
 }

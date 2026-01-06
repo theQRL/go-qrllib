@@ -24,28 +24,6 @@ func init() {
 	}
 }
 
-func setByteAtOffset(addr *[8]uint32, offset int, value byte) {
-	if offset < 0 || offset >= 32 {
-		panic("offset out of range in SetByteAtOffset")
-	}
-	wordIndex := offset / 4
-	byteOffset := offset % 4
-	shift := 8 * (3 - byteOffset) // big-endian byte order
-
-	mask := uint32(0xFF) << shift
-	addr[wordIndex] = (addr[wordIndex] &^ mask) | (uint32(value) << shift)
-}
-
-func getByteAtOffset(addr *[8]uint32, offset int) byte {
-	if offset < 0 || offset >= 32 {
-		panic("GetByteAtOffset: offset out of range")
-	}
-	wordIndex := offset / 4
-	byteOffset := offset % 4
-	shift := 8 * (3 - byteOffset) // big-endian
-	return byte((addr[wordIndex] >> shift) & 0xFF)
-}
-
 func setLayerAddr(addr *[8]uint32, layer uint32) {
 	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
 	byteAddr[params.SPX_OFFSET_LAYER] = byte(layer)
@@ -109,4 +87,14 @@ func setTreeHeight(addr *[8]uint32, treeHeight uint32) {
 func setTreeIndex(addr *[8]uint32, treeIndex uint32) {
 	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
 	binary.BigEndian.PutUint32(byteAddr[params.SPX_OFFSET_TREE_INDEX:], treeIndex)
+}
+
+func setByteAtOffset(addr *[8]uint32, offset int, value byte) {
+	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
+	byteAddr[offset] = value
+}
+
+func getByteAtOffset(addr *[8]uint32, offset int) byte {
+	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
+	return byteAddr[offset]
 }

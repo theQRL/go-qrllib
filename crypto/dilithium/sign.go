@@ -88,9 +88,9 @@ func cryptoSignSignature(sig, m []uint8, sk *[CryptoSecretKeyBytes]uint8, random
 
 	/* Compute CRH(tr, msg) */
 	state := sha3.NewShake256()
-	state.Write(tr[:])
-	state.Write(m)
-	state.Read(mu[:])
+	_, _ = state.Write(tr[:])
+	_, _ = state.Write(m)
+	_, _ = state.Read(mu[:]) // ShakeHash.Read never returns an error
 
 	if randomizedSigning {
 		if _, err := rand.Read(rhoPrime[:]); err != nil {

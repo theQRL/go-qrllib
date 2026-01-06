@@ -35,15 +35,15 @@ func GetEndian() uint8 {
 
 func SHAKE128(out, msg []byte) []byte {
 	hasher := sha3.NewShake128()
-	hasher.Write(msg)
-	hasher.Read(out)
+	_, _ = hasher.Write(msg)
+	_, _ = hasher.Read(out) // ShakeHash.Read never returns an error
 	return out
 }
 
 func SHAKE256(out, msg []byte) []byte {
 	hasher := sha3.NewShake256()
-	hasher.Write(msg)
-	hasher.Read(out)
+	_, _ = hasher.Write(msg)
+	_, _ = hasher.Read(out) // ShakeHash.Read never returns an error
 	return out
 }
 

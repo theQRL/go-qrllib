@@ -82,7 +82,6 @@ func MnemonicToBin(mnemonic string) ([]uint8, error) {
 
 	if buffering > 0 {
 		result[resultIndex] = uint8(current & 0xFF)
-		resultIndex++
 	}
 
 	return result, nil

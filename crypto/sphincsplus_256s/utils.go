@@ -115,3 +115,4 @@ func treeHash(root, authPath []byte, ctx *SPXCtx,
 	}
 	copy(root, stack[:params.SPX_N])
 }
+

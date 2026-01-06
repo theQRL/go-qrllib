@@ -105,17 +105,11 @@ func (w *XMSSWallet) GetPK() [ExtendedPKSize]uint8 {
 
 	var output [ExtendedPKSize]uint8
 	offset := 0
-	for i := 0; i < len(desc); i++ {
-		output[i] = desc[i]
-	}
+	copy(output[:], desc[:])
 	offset += len(desc)
-	for i := 0; i < len(root); i++ {
-		output[offset+i] = root[i]
-	}
+	copy(output[offset:], root[:])
 	offset += len(root)
-	for i := 0; i < len(pubSeed); i++ {
-		output[offset+i] = pubSeed[i]
-	}
+	copy(output[offset:], pubSeed[:])
 	return output
 }
 

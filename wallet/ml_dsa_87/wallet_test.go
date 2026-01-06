@@ -212,7 +212,7 @@ func TestWallet_Sign(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	for _, tc := range walletTestCases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			desc := NewMLDSA87Descriptor()
 			pk, err := HexStrToPK(tc.wantPK)
 			if err != nil {

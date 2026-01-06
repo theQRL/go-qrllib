@@ -37,9 +37,7 @@ func (s Seed) HashSHAKE256(size uint32) []byte {
 }
 
 func HexStrToSeed(hexStr string) (Seed, error) {
-	if strings.HasPrefix(hexStr, "0x") {
-		hexStr = hexStr[2:]
-	}
+	hexStr = strings.TrimPrefix(hexStr, "0x")
 
 	seedBytes, err := hex.DecodeString(hexStr)
 	if err != nil {

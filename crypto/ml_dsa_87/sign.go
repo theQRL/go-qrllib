@@ -92,17 +92,17 @@ func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RNDBytes]uint
 
 	/* Compute mu = CRH(tr, 0, ctxlen, ctx, msg) */
 	state := sha3.NewShake256()
-	state.Write(tr[:])
-	state.Write(pre)
-	state.Write(m)
-	state.Read(mu[:])
+	_, _ = state.Write(tr[:])
+	_, _ = state.Write(pre)
+	_, _ = state.Write(m)
+	_, _ = state.Read(mu[:]) // ShakeHash.Read never returns an error
 
 	/* Compute rhoprime = CRH(key, rnd, mu) */
 	state = sha3.NewShake256()
-	state.Write(key[:])
-	state.Write(rnd[:])
-	state.Write(mu[:])
-	state.Read(rhoPrime[:])
+	_, _ = state.Write(key[:])
+	_, _ = state.Write(rnd[:])
+	_, _ = state.Write(mu[:])
+	_, _ = state.Read(rhoPrime[:]) // ShakeHash.Read never returns an error
 
 	/* Expand matrix and transform vectors */
 	if err := polyVecMatrixExpand(&mat, &rho); err != nil {

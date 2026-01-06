@@ -209,18 +209,9 @@ func polyUniformGamma1(a *poly, seed [CRHBytes]uint8, nonce uint16) {
 	var buf [PolyUniformGamma1NBlocks * Stream256BlockBytes]uint8
 	state := sha3.NewShake256()
 
-	_, err := state.Write(seed[:])
-	if err != nil {
-
-	}
-	_, err = state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)})
-	if err != nil {
-
-	}
-	_, err = state.Read(buf[:])
-	if err != nil {
-
-	}
+	_, _ = state.Write(seed[:])
+	_, _ = state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)})
+	_, _ = state.Read(buf[:]) // ShakeHash.Read never returns an error
 
 	polyZUnpack(a, buf[:])
 }

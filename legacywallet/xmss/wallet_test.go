@@ -260,7 +260,9 @@ func TestXMSSChangeIndexHigh(t *testing.T) {
 
 func TestXMSSChangeIndexLimit(t *testing.T) {
 	xmss := newTestXMSSWallet(4)
-	xmss.SetIndex(15)
+	if err := xmss.SetIndex(15); err != nil {
+		t.Fatalf("SetIndex failed: %v", err)
+	}
 	if xmss.GetIndex() != 15 {
 		t.Errorf("Index Mismatch\nExpected: %d\nFound: %d", 15, xmss.GetIndex())
 	}
@@ -268,7 +270,9 @@ func TestXMSSChangeIndexLimit(t *testing.T) {
 
 func TestXMSSChangeIndex(t *testing.T) {
 	xmss := newTestXMSSWallet(4)
-	xmss.SetIndex(0)
+	if err := xmss.SetIndex(0); err != nil {
+		t.Fatalf("SetIndex failed: %v", err)
+	}
 	if xmss.GetIndex() != 0 {
 		t.Errorf("Index Mismatch\nExpected: %d\nFound: %d", 0, xmss.GetIndex())
 	}

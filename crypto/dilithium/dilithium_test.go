@@ -18,10 +18,7 @@ func PKHStrToBin(pkHStr string) [CryptoPublicKeyBytes]uint8 {
 	}
 	var pk [CryptoPublicKeyBytes]uint8
 	pkDecode, _ := hex.DecodeString(pkHStr)
-
-	for i := 0; i < len(pkDecode); i++ {
-		pk[i] = pkDecode[i]
-	}
+	copy(pk[:], pkDecode)
 	return pk
 }
 
@@ -31,10 +28,7 @@ func SKHStrToBin(skHStr string) [CryptoSecretKeyBytes]uint8 {
 	}
 	var sk [CryptoSecretKeyBytes]uint8
 	skDecode, _ := hex.DecodeString(skHStr)
-
-	for i := 0; i < len(skDecode); i++ {
-		sk[i] = skDecode[i]
-	}
+	copy(sk[:], skDecode)
 	return sk
 }
 
