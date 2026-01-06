@@ -154,6 +154,16 @@ func TestMakeHint(t *testing.T) {
 		{"below negative range", -GAMMA2 - 1, 0, 1},
 		{"at negative boundary with a1=0", -GAMMA2, 0, 0},
 		{"at negative boundary with a1!=0", -GAMMA2, 1, 1},
+		// Additional edge cases for constant-time implementation
+		{"a0 just below GAMMA2", GAMMA2 - 1, 100, 0},
+		{"a0 just above -GAMMA2", -GAMMA2 + 1, 100, 0},
+		{"a0 far above GAMMA2", GAMMA2 + 1000, 0, 1},
+		{"a0 far below -GAMMA2", -GAMMA2 - 1000, 0, 1},
+		{"a0 at -GAMMA2 with negative a1", -GAMMA2, -1, 1},
+		{"a0 at -GAMMA2 with large a1", -GAMMA2, 1000000, 1},
+		{"small positive a0", 1, 0, 0},
+		{"small negative a0", -1, 0, 0},
+		{"a0 at midpoint", 0, 1000, 0},
 	}
 
 	for _, tt := range tests {
@@ -166,21 +176,91 @@ func TestMakeHint(t *testing.T) {
 	}
 }
 
+// TestMakeHintConstantTimeReference verifies the constant-time implementation
+// produces results matching the reference branching implementation
+func TestMakeHintConstantTimeReference(t *testing.T) {
+	// Reference implementation (branching)
+	makeHintRef := func(a0, a1 int32) uint {
+		if a0 > GAMMA2 || a0 < -GAMMA2 || (a0 == -GAMMA2 && a1 != 0) {
+			return 1
+		}
+		return 0
+	}
+
+	// Test many values around boundaries
+	testValues := []int32{
+		-GAMMA2 - 100, -GAMMA2 - 1, -GAMMA2, -GAMMA2 + 1, -GAMMA2 + 100,
+		-1000, -100, -1, 0, 1, 100, 1000,
+		GAMMA2 - 100, GAMMA2 - 1, GAMMA2, GAMMA2 + 1, GAMMA2 + 100,
+	}
+	a1Values := []int32{-1000, -1, 0, 1, 1000}
+
+	for _, a0 := range testValues {
+		for _, a1 := range a1Values {
+			got := MakeHint(a0, a1)
+			expected := makeHintRef(a0, a1)
+			if got != expected {
+				t.Errorf("MakeHint(%d, %d) = %d, reference = %d", a0, a1, got, expected)
+			}
+		}
+	}
+}
+
 func TestUseHint(t *testing.T) {
 	tests := []struct {
 		name string
 		a    int32
 		hint int
 	}{
-		{"no hint", 1000, 0},
-		{"with hint", 1000, 1},
+		{"no hint zero", 0, 0},
+		{"no hint small", 1000, 0},
+		{"no hint large", 1000000, 0},
+		{"with hint zero", 0, 1},
+		{"with hint small", 1000, 1},
+		{"with hint large", 1000000, 1},
+		{"negative value no hint", -1000, 0},
+		{"negative value with hint", -1000, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Just verify it doesn't panic
-			_ = UseHint(tt.a, tt.hint)
+			got := UseHint(tt.a, tt.hint)
+			// Result should be in range [0, 15]
+			if got < 0 || got > 15 {
+				t.Errorf("UseHint(%d, %d) = %d, out of range [0, 15]", tt.a, tt.hint, got)
+			}
 		})
+	}
+}
+
+// TestUseHintConstantTimeReference verifies the constant-time implementation
+// produces results matching the reference branching implementation
+func TestUseHintConstantTimeReference(t *testing.T) {
+	// Reference implementation (branching)
+	useHintRef := func(a int32, hint int) int32 {
+		var a0, a1 int32
+		a1 = Decompose(&a0, a)
+		if hint == 0 {
+			return a1
+		}
+		if a0 > 0 {
+			return (a1 + 1) & 15
+		}
+		return (a1 - 1) & 15
+	}
+
+	// Test various values
+	aValues := []int32{0, 1, 100, 1000, 10000, 100000, 1000000, -1, -100, -1000}
+	hintValues := []int{0, 1}
+
+	for _, a := range aValues {
+		for _, hint := range hintValues {
+			got := UseHint(a, hint)
+			expected := useHintRef(a, hint)
+			if got != expected {
+				t.Errorf("UseHint(%d, %d) = %d, reference = %d", a, hint, got, expected)
+			}
+		}
 	}
 }
 
