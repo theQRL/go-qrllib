@@ -22,7 +22,7 @@ func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err))
+		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err)
 	}
 	return NewWalletFromSeed(seed)
 }
@@ -169,7 +169,8 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	}
 
 	if len(signature) != SigSize {
-		panic(fmt.Errorf(common.ErrInvalidSignatureSize, wallettype.SPHINCSPLUS_256S, len(signature), SigSize))
+		// Invalid signature size - return false instead of panicking
+		return false
 	}
 
 	var sig [SigSize]uint8

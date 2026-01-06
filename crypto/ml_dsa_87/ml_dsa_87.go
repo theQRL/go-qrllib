@@ -104,11 +104,30 @@ func Verify(ctx, message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPubli
 }
 
 // ExtractMessage extracts message from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractMessage(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < CryptoBytes {
+		return nil
+	}
 	return signatureMessage[CryptoBytes:]
 }
 
 // ExtractSignature extracts signature from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractSignature(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < CryptoBytes {
+		return nil
+	}
 	return signatureMessage[:CryptoBytes]
+}
+
+// Zeroize clears sensitive key material from memory.
+// This should be called when the MLDSA87 instance is no longer needed.
+func (d *MLDSA87) Zeroize() {
+	for i := range d.sk {
+		d.sk[i] = 0
+	}
+	for i := range d.seed {
+		d.seed[i] = 0
+	}
 }

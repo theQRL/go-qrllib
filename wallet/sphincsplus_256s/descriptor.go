@@ -33,11 +33,16 @@ func NewSphincsPlus256sDescriptorFromDescriptorBytes(descriptorBytes [descriptor
 }
 
 func (d Descriptor) WalletType() wallettype.WalletType {
-	return wallettype.ToWalletTypeOf(d[0], wallettype.SPHINCSPLUS_256S)
+	wt, err := wallettype.ToWalletTypeOf(d[0], wallettype.SPHINCSPLUS_256S)
+	if err != nil {
+		return wallettype.InvalidWalletType
+	}
+	return wt
 }
 
 func (d Descriptor) IsValid() bool {
-	return d.WalletType() == wallettype.SPHINCSPLUS_256S
+	_, err := wallettype.ToWalletTypeOf(d[0], wallettype.SPHINCSPLUS_256S)
+	return err == nil
 }
 
 func (d Descriptor) ToDescriptor() descriptor.Descriptor {

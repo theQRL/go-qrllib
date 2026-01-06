@@ -111,11 +111,30 @@ func Verify(message []uint8, signature [params.SPX_BYTES]uint8, pk *[params.SPX_
 }
 
 // ExtractMessage extracts message from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractMessage(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < params.SPX_BYTES {
+		return nil
+	}
 	return signatureMessage[params.SPX_BYTES:]
 }
 
 // ExtractSignature extracts signature from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractSignature(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < params.SPX_BYTES {
+		return nil
+	}
 	return signatureMessage[:params.SPX_BYTES]
+}
+
+// Zeroize clears sensitive key material from memory.
+// This should be called when the SphincsPlus256s instance is no longer needed.
+func (s *SphincsPlus256s) Zeroize() {
+	for i := range s.sk {
+		s.sk[i] = 0
+	}
+	for i := range s.seed {
+		s.seed[i] = 0
+	}
 }

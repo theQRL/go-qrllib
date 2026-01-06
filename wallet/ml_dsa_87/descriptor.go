@@ -33,11 +33,16 @@ func NewMLDSA87DescriptorFromDescriptorBytes(descriptorBytes [descriptor.Descrip
 }
 
 func (d Descriptor) WalletType() wallettype.WalletType {
-	return wallettype.ToWalletTypeOf(d[0], wallettype.ML_DSA_87)
+	wt, err := wallettype.ToWalletTypeOf(d[0], wallettype.ML_DSA_87)
+	if err != nil {
+		return wallettype.InvalidWalletType
+	}
+	return wt
 }
 
 func (d Descriptor) IsValid() bool {
-	return d.WalletType() == wallettype.ML_DSA_87
+	_, err := wallettype.ToWalletTypeOf(d[0], wallettype.ML_DSA_87)
+	return err == nil
 }
 
 func (d Descriptor) ToDescriptor() descriptor.Descriptor {

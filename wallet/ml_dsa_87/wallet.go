@@ -24,7 +24,7 @@ func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err))
+		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
 	}
 	return NewWalletFromSeed(seed)
 }
@@ -165,7 +165,8 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	}
 
 	if len(signature) != SigSize {
-		panic(fmt.Errorf(common.ErrInvalidSignatureSize, wallettype.ML_DSA_87, len(signature), SigSize))
+		// Invalid signature size - return false instead of panicking
+		return false
 	}
 
 	var sig [SigSize]uint8

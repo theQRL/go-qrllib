@@ -80,6 +80,17 @@ func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)
 }
 
+// Zeroize clears sensitive key material from memory.
+// This should be called when the XMSS instance is no longer needed.
+func (x *XMSS) Zeroize() {
+	for i := range x.sk {
+		x.sk[i] = 0
+	}
+	for i := range x.seed {
+		x.seed[i] = 0
+	}
+}
+
 func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (result bool) {
 	return VerifyWithCustomWOTSParamW(hashFunction, message, signature, pk, WOTSParamW)
 }
@@ -88,7 +99,8 @@ func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if uint32(len(signature)) > signatureBaseSize+uint32(MaxHeight)*32 {
-		panic("invalid signature size. Height<=254")
+		// Invalid signature size - return false instead of panicking
+		return false
 	}
 
 	height := GetHeightFromSigSize(uint32(len(signature)), wotsParamW)
@@ -101,7 +113,8 @@ func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []
 	n := WOTSParamN
 
 	if k >= height.ToUInt32() || (height.ToUInt32()-k)%2 == 1 {
-		panic("For BDS traversal, H - K must be even, with H > K >= 2!")
+		// Invalid BDS traversal parameters - return false instead of panicking
+		return false
 	}
 
 	params := NewXMSSParams(n, height.ToUInt32(), w, k)

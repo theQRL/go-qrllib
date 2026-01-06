@@ -18,7 +18,7 @@ type Dilithium struct {
 func New() (*Dilithium, error) {
 	var sk [CryptoSecretKeyBytes]uint8
 	var pk [CryptoPublicKeyBytes]uint8
-	var seed []uint8
+	var seed [SeedBytes]uint8
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
@@ -31,7 +31,7 @@ func New() (*Dilithium, error) {
 		return nil, err
 	}
 
-	return &Dilithium{pk, sk, seed, false}, nil
+	return &Dilithium{pk, sk, seed[:], false}, nil
 }
 
 func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
@@ -105,13 +105,32 @@ func Verify(message []uint8, signature [CryptoBytes]uint8, pk *[CryptoPublicKeyB
 }
 
 // ExtractMessage extracts message from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractMessage(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < CryptoBytes {
+		return nil
+	}
 	return signatureMessage[CryptoBytes:]
 }
 
 // ExtractSignature extracts signature from Signature attached with message.
+// Returns nil if the input is too short to contain a valid signature.
 func ExtractSignature(signatureMessage []uint8) []uint8 {
+	if len(signatureMessage) < CryptoBytes {
+		return nil
+	}
 	return signatureMessage[:CryptoBytes]
+}
+
+// Zeroize clears sensitive key material from memory.
+// This should be called when the Dilithium instance is no longer needed.
+func (d *Dilithium) Zeroize() {
+	for i := range d.sk {
+		d.sk[i] = 0
+	}
+	for i := range d.seed {
+		d.seed[i] = 0
+	}
 }
 
 // SignWithSecretKey signs a message using a secret key directly.

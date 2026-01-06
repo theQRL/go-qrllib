@@ -1,6 +1,8 @@
 package common
 
 import (
+	"encoding/hex"
+
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"golang.org/x/crypto/sha3"
 )
@@ -23,4 +25,23 @@ func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
 	var addr [AddressSize]byte
 	_, _ = sh.Read(addr[:]) // take the first N bytes
 	return addr
+}
+
+// IsValidAddress validates a QRL address string.
+// A valid address has the format "Q" followed by AddressSize*2 hex characters.
+func IsValidAddress(addr string) bool {
+	// Check length: "Q" prefix + hex-encoded address (2 chars per byte)
+	expectedLen := 1 + AddressSize*2
+	if len(addr) != expectedLen {
+		return false
+	}
+
+	// Check Q prefix
+	if addr[0] != 'Q' {
+		return false
+	}
+
+	// Check that the rest is valid hex
+	_, err := hex.DecodeString(addr[1:])
+	return err == nil
 }
