@@ -2,8 +2,9 @@ package misc
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
+
 	"golang.org/x/crypto/sha3"
-	"unsafe"
 )
 
 const (
@@ -11,18 +12,25 @@ const (
 	bigEndian
 )
 
-func GetEndian() uint8 {
-	buf := [2]byte{}
-	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
+// nativeEndian is determined once at package init time using binary.NativeEndian (Go 1.21+)
+var nativeEndian uint8
 
-	switch buf {
-	case [2]byte{0xCD, 0xAB}:
-		return littleEndian
-	case [2]byte{0xAB, 0xCD}:
-		return bigEndian
-	default:
-		panic("Could not determine native endian.")
+func init() {
+	// Use binary.NativeEndian to safely detect byte order without unsafe
+	buf := [2]byte{}
+	binary.NativeEndian.PutUint16(buf[:], 0xABCD)
+	if buf[0] == 0xCD {
+		nativeEndian = littleEndian
+	} else {
+		nativeEndian = bigEndian
 	}
+}
+
+// GetEndian returns the native byte order of the system.
+// Deprecated: This function is kept for API compatibility but now uses
+// binary.NativeEndian internally instead of unsafe pointer manipulation.
+func GetEndian() uint8 {
+	return nativeEndian
 }
 
 func SHAKE128(out, msg []byte) []byte {

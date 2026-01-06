@@ -114,6 +114,22 @@ func TestNewDilithiumFromHexSeed(t *testing.T) {
 	}
 }
 
+func TestNewDilithiumFromHexSeed_InvalidHex(t *testing.T) {
+	// Test that invalid hex returns an error instead of panicking
+	invalidHexSeeds := []string{
+		"invalid_hex_string",
+		"zzzz",
+		"12345g",
+	}
+
+	for _, invalidSeed := range invalidHexSeeds {
+		_, err := NewDilithiumFromHexSeed(invalidSeed)
+		if err == nil {
+			t.Errorf("expected error for invalid hex seed %q, got nil", invalidSeed)
+		}
+	}
+}
+
 func TestDilithium_GetPK(t *testing.T) {
 	pk := PKHStrToBin(PK1)
 

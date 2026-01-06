@@ -9,6 +9,16 @@ import (
 	"github.com/theQRL/go-qrllib/qrl"
 )
 
+// wordLookup is a pre-computed map for efficient mnemonic word lookup
+var wordLookup map[string]int
+
+func init() {
+	wordLookup = make(map[string]int, len(qrl.WordList))
+	for i, word := range qrl.WordList {
+		wordLookup[word] = i
+	}
+}
+
 func BinToMnemonic(input []uint8) (string, error) {
 	if len(input)%3 != 0 {
 		return "", errors.New("byte count needs to be a multiple of 3")
@@ -44,14 +54,6 @@ func MnemonicToBin(mnemonic string) ([]uint8, error) {
 	wordCount := len(mnemonicWords)
 	if wordCount%2 != 0 {
 		return nil, fmt.Errorf("word count = %d must be even", wordCount)
-	}
-
-	// Prepare lookup
-	// FIXME: Create the look up in advance
-	wordLookup := make(map[string]int)
-
-	for i, word := range qrl.WordList {
-		wordLookup[word] = i
 	}
 
 	result := make([]uint8, wordCount*15/10)

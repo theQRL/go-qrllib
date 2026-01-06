@@ -50,7 +50,7 @@ func NewDilithiumFromSeed(seed []uint8) (*Dilithium, error) {
 func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
 	seed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		panic("Failed to decode hexseed to bin")
+		return nil, fmt.Errorf("failed to decode hex seed: %w", err)
 	}
 	return NewDilithiumFromSeed(seed)
 }
