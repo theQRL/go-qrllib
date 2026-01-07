@@ -1,8 +1,6 @@
 package sphincsplus_256s
 
 import (
-	"unsafe"
-
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 	"golang.org/x/crypto/sha3"
 )
@@ -24,8 +22,8 @@ func initializeHashFunction(ctx *SPXCtx) {
 func prfAddr(out []byte, ctx *SPXCtx, addr *[8]uint32) {
 	buf := make([]byte, 2*params.SPX_N+params.SPX_ADDR_BYTES)
 	copy(buf[:params.SPX_N], ctx.PubSeed[:])
-	addrBytes := (*[32]byte)(unsafe.Pointer(addr))[:]
-	copy(buf[params.SPX_N:], addrBytes)
+	addrBytes := addrToBytes(addr)
+	copy(buf[params.SPX_N:], addrBytes[:])
 	copy(buf[params.SPX_N+params.SPX_ADDR_BYTES:], ctx.SkSeed[:])
 
 	shake := sha3.NewShake256()
