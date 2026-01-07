@@ -367,4 +367,19 @@ func TestEdgeCaseSignWithSecretKey(t *testing.T) {
 			t.Error("Failed to verify nil message signature")
 		}
 	})
+
+	t.Run("nil_secret_key", func(t *testing.T) {
+		_, err := SignWithSecretKey([]byte("test message"), nil)
+		if err == nil {
+			t.Error("Expected error when signing with nil secret key")
+		}
+	})
+
+	t.Run("zero_secret_key", func(t *testing.T) {
+		var zeroSK [CRYPTO_SECRET_KEY_BYTES]uint8
+		_, err := SignWithSecretKey([]byte("test message"), &zeroSK)
+		if err == nil {
+			t.Error("Expected error when signing with zero secret key")
+		}
+	})
 }

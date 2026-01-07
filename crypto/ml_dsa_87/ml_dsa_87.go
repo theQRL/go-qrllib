@@ -1,3 +1,25 @@
+// Package ml_dsa_87 implements the ML-DSA-87 digital signature algorithm
+// as specified in FIPS 204 (Module-Lattice-Based Digital Signature Standard).
+//
+// # API Difference: Context Parameter
+//
+// Unlike other signature packages in go-qrllib (Dilithium, SPHINCS+, XMSS),
+// ML-DSA-87 requires a context parameter (ctx) in Sign, Verify, Seal, and Open
+// functions. This is mandated by FIPS 204 for domain separation.
+//
+// The context parameter:
+//   - Is a byte slice of 0-255 bytes
+//   - Is prepended to the message hash as [0x00, len(ctx), ...ctx]
+//   - Enables domain separation between different applications
+//   - QRL wallet uses ctx = ['Z', 'O', 'N', 'D'] for blockchain transactions
+//
+// Why other packages don't have context:
+//   - Dilithium: Pre-FIPS version of the algorithm (no context in original spec)
+//   - SPHINCS+: FIPS 205 hash-based signature (context not part of spec)
+//   - XMSS: RFC 8391 hash-based signature (uses hash function selector instead)
+//
+// The wallet layer (wallet/ml_dsa_87) abstracts this by hardcoding the context,
+// providing a consistent Sign(message) API to callers.
 package ml_dsa_87
 
 import (
@@ -76,8 +98,9 @@ func (d *MLDSA87) Seal(ctx, message []uint8) ([]uint8, error) {
 	return cryptoSign(message, ctx, &d.sk, d.randomizedSigning)
 }
 
-// Sign the message, and return a detached signature. Detached signatures are
-// variable sized, but never larger than SIG_SIZE_PACKED.
+// Sign the message with the given context, and return a detached signature.
+// The ctx parameter is required by FIPS 204 for domain separation (max 255 bytes).
+// Detached signatures are variable sized, but never larger than SIG_SIZE_PACKED.
 func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	var signature [CRYPTO_BYTES]uint8
 
@@ -95,6 +118,8 @@ func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []u
 	return msg
 }
 
+// Verify checks the signature against the message and public key with the given context.
+// The ctx parameter must match the context used during signing (FIPS 204 requirement).
 func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
 	result, err := cryptoSignVerify(signature, message, ctx, pk)
 	if err != nil {

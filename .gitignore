@@ -2,3 +2,7 @@
 coverage/
 coverage.out
 coverage.html
+
+# Test binaries
+*.test
+*.prof

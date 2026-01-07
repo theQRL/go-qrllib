@@ -2,6 +2,9 @@ package dilithium
 
 import "fmt"
 
+// packPk serializes a public key into bytes.
+// Format: rho (32 bytes) || t1[0] || t1[1] || ... || t1[K-1]
+// where each t1[i] is packed using 10 bits per coefficient.
 func packPk(pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8, rho [SEED_BYTES]uint8, t1 *polyVecK) {
 	pk := pkb[:]
 	copy(pk[:], rho[:])
@@ -11,6 +14,8 @@ func packPk(pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8, rho [SEED_BYTES]uint8, t1 *poly
 	}
 }
 
+// unpackPk deserializes a public key from bytes.
+// Extracts rho and t1 vector from the packed representation.
 func unpackPk(rho *[SEED_BYTES]uint8,
 	t1 *polyVecK,
 	pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8) {
@@ -22,6 +27,9 @@ func unpackPk(rho *[SEED_BYTES]uint8,
 	}
 }
 
+// packSk serializes a secret key into bytes.
+// Format: rho (32) || key (32) || tr (32) || s1 || s2 || t0
+// where s1, s2 use eta-encoding and t0 uses 13-bit coefficients.
 func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
 	rho, tr, key [SEED_BYTES]uint8,
 	t0 *polyVecK,
@@ -50,6 +58,8 @@ func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
 	}
 }
 
+// unpackSk deserializes a secret key from bytes.
+// Extracts rho, tr, key, t0, s1, s2 from the packed representation.
 func unpackSk(rho,
 	tr,
 	key *[SEED_BYTES]byte,
@@ -78,6 +88,15 @@ func unpackSk(rho,
 	}
 }
 
+// packSig serializes a signature into bytes.
+// Format: c (32 bytes) || z (L polynomials) || h (hint encoding)
+//
+// The hint encoding uses OMEGA+K bytes:
+//   - First OMEGA bytes: indices where h[i][j] = 1
+//   - Last K bytes: cumulative count of hints per polynomial
+//
+// This encoding ensures strong unforgeability by requiring hint indices
+// to be strictly increasing within each polynomial.
 func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CRYPTO_BYTES {
 		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
@@ -113,6 +132,14 @@ func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	return nil
 }
 
+// unpackSig deserializes a signature from bytes.
+// Extracts challenge c, response z, and hints h.
+//
+// Returns 0 on success, 1 if the signature format is invalid.
+// Validity checks include:
+//   - Hint count does not exceed OMEGA
+//   - Hint indices are strictly increasing (prevents malleability)
+//   - Unused hint bytes are zero-padded
 func unpackSig(c *[SEED_BYTES]uint8,
 	z *polyVecL,
 	h *polyVecK,

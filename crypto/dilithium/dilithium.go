@@ -138,8 +138,36 @@ func (d *Dilithium) Zeroize() {
 // SignWithSecretKey signs a message using a secret key directly.
 // This is a package-level function similar to Verify, allowing signing
 // without needing a Dilithium instance.
+//
+// Security considerations:
+//   - Uses deterministic signing (not randomized). The same message and key
+//     will always produce the same signature.
+//   - The caller is responsible for ensuring the secret key was properly
+//     derived using NewDilithiumFromSeed or similar secure key generation.
+//   - No validation is performed on the secret key structure; an invalid
+//     key will produce invalid signatures that fail verification.
+//   - This function is safe to call concurrently from multiple goroutines
+//     with the same or different keys.
+//
+// Returns an error if sk is nil.
 func SignWithSecretKey(message []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([CRYPTO_BYTES]uint8, error) {
 	var signature [CRYPTO_BYTES]uint8
+
+	if sk == nil {
+		return signature, fmt.Errorf("secret key cannot be nil")
+	}
+
+	// Check for zeroized or uninitialized key
+	isZero := true
+	for _, b := range sk {
+		if b != 0 {
+			isZero = false
+			break
+		}
+	}
+	if isZero {
+		return signature, fmt.Errorf("secret key is zero (uninitialized or zeroized)")
+	}
 
 	// Use cryptoSignSignature directly with the provided secret key
 	// randomizedSigning is set to false (deterministic signing)
