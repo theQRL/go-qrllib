@@ -98,7 +98,8 @@ func TestThreadSafetySeparateInstances(t *testing.T) {
 	}
 }
 
-// TestThreadSafetyConcurrentSealOpen tests parallel seal/open operations
+// TestThreadSafetyConcurrentSealOpen tests parallel seal/open operations.
+// Note: SPHINCS+ is slow (~7s per seal), so we use minimal iterations.
 func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 	spx, err := New()
 	if err != nil {
@@ -107,32 +108,26 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 
 	pk := spx.GetPK()
 
-	// Pre-create some sealed messages
-	const numSealed = 3
-	sealedMsgs := make([][]byte, numSealed)
-	for i := 0; i < numSealed; i++ {
-		msg := []byte("message " + string(rune(i)))
-		sealed, err := spx.Seal(msg)
-		if err != nil {
-			t.Fatalf("Failed to seal: %v", err)
-		}
-		sealedMsgs[i] = sealed
+	// Pre-create one sealed message (SPHINCS+ seal is very slow ~7s)
+	msg := []byte("test message for seal/open")
+	sealed, err := spx.Seal(msg)
+	if err != nil {
+		t.Fatalf("Failed to seal: %v", err)
 	}
 
-	// Concurrent opening
+	// Concurrent opening of the same sealed message
 	var wg sync.WaitGroup
-	wg.Add(numSealed * 3) // Open each sealed message 3 times concurrently
+	const numOpens = 3
+	wg.Add(numOpens)
 
-	for i := 0; i < numSealed; i++ {
-		for j := 0; j < 3; j++ {
-			go func(idx int) {
-				defer wg.Done()
-				opened := Open(sealedMsgs[idx], &pk)
-				if opened == nil {
-					t.Error("Concurrent open failed")
-				}
-			}(i)
-		}
+	for i := 0; i < numOpens; i++ {
+		go func() {
+			defer wg.Done()
+			opened := Open(sealed, &pk)
+			if opened == nil {
+				t.Error("Concurrent open failed")
+			}
+		}()
 	}
 
 	wg.Wait()
