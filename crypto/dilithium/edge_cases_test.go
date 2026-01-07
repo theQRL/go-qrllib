@@ -310,16 +310,15 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 func TestEdgeCaseHexSeedParsing(t *testing.T) {
 	t.Run("empty_hex", func(t *testing.T) {
 		_, err := NewDilithiumFromHexSeed("")
-		// Should work but with zero-length seed
-		if err != nil {
-			t.Logf("Empty hex seed error (expected): %v", err)
+		if err == nil {
+			t.Error("Empty hex seed should return error")
 		}
 	})
 
 	t.Run("short_hex", func(t *testing.T) {
 		_, err := NewDilithiumFromHexSeed("0102030405")
-		if err != nil {
-			t.Fatalf("Short hex seed should work: %v", err)
+		if err == nil {
+			t.Error("Short hex seed should return error (security: prevents weak key generation)")
 		}
 	})
 
@@ -336,6 +335,85 @@ func TestEdgeCaseHexSeedParsing(t *testing.T) {
 			t.Error("Odd length hex should return error")
 		}
 	})
+}
+
+// TestSeedLengthValidation (QUA-004) tests comprehensive seed length validation
+func TestSeedLengthValidation(t *testing.T) {
+	// Valid seed: exactly 32 bytes = 64 hex chars
+	validSeed := "0102030405060708091011121314151617181920212223242526272829303132"
+
+	t.Run("valid_32_byte_seed", func(t *testing.T) {
+		dil, err := NewDilithiumFromHexSeed(validSeed)
+		if err != nil {
+			t.Errorf("Valid 32-byte seed should work: %v", err)
+		}
+		if dil == nil {
+			t.Error("Valid seed should return non-nil Dilithium")
+		}
+	})
+
+	t.Run("1_byte_seed", func(t *testing.T) {
+		_, err := NewDilithiumFromHexSeed("01")
+		if err == nil {
+			t.Error("1-byte seed should be rejected")
+		}
+	})
+
+	t.Run("31_byte_seed", func(t *testing.T) {
+		// 31 bytes = 62 hex chars
+		seed31 := "01020304050607080910111213141516171819202122232425262728293031"
+		_, err := NewDilithiumFromHexSeed(seed31)
+		if err == nil {
+			t.Error("31-byte seed should be rejected (off by one)")
+		}
+	})
+
+	t.Run("33_byte_seed", func(t *testing.T) {
+		// 33 bytes = 66 hex chars
+		seed33 := "010203040506070809101112131415161718192021222324252627282930313233"
+		_, err := NewDilithiumFromHexSeed(seed33)
+		if err == nil {
+			t.Error("33-byte seed should be rejected (off by one)")
+		}
+	})
+
+	t.Run("64_byte_seed", func(t *testing.T) {
+		// 64 bytes = 128 hex chars (double the required length)
+		seed64 := validSeed + validSeed
+		_, err := NewDilithiumFromHexSeed(seed64)
+		if err == nil {
+			t.Error("64-byte seed should be rejected")
+		}
+	})
+
+	t.Run("error_message_contains_lengths", func(t *testing.T) {
+		_, err := NewDilithiumFromHexSeed("0102030405")
+		if err == nil {
+			t.Fatal("Short seed should return error")
+		}
+		errMsg := err.Error()
+		if errMsg == "" {
+			t.Error("Error message should not be empty")
+		}
+		// Error should mention expected vs actual lengths
+		if !(contains(errMsg, "32") && contains(errMsg, "5")) {
+			t.Errorf("Error message should mention expected (32) and actual (5) lengths: %s", errMsg)
+		}
+	})
+}
+
+// contains checks if s contains substr (helper for test clarity)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 // TestEdgeCaseSignWithSecretKey tests SignWithSecretKey edge cases

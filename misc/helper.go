@@ -90,31 +90,29 @@ func SetKeyAndMask(addr *[8]uint32, keyAndMask uint32) {
 	addr[7] = keyAndMask
 }
 
+// AddrToByte serializes an 8-element uint32 address to a 32-byte array.
+// Always uses Big Endian (network byte order) for cryptographic interoperability.
 func AddrToByte(out *[32]uint8, addr *[8]uint32) {
-	switch GetEndian() {
-	case littleEndian:
-		for i := 0; i < 8; i++ {
-			ToByteLittleEndian(out[i*4:i*4+4], addr[i], 4)
-		}
-	case bigEndian:
-		for i := 0; i < 8; i++ {
-			ToByteBigEndian(out[i*4:i*4+4], addr[i], 4)
-		}
-	default:
-		panic("Invalid Endian")
+	for i := 0; i < 8; i++ {
+		ToByteBigEndian(out[i*4:i*4+4], addr[i], 4)
 	}
-
 }
 
+// ToByteLittleEndian converts a uint32 to bytes in little-endian order.
+// Little endian: LSB at lowest address (index 0).
+// Example: 0x12345678 → [0x78, 0x56, 0x34, 0x12]
 func ToByteLittleEndian(out []uint8, in uint32, bytes uint32) {
-	for i := int32(bytes - 1); i >= 0; i-- {
+	for i := uint32(0); i < bytes; i++ {
 		out[i] = uint8(in & 0xff)
 		in = in >> 8
 	}
 }
 
+// ToByteBigEndian converts a uint32 to bytes in big-endian order (network byte order).
+// Big endian: MSB at lowest address (index 0).
+// Example: 0x12345678 → [0x12, 0x34, 0x56, 0x78]
 func ToByteBigEndian(out []uint8, in uint32, bytes uint32) {
-	for i := uint32(0); i < bytes; i++ {
+	for i := int32(bytes - 1); i >= 0; i-- {
 		out[i] = uint8(in & 0xff)
 		in = in >> 8
 	}

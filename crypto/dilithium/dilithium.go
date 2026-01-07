@@ -52,6 +52,9 @@ func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode hex seed: %w", err)
 	}
+	if len(unsizedSeed) != SEED_BYTES {
+		return nil, fmt.Errorf("invalid seed length: expected %d bytes, got %d", SEED_BYTES, len(unsizedSeed))
+	}
 	var seed [SEED_BYTES]uint8
 	copy(seed[:], unsizedSeed)
 	return NewDilithiumFromSeed(seed)
