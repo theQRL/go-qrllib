@@ -396,7 +396,7 @@ func TestSeedLengthValidation(t *testing.T) {
 			t.Error("Error message should not be empty")
 		}
 		// Error should mention expected vs actual lengths
-		if !(contains(errMsg, "32") && contains(errMsg, "5")) {
+		if !contains(errMsg, "32") || !contains(errMsg, "5") {
 			t.Errorf("Error message should mention expected (32) and actual (5) lengths: %s", errMsg)
 		}
 	})

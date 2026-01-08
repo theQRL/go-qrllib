@@ -20,13 +20,10 @@ import (
 
 // Test vector structure for KAT
 type katVector struct {
-	name       string
-	seed       string // 32 bytes hex
-	pkPrefix   string // First 64 bytes of public key (hex)
-	skPrefix   string // First 64 bytes of secret key (hex)
-	message    string // Message to sign (hex)
-	ctx        string // Context string (hex)
-	sigPrefix  string // First 64 bytes of signature (hex)
+	name    string
+	seed    string // 32 bytes hex
+	message string // Message to sign (hex)
+	ctx     string // Context string (hex)
 }
 
 // Test vectors generated with known seeds

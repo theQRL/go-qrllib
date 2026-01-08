@@ -25,20 +25,6 @@ func newTestXMSSWallet(t *testing.T, height xmsscrypto.Height) *XMSSWallet {
 	return w
 }
 
-func expectPanicWithMessage(t *testing.T, expected string, fn func()) {
-	t.Helper()
-	defer func() {
-		if r := recover(); r != nil {
-			if r != expected {
-				t.Errorf("Expected panic: %q, but got: %q", expected, r)
-			}
-		} else {
-			t.Errorf("Expected panic %q but none occurred", expected)
-		}
-	}()
-	fn()
-}
-
 func TestXMSS_GetAddress(t *testing.T) {
 	xmss := newTestXMSSWallet(t, 4)
 

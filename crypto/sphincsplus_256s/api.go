@@ -103,19 +103,3 @@ func cryptoSign(m []byte, sk []byte, generateOptRand func([]byte) error) ([]byte
 	copy(sm[params.SPX_BYTES:], m)
 	return sm, nil
 }
-
-func cryptoSignSecretKeyBytes() int {
-	return CRYPTO_SECRETKEYBYTES
-}
-
-func cryptoSignPublicKeyBytes() int {
-	return CRYPTO_PUBLICKEYBYTES
-}
-
-func cryptoSignBytes() int {
-	return params.SPX_BYTES
-}
-
-func cryptoSignSeedBytes() int {
-	return CRYPTO_SEEDBYTES
-}
