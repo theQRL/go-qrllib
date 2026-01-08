@@ -7,14 +7,6 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - unused
-  exclusions:
-    rules:
-      # Exclude unused warnings for test helper functions
-      - path: _test\.go
-        linters:
-          - unused

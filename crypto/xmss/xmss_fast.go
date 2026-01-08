@@ -715,7 +715,7 @@ func getSignatureSize(params *XMSSParams) uint32 {
 
 func hMsg(hashFunction HashFunction, out, in, key []uint8, n uint32) error {
 	if uint32(len(key)) != 3*n {
-		return fmt.Errorf("H_msg takes 3n-bit keys, we got n=%d but a keylength of %d.\n", n, len(key))
+		return fmt.Errorf("hMsg takes 3n-bit keys, we got n=%d but a keylength of %d", n, len(key))
 	}
 	coreHash(hashFunction, out, 2, key, uint32(len(key)), in, uint32(len(in)), n)
 	return nil

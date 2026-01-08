@@ -249,7 +249,7 @@ func polyChallenge(c *poly, seed []uint8) error {
 
 			b = uint(buf[pos])
 			pos++
-			if !(b > uint(i)) {
+			if b <= uint(i) {
 				break
 			}
 		}

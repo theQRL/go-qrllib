@@ -50,19 +50,6 @@ func updateAddrByte(addr *[8]uint32, offset int, value byte) {
 	*addr = bytesToAddr(bytes[:])
 }
 
-// updateAddrBytes updates a range of bytes in the address.
-func updateAddrBytes(addr *[8]uint32, offset int, data []byte) {
-	bytes := addrToBytes(addr)
-	copy(bytes[offset:], data)
-	*addr = bytesToAddr(bytes[:])
-}
-
-// getAddrByte gets a single byte at the given offset in the address.
-func getAddrByte(addr *[8]uint32, offset int) byte {
-	bytes := addrToBytes(addr)
-	return bytes[offset]
-}
-
 func setLayerAddr(addr *[8]uint32, layer uint32) {
 	updateAddrByte(addr, params.SPX_OFFSET_LAYER, byte(layer))
 }
@@ -124,12 +111,4 @@ func setTreeIndex(addr *[8]uint32, treeIndex uint32) {
 	bytes := addrToBytes(addr)
 	binary.BigEndian.PutUint32(bytes[params.SPX_OFFSET_TREE_INDEX:], treeIndex)
 	*addr = bytesToAddr(bytes[:])
-}
-
-func setByteAtOffset(addr *[8]uint32, offset int, value byte) {
-	updateAddrByte(addr, offset, value)
-}
-
-func getByteAtOffset(addr *[8]uint32, offset int) byte {
-	return getAddrByte(addr, offset)
 }
