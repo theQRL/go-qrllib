@@ -32,7 +32,7 @@ package dilithium
 //   - OMEGA = 75 (maximum allowed hints, related to signature size)
 const (
 	CRYPTO_PUBLIC_KEY_BYTES = SEED_BYTES + K*POLY_T1_PACKED_BYTES
-	CRYPTO_SECRET_KEY_BYTES = 3*SEED_BYTES + L*POLY_ETA_PACKED_BYTES + K*POLY_ETA_PACKED_BYTES + K*POLY_T0_PACKED_BYTES
+	CRYPTO_SECRET_KEY_BYTES = 2*SEED_BYTES + TR_BYTES + L*POLY_ETA_PACKED_BYTES + K*POLY_ETA_PACKED_BYTES + K*POLY_T0_PACKED_BYTES
 	// CRYPTO_BYTES is the signature size in bytes
 	CRYPTO_BYTES = SEED_BYTES + L*POLY_Z_PACKED_BYTES + POLY_VEC_H_PACKED_BYTES
 
@@ -46,7 +46,8 @@ const (
 	POLY_UNIFORM_GAMMA1_N_BLOCKS = (POLY_Z_PACKED_BYTES + STREAM256_BLOCK_BYTES - 1) / STREAM256_BLOCK_BYTES
 
 	SEED_BYTES = 32
-	CRH_BYTES  = 64 // hash of public key
+	CRH_BYTES  = 64 // hash output size
+	TR_BYTES   = 64 // public key hash size (was incorrectly 32, now matches reference)
 	N          = 256
 	Q          = 8380417
 	Q_INV      = 58728449 // -q^(-1) mod 2^32

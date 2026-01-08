@@ -1,17 +1,24 @@
 package xmss
 
 import (
+	"errors"
 	"reflect"
 
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/misc"
 )
 
-func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
-	desc := LegacyQRLDescriptorFromExtendedPK(&ePK)
+// ErrUnsupportedAddressFormat is returned when the address format is not SHA256_2X.
+var ErrUnsupportedAddressFormat = errors.New("unsupported address format type")
+
+func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) ([AddressSize]uint8, error) {
+	desc, err := LegacyQRLDescriptorFromExtendedPK(&ePK)
+	if err != nil {
+		return [AddressSize]uint8{}, err
+	}
 
 	if desc.GetAddrFormatType() != common.SHA256_2X {
-		panic("Address format type not supported")
+		return [AddressSize]uint8{}, ErrUnsupportedAddressFormat
 	}
 
 	var address [AddressSize]uint8
@@ -32,11 +39,14 @@ func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) [AddressSize]uint8 {
 
 	copy(address[addressOffset:], hashedKey2[hashedKey2Offset:])
 
-	return address
+	return address, nil
 }
 
 func IsValidXMSSAddress(address [AddressSize]uint8) bool {
-	d := NewQRLDescriptorFromBytes(address[:DescriptorSize])
+	d, err := NewQRLDescriptorFromBytes(address[:DescriptorSize])
+	if err != nil {
+		return false
+	}
 	if d.GetAddrFormatType() != common.SHA256_2X {
 		return false
 	}

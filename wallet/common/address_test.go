@@ -3,6 +3,9 @@ package common
 import (
 	"strings"
 	"testing"
+
+	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
+	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
 func TestIsValidAddress(t *testing.T) {
@@ -91,5 +94,54 @@ func TestIsValidAddressLength(t *testing.T) {
 
 	if !IsValidAddress(validAddr) {
 		t.Error("Address with correct length should be valid")
+	}
+}
+
+func TestGetAddressMLDSA87(t *testing.T) {
+	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
+	desc := descriptor.New(descBytes)
+	pk := make([]byte, MLDSA87PKSize)
+
+	got, err := GetAddress(pk, desc)
+	if err != nil {
+		t.Fatalf("GetAddress returned error: %v", err)
+	}
+
+	want := UnsafeGetAddress(pk, desc)
+	if got != want {
+		t.Error("GetAddress output mismatch with UnsafeGetAddress")
+	}
+}
+
+func TestGetAddressSphincsPlus256s(t *testing.T) {
+	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
+	desc := descriptor.New(descBytes)
+	pk := make([]byte, SPHINCSPlus256sPKSize)
+
+	got, err := GetAddress(pk, desc)
+	if err != nil {
+		t.Fatalf("GetAddress returned error: %v", err)
+	}
+
+	want := UnsafeGetAddress(pk, desc)
+	if got != want {
+		t.Error("GetAddress output mismatch with UnsafeGetAddress")
+	}
+}
+
+func TestGetAddressInvalidDescriptor(t *testing.T) {
+	desc := descriptor.New([descriptor.DescriptorSize]byte{0xFF, 0x00, 0x00})
+	_, err := GetAddress(make([]byte, 64), desc)
+	if err == nil {
+		t.Error("Expected error for invalid descriptor")
+	}
+}
+
+func TestGetAddressInvalidPKSize(t *testing.T) {
+	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
+	desc := descriptor.New(descBytes)
+	_, err := GetAddress(make([]byte, 32), desc)
+	if err == nil {
+		t.Error("Expected error for invalid public key size")
 	}
 }

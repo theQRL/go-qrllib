@@ -17,7 +17,7 @@
 // # Key Sizes
 //
 //   - Public Key:  2,592 bytes (CRYPTO_PUBLIC_KEY_BYTES)
-//   - Secret Key:  4,864 bytes (CRYPTO_SECRET_KEY_BYTES)
+//   - Secret Key:  4,896 bytes (CRYPTO_SECRET_KEY_BYTES)
 //   - Signature:   4,595 bytes (CRYPTO_BYTES)
 //   - Seed:        32 bytes (SEED_BYTES)
 //

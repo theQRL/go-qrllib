@@ -29,7 +29,7 @@ This library assumes:
 |--------|------------|
 | Quantum computer attacks on signatures | Post-quantum algorithms (ML-DSA, SPHINCS+, XMSS) |
 | Signature forgery | Cryptographic hardness assumptions |
-| Timing side-channels in verification | Constant-time comparisons |
+| Timing side-channels in verification | SPHINCS+ root compare is constant-time; lattice verification uses fixed loops but byte-wise compares |
 | Key material in memory after use | `Zeroize()` methods |
 | Non-canonical signature acceptance | Strict signature validation |
 
@@ -53,7 +53,7 @@ This library assumes:
 |----------|--------|
 | Post-quantum secure | Yes (Module-LWE assumption) |
 | EUF-CMA secure | Yes |
-| Deterministic signing | Default (optional randomized) |
+| Deterministic signing | Default (randomized signing not exposed in public API) |
 | Stateless | Yes |
 | Side-channel resistant | Constant-time where applicable |
 | Signature malleability | No (canonical encoding enforced) |
@@ -109,7 +109,8 @@ This library assumes:
 
 The following operations are implemented in constant-time to prevent timing attacks:
 
-- **Signature verification comparison** (`subtle.ConstantTimeCompare`)
+- **SPHINCS+ root comparison** (`subtle.ConstantTimeCompare`)
+- **Lattice verification** uses fixed loop bounds; byte-wise compares are not constant-time
 - **NTT operations** (fixed loop bounds, no data-dependent branches)
 - **Polynomial rounding** (`MakeHint`, `UseHint` use arithmetic masking)
 - **Coefficient norm checks** (fixed iteration count)

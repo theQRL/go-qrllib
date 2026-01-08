@@ -34,7 +34,10 @@ func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8
 }
 
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
-	desc := NewSphincsPlus256sDescriptor()
+	desc, err := NewSphincsPlus256sDescriptor()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create descriptor: %w", err)
+	}
 	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
 	if err != nil {
 		return nil, err
@@ -114,26 +117,32 @@ func (w *Wallet) GetSeed() common.Seed {
 	return w.seed
 }
 
-func (w *Wallet) GetExtendedSeed() common.ExtendedSeed {
+func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
-		panic(fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.SPHINCSPLUS_256S, err))
+		return common.ExtendedSeed{}, fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.SPHINCSPLUS_256S, err)
 	}
-	return extendedSeed
+	return extendedSeed, nil
 }
 
-func (w *Wallet) GetHexSeed() string {
-	eSeed := w.GetExtendedSeed()
-	return "0x" + hex.EncodeToString(eSeed[:])
+func (w *Wallet) GetHexSeed() (string, error) {
+	eSeed, err := w.GetExtendedSeed()
+	if err != nil {
+		return "", err
+	}
+	return "0x" + hex.EncodeToString(eSeed[:]), nil
 }
 
-func (w *Wallet) GetMnemonic() string {
-	eSeed := w.GetExtendedSeed()
+func (w *Wallet) GetMnemonic() (string, error) {
+	eSeed, err := w.GetExtendedSeed()
+	if err != nil {
+		return "", err
+	}
 	mnemonic, err := misc.BinToMnemonic(eSeed[:])
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return mnemonic
+	return mnemonic, nil
 }
 
 func (w *Wallet) GetPK() PK {

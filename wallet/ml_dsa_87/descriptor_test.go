@@ -111,7 +111,10 @@ func TestNewMLDSA87DescriptorFromDescriptorBytes(t *testing.T) {
 }
 
 func TestNewMLDSA87Descriptor(t *testing.T) {
-	desc := NewMLDSA87Descriptor()
+	desc, err := NewMLDSA87Descriptor()
+	if err != nil {
+		t.Fatalf("NewMLDSA87Descriptor() error: %v", err)
+	}
 
 	if !desc.IsValid() {
 		t.Error("NewMLDSA87Descriptor() should return a valid descriptor")

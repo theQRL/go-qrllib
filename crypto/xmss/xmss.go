@@ -1,6 +1,12 @@
 package xmss
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidBDSParams is returned when BDS traversal parameters are invalid.
+var ErrInvalidBDSParams = errors.New("invalid BDS traversal parameters: H - K must be even, with H > K >= 2")
 
 type XMSS struct {
 	xmssParams   *XMSSParams
@@ -12,7 +18,9 @@ type XMSS struct {
 	bdsState *BDSState
 }
 
-func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
+// InitializeTree creates a new XMSS tree with the specified parameters.
+// Returns an error if the height/k parameters are invalid for BDS traversal.
+func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, error) {
 	height := uint32(h)
 	sk := make([]uint8, 132)
 	pk := make([]uint8, 64)
@@ -22,13 +30,15 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
 	n := WOTSParamN
 
 	if k >= height || (height-k)%2 == 1 {
-		panic("For BDS traversal, H - K must be even, with H > K >= 2!")
+		return nil, fmt.Errorf("%w: height=%d, k=%d", ErrInvalidBDSParams, height, k)
 	}
 
 	xmssParams := NewXMSSParams(n, height, w, k)
 	bdsState := NewBDSState(height, n, k)
 
-	XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed)
+	if err := XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed); err != nil {
+		return nil, fmt.Errorf("failed to generate XMSS keypair: %w", err)
+	}
 	return &XMSS{
 		xmssParams,
 		hashFunction,
@@ -36,7 +46,7 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
 		seed,
 		sk,
 		bdsState,
-	}
+	}, nil
 }
 
 func (x *XMSS) GetSeed() []uint8 {
@@ -60,7 +70,9 @@ func (x *XMSS) GetHashFunction() HashFunction {
 }
 
 func (x *XMSS) GetHeight() Height {
-	return ToHeight(x.height)
+	// Height is validated at construction time, so this should never fail.
+	// We use the value directly since it was stored from a valid Height.
+	return Height(x.height)
 }
 
 func (x *XMSS) GetIndex() uint32 {
@@ -116,15 +128,9 @@ func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []
 		return false
 	}
 
-	// Pre-validate the computed height before calling GetHeightFromSigSize
-	// Height must be valid: even, >= 2, <= MaxHeight
-	computedHeight := (sigSize - signatureBaseSize) / 32
-	if computedHeight < 2 || computedHeight > MaxHeight || computedHeight%2 != 0 {
-		return false
-	}
-
-	height := GetHeightFromSigSize(sigSize, wotsParamW)
-	if !height.IsValid() {
+	// Get height from signature size - returns error for invalid sizes
+	height, err := GetHeightFromSigSize(sigSize, wotsParamW)
+	if err != nil {
 		return false
 	}
 

@@ -22,7 +22,7 @@ func getTestSignatureSize(height Height) uint32 {
 // TestEdgeCaseZeroLengthMessage tests signing and verifying empty messages
 func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	emptyMsg := []byte{}
 
@@ -42,7 +42,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 // TestEdgeCaseNilMessage tests handling of nil messages
 func TestEdgeCaseNilMessage(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	var nilMsg []byte = nil
 
@@ -62,7 +62,7 @@ func TestEdgeCaseNilMessage(t *testing.T) {
 // TestEdgeCaseLargeMessage tests signing large messages
 func TestEdgeCaseLargeMessage(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	// Test various message sizes
 	sizes := []int{
@@ -93,7 +93,7 @@ func TestEdgeCaseLargeMessage(t *testing.T) {
 // TestEdgeCaseInvalidSignature tests various invalid signature scenarios
 func TestEdgeCaseInvalidSignature(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	msg := []byte("test message")
 	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
@@ -145,7 +145,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 // TestEdgeCaseInvalidPublicKey tests verification with invalid public keys
 func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	msg := []byte("test message")
 	sig, err := xmss.Sign(msg)
@@ -181,7 +181,7 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 // TestEdgeCaseSignatureSize tests signature size boundary conditions
 func TestEdgeCaseSignatureSize(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	msg := []byte("test message")
 	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
@@ -231,7 +231,7 @@ func TestEdgeCaseHashFunctions(t *testing.T) {
 
 	for _, hf := range hashFuncs {
 		t.Run(hf.String(), func(t *testing.T) {
-			xmss := InitializeTree(4, hf, seed)
+			xmss, _ := InitializeTree(4, hf, seed)
 
 			sig, err := xmss.Sign(msg)
 			if err != nil {
@@ -264,7 +264,7 @@ func TestEdgeCaseHeights(t *testing.T) {
 
 	for _, h := range heights {
 		t.Run(string(rune(h)), func(t *testing.T) {
-			xmss := InitializeTree(h, SHAKE_128, seed)
+			xmss, _ := InitializeTree(h, SHAKE_128, seed)
 
 			sig, err := xmss.Sign(msg)
 			if err != nil {
@@ -290,7 +290,7 @@ func TestEdgeCaseIndexBoundary(t *testing.T) {
 	seed := make([]byte, 48)
 
 	t.Run("index_zero", func(t *testing.T) {
-		xmss := InitializeTree(4, SHAKE_128, seed)
+		xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 		if xmss.GetIndex() != 0 {
 			t.Errorf("Initial index should be 0, got %d", xmss.GetIndex())
@@ -308,7 +308,7 @@ func TestEdgeCaseIndexBoundary(t *testing.T) {
 	})
 
 	t.Run("set_index_forward", func(t *testing.T) {
-		xmss := InitializeTree(4, SHAKE_128, seed)
+		xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 		// Set index forward (allowed)
 		err := xmss.SetIndex(5)
@@ -322,7 +322,7 @@ func TestEdgeCaseIndexBoundary(t *testing.T) {
 	})
 
 	t.Run("set_index_boundary", func(t *testing.T) {
-		xmss := InitializeTree(4, SHAKE_128, seed)
+		xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 		// Height 4 = 2^4 = 16 signatures max (indices 0-15)
 		maxIndex := uint32(1<<4 - 1) // 15
@@ -346,7 +346,7 @@ func TestEdgeCaseSeedVariations(t *testing.T) {
 
 	t.Run("zero_seed", func(t *testing.T) {
 		zeroSeed := make([]byte, 48)
-		xmss := InitializeTree(4, SHAKE_128, zeroSeed)
+		xmss, _ := InitializeTree(4, SHAKE_128, zeroSeed)
 
 		sig, err := xmss.Sign(msg)
 		if err != nil {
@@ -364,7 +364,7 @@ func TestEdgeCaseSeedVariations(t *testing.T) {
 		for i := range maxSeed {
 			maxSeed[i] = 0xFF
 		}
-		xmss := InitializeTree(4, SHAKE_128, maxSeed)
+		xmss, _ := InitializeTree(4, SHAKE_128, maxSeed)
 
 		sig, err := xmss.Sign(msg)
 		if err != nil {
@@ -379,7 +379,7 @@ func TestEdgeCaseSeedVariations(t *testing.T) {
 
 	t.Run("short_seed", func(t *testing.T) {
 		shortSeed := make([]byte, 16)
-		xmss := InitializeTree(4, SHAKE_128, shortSeed)
+		xmss, _ := InitializeTree(4, SHAKE_128, shortSeed)
 
 		sig, err := xmss.Sign(msg)
 		if err != nil {
@@ -396,7 +396,7 @@ func TestEdgeCaseSeedVariations(t *testing.T) {
 // TestEdgeCaseVerifyCustomWOTSParam tests VerifyWithCustomWOTSParamW edge cases
 func TestEdgeCaseVerifyCustomWOTSParam(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	msg := []byte("test message")
 	sig, err := xmss.Sign(msg)

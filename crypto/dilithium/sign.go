@@ -26,7 +26,7 @@ import (
 // If seed is nil, a random 32-byte seed is generated.
 // Returns the seed used and any error encountered.
 func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([]uint8, error) {
-	var tr [SEED_BYTES]uint8
+	var tr [TR_BYTES]uint8
 	//var rho, rhoprime, key [SEED_BYTES]byte
 	var rho, key [SEED_BYTES]uint8
 	var rhoPrime [CRH_BYTES]uint8
@@ -113,7 +113,8 @@ func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CR
 // The loop is probabilistically bounded - see const.go for detailed probability analysis.
 // Setting randomizedSigning=false enables deterministic signatures for testing.
 func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) error {
-	var rho, key, tr [SEED_BYTES]uint8
+	var rho, key [SEED_BYTES]uint8
+	var tr [TR_BYTES]uint8
 	var mu, rhoPrime [CRH_BYTES]uint8
 	var s1, y, z polyVecL
 	var mat [K]polyVecL
@@ -121,7 +122,7 @@ func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, ran
 	var cp poly
 	var nonce uint16
 
-	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
+	unpackSk(&rho, &key, &tr, &t0, &s1, &s2, sk)
 
 	/* Compute CRH(tr, msg) */
 	state := getShake256()
@@ -263,10 +264,10 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 	}
 
 	/* Compute CRH(H(rho, t1), msg) */
-	sha3.ShakeSum256(mu[:SEED_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
+	sha3.ShakeSum256(mu[:TR_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
 	state := getShake256()
 	defer putShake256(state)
-	if _, err := state.Write(mu[:SEED_BYTES]); err != nil {
+	if _, err := state.Write(mu[:TR_BYTES]); err != nil {
 		return false, err
 	}
 	if _, err := state.Write(m); err != nil {

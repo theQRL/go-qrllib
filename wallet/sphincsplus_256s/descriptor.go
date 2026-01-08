@@ -10,13 +10,9 @@ import (
 
 type Descriptor descriptor.Descriptor
 
-func NewSphincsPlus256sDescriptor() Descriptor {
+func NewSphincsPlus256sDescriptor() (Descriptor, error) {
 	descriptorBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
-	d, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(descriptorBytes)
-	if err != nil {
-		panic(err)
-	}
-	return d
+	return NewSphincsPlus256sDescriptorFromDescriptorBytes(descriptorBytes)
 }
 
 func NewSphincsPlus256sDescriptorFromDescriptor(descriptor descriptor.Descriptor) (Descriptor, error) {

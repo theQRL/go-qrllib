@@ -8,15 +8,20 @@
 //
 // # Address Format
 //
-// QRL addresses follow the format:
+// QRL address bytes are generated from public keys with a descriptor prefix.
+// The string form used by modern wallet packages prepends "Q" and hex-encodes
+// the address bytes. The exact byte format depends on the wallet type:
 //
-//	"Q" + hex(Descriptor + Checksum)
+//   - Legacy XMSS (byte form):
+//     Descriptor + SHA256(PK) + Checksum (39 bytes total)
 //
-// Where:
-//   - Descriptor: Wallet type and parameters (variable size)
-//   - Checksum: SHA256(SHA256(Descriptor + PublicKey))
+//   - ML-DSA-87 and SPHINCS+-256s (byte form):
+//     SHAKE256(Descriptor || PK)[:20] (20 bytes total)
 //
-// Addresses are validated using [IsValidAddress]:
+// Addresses are validated using [IsValidAddress]. For address generation:
+//   - Use [GetAddress] for untrusted inputs (validates descriptor and pk length)
+//   - Use [UnsafeGetAddress] only when the descriptor and public key have already
+//     been validated by the caller (wallet implementations rely on this fast-path).
 //
 //	if !common.IsValidAddress(addr) {
 //	    return errors.New("invalid QRL address")

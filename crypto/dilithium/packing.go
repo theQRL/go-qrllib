@@ -28,10 +28,10 @@ func unpackPk(rho *[SEED_BYTES]uint8,
 }
 
 // packSk serializes a secret key into bytes.
-// Format: rho (32) || key (32) || tr (32) || s1 || s2 || t0
+// Format: rho (32) || key (32) || tr (64) || s1 || s2 || t0
 // where s1, s2 use eta-encoding and t0 uses 13-bit coefficients.
 func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
-	rho, tr, key [SEED_BYTES]uint8,
+	rho [SEED_BYTES]uint8, tr [TR_BYTES]uint8, key [SEED_BYTES]uint8,
 	t0 *polyVecK,
 	s1 *polyVecL,
 	s2 *polyVecK) {
@@ -41,7 +41,7 @@ func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
 	copy(sk[SEED_BYTES:], key[:])
 	copy(sk[SEED_BYTES*2:], tr[:])
 
-	sk = sk[SEED_BYTES*3:]
+	sk = sk[2*SEED_BYTES+TR_BYTES:]
 
 	for i := 0; i < L; i++ {
 		polyEtaPack(sk[i*POLY_ETA_PACKED_BYTES:], &s1.vec[i])
@@ -61,8 +61,8 @@ func packSk(skb *[CRYPTO_SECRET_KEY_BYTES]uint8,
 // unpackSk deserializes a secret key from bytes.
 // Extracts rho, tr, key, t0, s1, s2 from the packed representation.
 func unpackSk(rho,
-	tr,
 	key *[SEED_BYTES]byte,
+	tr *[TR_BYTES]byte,
 	t0 *polyVecK,
 	s1 *polyVecL,
 	s2 *polyVecK,
@@ -71,7 +71,7 @@ func unpackSk(rho,
 	copy(rho[:], sk[:])
 	copy(key[:], sk[SEED_BYTES:])
 	copy(tr[:], sk[SEED_BYTES*2:])
-	sk = sk[SEED_BYTES*3:]
+	sk = sk[2*SEED_BYTES+TR_BYTES:]
 
 	for i := 0; i < L; i++ {
 		polyEtaUnpack(&s1.vec[i], sk[i*POLY_ETA_PACKED_BYTES:])

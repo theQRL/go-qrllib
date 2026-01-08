@@ -16,7 +16,7 @@ func Example() {
 	copy(seed, []byte("example-seed-for-xmss-demo-purposes!"))
 
 	// Initialize tree with height 4 (allows 2^4 = 16 signatures)
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 	defer tree.Zeroize() // Clear sensitive data when done
 
 	fmt.Println("Initial index:", tree.GetIndex())
@@ -58,7 +58,7 @@ func ExampleInitializeTree() {
 	// Height 16: 65,536 signatures
 	// Height 20: 1,048,576 signatures
 
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 	defer tree.Zeroize()
 
 	fmt.Println("Height:", tree.GetHeight())
@@ -71,7 +71,7 @@ func ExampleInitializeTree() {
 // ExampleXMSS_GetIndex demonstrates index management.
 func ExampleXMSS_GetIndex() {
 	seed := make([]byte, 48)
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 	defer tree.Zeroize()
 
 	fmt.Println("Starting index:", tree.GetIndex())
@@ -97,7 +97,7 @@ func ExampleXMSS_GetIndex() {
 // ExampleXMSS_SetIndex demonstrates index recovery (use with caution).
 func ExampleXMSS_SetIndex() {
 	seed := make([]byte, 48)
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 	defer tree.Zeroize()
 
 	// Simulate recovering from persisted state
@@ -117,7 +117,7 @@ func ExampleXMSS_SetIndex() {
 // ExampleVerify demonstrates signature verification.
 func ExampleVerify() {
 	seed := make([]byte, 48)
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 	defer tree.Zeroize()
 
 	message := []byte("verify this")
@@ -142,7 +142,7 @@ func ExampleVerify() {
 // ExampleXMSS_Zeroize demonstrates secure cleanup.
 func ExampleXMSS_Zeroize() {
 	seed := make([]byte, 48)
-	tree := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
+	tree, _ := xmss.InitializeTree(4, xmss.SHAKE_256, seed)
 
 	// Always zeroize when done to clear secret key from memory
 	tree.Zeroize()

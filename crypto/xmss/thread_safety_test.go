@@ -21,7 +21,7 @@ import (
 // TestThreadSafetyConcurrentVerify tests parallel verification with shared public key
 func TestThreadSafetyConcurrentVerify(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	msg := []byte("test message for concurrent verification")
 
@@ -74,7 +74,7 @@ func TestThreadSafetySeparateInstances(t *testing.T) {
 			// Each goroutine creates its own instance - this is safe
 			seed := make([]byte, 48)
 			seed[0] = byte(idx) // Different seed for each
-			xmss := InitializeTree(4, SHAKE_128, seed)
+			xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 			msg := []byte("test message")
 
@@ -103,7 +103,7 @@ func TestThreadSafetySeparateInstances(t *testing.T) {
 // TestThreadSafetySequentialSigning tests that sequential signing works correctly
 func TestThreadSafetySequentialSigning(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
 	hashFunc := xmss.GetHashFunction()
@@ -139,7 +139,7 @@ func TestThreadSafetySequentialSigning(t *testing.T) {
 // TestThreadSafetyConcurrentVerifyDifferentSignatures tests verifying different signatures concurrently
 func TestThreadSafetyConcurrentVerifyDifferentSignatures(t *testing.T) {
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
 	hashFunc := xmss.GetHashFunction()
@@ -192,7 +192,7 @@ func TestThreadSafetyConcurrentTreeInit(t *testing.T) {
 			defer wg.Done()
 			seed := make([]byte, 48)
 			seed[0] = byte(idx)
-			xmss := InitializeTree(4, SHAKE_128, seed)
+			xmss, _ := InitializeTree(4, SHAKE_128, seed)
 			results <- xmss
 		}(i)
 	}
@@ -226,7 +226,7 @@ func TestThreadSafetyVerifyWithDifferentHashFuncs(t *testing.T) {
 			defer wg.Done()
 
 			seed := make([]byte, 48)
-			xmss := InitializeTree(4, hashFunc, seed)
+			xmss, _ := InitializeTree(4, hashFunc, seed)
 
 			msg := []byte("test message")
 			sig, err := xmss.Sign(msg)
@@ -253,7 +253,7 @@ func TestXMSSConcurrentSigningUNSAFE(t *testing.T) {
 	t.Skip("This test demonstrates UNSAFE concurrent signing - do not use in production")
 
 	seed := make([]byte, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup

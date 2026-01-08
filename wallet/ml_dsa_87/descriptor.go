@@ -10,13 +10,9 @@ import (
 
 type Descriptor descriptor.Descriptor
 
-func NewMLDSA87Descriptor() Descriptor {
+func NewMLDSA87Descriptor() (Descriptor, error) {
 	descriptorBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
-	d, err := NewMLDSA87DescriptorFromDescriptorBytes(descriptorBytes)
-	if err != nil {
-		panic(err)
-	}
-	return d
+	return NewMLDSA87DescriptorFromDescriptorBytes(descriptorBytes)
 }
 
 func NewMLDSA87DescriptorFromDescriptor(descriptor descriptor.Descriptor) (Descriptor, error) {

@@ -31,7 +31,7 @@ XMSS maintains an internal index that **MUST** be incremented after each signatu
 ### Requirements for Safe XMSS Usage
 
 1. **Never reuse an index** - Each signature MUST use a unique, never-before-used index
-2. **Persist state before signing** - Save the updated index to durable storage BEFORE using the signature
+2. **Persist state before use** - To prevent OTS key reuse, the updated index MUST be persisted to durable storage immediately after signing and BEFORE the signature is used or broadcast
 3. **No concurrent signing** - Never sign from the same XMSS instance concurrently
 4. **No state rollback** - Never restore an XMSS wallet from backup without extreme care
 5. **Index exhaustion** - An XMSS tree has limited signatures (2^height); plan for key rotation
@@ -39,19 +39,26 @@ XMSS maintains an internal index that **MUST** be incremented after each signatu
 ### Safe Pattern
 
 ```go
-// CORRECT: Persist state before using signature
-wallet := xmss.NewWalletFromHeight(xmss.Height10, xmss.SHAKE_128)
-
-signature, err := wallet.Sign(message)
+// CORRECT: Sign, then persist updated index before using the signature
+height, err := xmss.ToHeight(10)
 if err != nil {
     return err
 }
 
-// CRITICAL: Persist the wallet state NOW, before using the signature
-err = persistWalletState(wallet) // Save to database/file
+tree, err := xmss.InitializeTree(height, xmss.SHAKE_128, seed)
 if err != nil {
-    // DO NOT use the signature if state persistence fails
-    return fmt.Errorf("failed to persist state: %w", err)
+    return err
+}
+
+signature, err := tree.Sign(message)
+if err != nil {
+    return err
+}
+
+// CRITICAL: Persist the UPDATED index NOW. If this fails, the signature MUST NOT be used.
+err = persistIndex(tree.GetIndex()) // Save to database/file
+if err != nil {
+    return fmt.Errorf("failed to persist state (signature unsafe to use): %w", err)
 }
 
 // Only now is it safe to broadcast/use the signature
@@ -152,6 +159,12 @@ address := wallet.GetAddress()
 signature, err := wallet.Sign(message)
 ```
 
+### Address String Format
+
+QRL addresses are commonly displayed with a leading "Q" prefix followed by the hex
+encoded address bytes. This is a convention across legacy and modern tooling,
+but not every API in this library emits the "Q" prefix directly.
+
 ---
 
 ## Thread Safety
@@ -163,7 +176,7 @@ signature, err := wallet.Sign(message)
 | `sphincsplus_256s.SphincsPlus256s` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `xmss.XMSS` | **No** | NEVER use concurrently. Index management is not thread-safe. |
 | Package-level `Verify()` | Yes | Stateless, safe to call concurrently |
-| `SignWithSecretKey()` | Yes | Stateless function, safe with different keys |
+| `dilithium.SignWithSecretKey()` | Yes | Stateless function, safe with different keys |
 
 ### Safe Concurrent Pattern
 
@@ -202,7 +215,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | Algorithm | Public Key | Secret Key | Signature |
 |-----------|------------|------------|-----------|
 | ML-DSA-87 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
-| Dilithium | 2,592 bytes | 4,864 bytes | 4,595 bytes |
+| Dilithium | 2,592 bytes | 4,896 bytes | 4,595 bytes |
 | SPHINCS+-256s | 64 bytes | 128 bytes | 29,792 bytes |
 | XMSS (h=10) | 64 bytes | ~2,500 bytes | ~2,500 bytes |
 
@@ -237,6 +250,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Contributions are welcome! Please ensure:
 - All tests pass (`make test` or `go test ./...`)
+- Note: SPHINCS+ wallet tests are slow (~3-4 minutes); use `make test-fast` for quicker iteration.
 - Code is linted (`make lint`)
 - No new security vulnerabilities (`make vulncheck`)
 

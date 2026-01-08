@@ -12,7 +12,7 @@
 // To use XMSS safely, you MUST:
 //
 //  1. NEVER sign with the same index twice
-//  2. Persist the index to durable storage BEFORE using any signature
+//  2. Persist the UPDATED index to durable storage AFTER signing and BEFORE using any signature
 //  3. NEVER sign concurrently from the same XMSS instance
 //  4. NEVER restore from backup without ensuring index continuity
 //  5. Plan for key rotation before index exhaustion (2^height signatures)
@@ -47,7 +47,10 @@
 //
 // # Safe Usage Pattern
 //
-//	tree := xmss.InitializeTree(xmss.Height10, xmss.SHAKE_256, seed)
+//	tree, err := xmss.InitializeTree(10, xmss.SHAKE_256, seed)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //	defer tree.Zeroize()
 //
 //	// Sign a message
@@ -56,8 +59,8 @@
 //	    log.Fatal(err)
 //	}
 //
-//	// CRITICAL: Persist state BEFORE using the signature
-//	if err := persistState(tree.GetIndex()); err != nil {
+//	// CRITICAL: Persist the UPDATED index BEFORE using the signature
+//	if err := persistIndex(tree.GetIndex()); err != nil {
 //	    // DO NOT use the signature if persistence fails!
 //	    log.Fatal("state persistence failed, signature unsafe to use")
 //	}
@@ -73,6 +76,16 @@
 //	err := tree.SetIndex(newIndex)
 //
 // SetIndex should only be used for state recovery, never to "rewind" the index.
+//
+// # Recovery and BDS State
+//
+// XMSS uses BDS state to speed up signing. This state is not persisted or
+// serialized by the library. Recovery requires:
+//  1. Securely storing the seed (or extended seed) once, and
+//  2. Persisting the last used index after each signature.
+// To recover, rebuild the tree from the seed and call SetIndex(persistedIndex)
+// to advance the BDS state to the last used index. This can be O(Δ) in the
+// number of skipped indices, so persist frequently and avoid large gaps.
 //
 // # Verification
 //

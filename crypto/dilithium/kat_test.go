@@ -245,9 +245,9 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 
 // TestKATKeySize verifies key sizes match Dilithium5 specification
 func TestKATKeySize(t *testing.T) {
-	// Dilithium5 key sizes
-	expectedPKSize := 2592 // bytes
-	expectedSKSize := 4864 // bytes (differs from ML-DSA-87 due to secret key format)
+	// Dilithium5 key sizes (matching pq-crystals Round 3)
+	expectedPKSize := 2592  // bytes
+	expectedSKSize := 4896  // bytes: 2*32 + 64 + 7*96 + 8*96 + 8*416 (TR_BYTES=64)
 	expectedSigSize := 4595 // bytes (differs from ML-DSA-87 due to c_tilde size)
 
 	if CRYPTO_PUBLIC_KEY_BYTES != expectedPKSize {

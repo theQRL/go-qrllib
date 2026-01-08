@@ -55,7 +55,7 @@ func ExampleNewWallet() {
 func ExampleNewWalletFromMnemonic() {
 	// First create a wallet to get a mnemonic
 	wallet, _ := ml_dsa_87.NewWallet()
-	mnemonic := wallet.GetMnemonic()
+	mnemonic, _ := wallet.GetMnemonic()
 
 	// Recover wallet from mnemonic
 	recovered, err := ml_dsa_87.NewWalletFromMnemonic(mnemonic)
@@ -74,7 +74,7 @@ func ExampleWallet_GetMnemonic() {
 	wallet, _ := ml_dsa_87.NewWallet()
 
 	// Get the mnemonic phrase for backup
-	mnemonic := wallet.GetMnemonic()
+	mnemonic, _ := wallet.GetMnemonic()
 
 	// Mnemonic is a space-separated string of words
 	fmt.Println("Mnemonic is a string:", len(mnemonic) > 0)

@@ -65,12 +65,8 @@ func (e ExtendedSeed) GetSeedBytes() []byte {
 	return e[descriptor.DescriptorSize:]
 }
 
-func (e ExtendedSeed) GetSeed() Seed {
-	seed, err := ToSeed(e.GetSeedBytes())
-	if err != nil {
-		panic(err)
-	}
-	return seed
+func (e ExtendedSeed) GetSeed() (Seed, error) {
+	return ToSeed(e.GetSeedBytes())
 }
 
 func (e ExtendedSeed) ToBytes() []byte {

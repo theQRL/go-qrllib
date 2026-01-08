@@ -111,7 +111,10 @@ func TestNewSphincsPlus256sDescriptorFromDescriptorBytes(t *testing.T) {
 }
 
 func TestNewSphincsPlus256sDescriptor(t *testing.T) {
-	desc := NewSphincsPlus256sDescriptor()
+	desc, err := NewSphincsPlus256sDescriptor()
+	if err != nil {
+		t.Fatalf("NewSphincsPlus256sDescriptor() error: %v", err)
+	}
 
 	if !desc.IsValid() {
 		t.Error("NewSphincsPlus256sDescriptor() should return a valid descriptor")

@@ -1,0 +1,200 @@
+name: Cross-Implementation Verification
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  dilithium-cross-verify:
+    name: Dilithium (Round 3) Cross-Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Clone pq-crystals Dilithium (Round 3)
+        run: |
+          git clone https://github.com/pq-crystals/dilithium.git /tmp/dilithium-ref
+          cd /tmp/dilithium-ref
+          git checkout ac743d5  # Round 3 (pre-FIPS)
+          echo "Reference commit: $(git rev-parse --short HEAD)"
+
+      - name: Generate go-qrllib Dilithium signature
+        run: go run .github/cross-verify/dilithium_sign.go
+
+      - name: Compile reference verifier
+        run: |
+          cd /tmp/dilithium-ref/ref
+          gcc -o /tmp/verify_dilithium -DDILITHIUM_MODE=5 \
+            $GITHUB_WORKSPACE/.github/cross-verify/dilithium_verify_ref.c \
+            sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
+            rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
+
+      - name: Verify go-qrllib signature with reference
+        run: |
+          echo "=== Verifying go-qrllib signature with pq-crystals reference ==="
+          /tmp/verify_dilithium
+          echo "✓ go-qrllib → pq-crystals: PASSED"
+
+      - name: Generate reference signature
+        run: |
+          cd /tmp/dilithium-ref/ref
+          gcc -o /tmp/sign_dilithium_ref -DDILITHIUM_MODE=5 \
+            $GITHUB_WORKSPACE/.github/cross-verify/dilithium_sign_ref.c \
+            sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
+            rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
+          /tmp/sign_dilithium_ref
+
+      - name: Verify reference signature with go-qrllib
+        run: |
+          echo "=== Verifying pq-crystals signature with go-qrllib ==="
+          go run .github/cross-verify/dilithium_verify.go
+          echo "✓ pq-crystals → go-qrllib: PASSED"
+
+  mldsa87-cross-verify:
+    name: ML-DSA-87 (FIPS 204) Cross-Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Clone pq-crystals Dilithium (FIPS 204)
+        run: |
+          git clone --depth 1 https://github.com/pq-crystals/dilithium.git /tmp/mldsa-ref
+          cd /tmp/mldsa-ref
+          echo "Reference commit: $(git rev-parse --short HEAD)"
+
+      - name: Generate go-qrllib ML-DSA-87 signature
+        run: go run .github/cross-verify/mldsa87_sign.go
+
+      - name: Compile reference verifier
+        run: |
+          cd /tmp/mldsa-ref/ref
+          gcc -o /tmp/verify_mldsa -DDILITHIUM_MODE=5 \
+            $GITHUB_WORKSPACE/.github/cross-verify/mldsa87_verify_ref.c \
+            sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
+            rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
+
+      - name: Verify go-qrllib signature with reference
+        run: |
+          echo "=== Verifying go-qrllib ML-DSA-87 signature with pq-crystals reference ==="
+          /tmp/verify_mldsa
+          echo "✓ go-qrllib → pq-crystals: PASSED"
+
+      - name: Generate reference signature
+        run: |
+          cd /tmp/mldsa-ref/ref
+          gcc -o /tmp/sign_mldsa_ref -DDILITHIUM_MODE=5 \
+            $GITHUB_WORKSPACE/.github/cross-verify/mldsa87_sign_ref.c \
+            sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
+            rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
+          /tmp/sign_mldsa_ref
+
+      - name: Verify reference signature with go-qrllib
+        run: |
+          echo "=== Verifying pq-crystals ML-DSA-87 signature with go-qrllib ==="
+          go run .github/cross-verify/mldsa87_verify.go
+          echo "✓ pq-crystals → go-qrllib: PASSED"
+
+  sphincs-cross-verify:
+    name: SPHINCS+ (SHAKE-256s-robust) Cross-Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Clone SPHINCS+ reference (consistent-basew branch)
+        run: |
+          git clone --branch consistent-basew https://github.com/sphincs/sphincsplus.git /tmp/sphincs-ref
+          cd /tmp/sphincs-ref
+          echo "Reference branch: consistent-basew"
+          echo "Reference commit: $(git rev-parse --short HEAD)"
+
+      - name: Generate go-qrllib SPHINCS+ signature
+        run: go run .github/cross-verify/sphincs_sign.go
+
+      - name: Compile reference verifier
+        run: |
+          cd /tmp/sphincs-ref/ref
+          gcc -o /tmp/verify_sphincs \
+            -DPARAMS=sphincs-shake-256s -DTHASH=robust \
+            $GITHUB_WORKSPACE/.github/cross-verify/sphincs_verify_ref.c \
+            address.c merkle.c wots.c wotsx1.c utils.c utilsx1.c \
+            fors.c sign.c hash_shake.c thash_shake_robust.c fips202.c \
+            randombytes.c -I. -O2
+
+      - name: Verify go-qrllib signature with reference
+        run: |
+          echo "=== Verifying go-qrllib SPHINCS+ signature with reference ==="
+          /tmp/verify_sphincs
+          echo "✓ go-qrllib → reference: PASSED"
+
+      - name: Generate reference signature
+        run: |
+          cd /tmp/sphincs-ref/ref
+          gcc -o /tmp/sign_sphincs_ref \
+            -DPARAMS=sphincs-shake-256s -DTHASH=robust \
+            $GITHUB_WORKSPACE/.github/cross-verify/sphincs_sign_ref.c \
+            address.c merkle.c wots.c wotsx1.c utils.c utilsx1.c \
+            fors.c sign.c hash_shake.c thash_shake_robust.c fips202.c \
+            randombytes.c -I. -O2
+          /tmp/sign_sphincs_ref
+
+      - name: Verify reference signature with go-qrllib
+        run: |
+          echo "=== Verifying reference SPHINCS+ signature with go-qrllib ==="
+          go run .github/cross-verify/sphincs_verify.go
+          echo "✓ reference → go-qrllib: PASSED"
+
+  xmss-cross-verify:
+    name: XMSS (SHA2_10_256) Cross-Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Clone XMSS reference (RFC 8391)
+        run: |
+          git clone --depth 1 https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
+          cd /tmp/xmss-ref
+          echo "Reference commit: $(git rev-parse --short HEAD)"
+
+      - name: Generate go-qrllib XMSS signature
+        run: go run .github/cross-verify/xmss_sign.go
+
+      - name: Compile reference verifier
+        run: |
+          cd /tmp/xmss-ref
+          gcc -o /tmp/verify_xmss -Wall -O2 -I. \
+            $GITHUB_WORKSPACE/.github/cross-verify/xmss_verify_ref.c \
+            params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
+            xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
+
+      - name: Verify go-qrllib signature with reference
+        run: |
+          echo "=== Verifying go-qrllib XMSS signature with RFC 8391 reference ==="
+          /tmp/verify_xmss
+          echo "✓ go-qrllib → reference: PASSED"
+          echo ""
+          echo "Note: Only one-directional verification is performed."
+          echo "See .github/cross-verify/README.md for details."

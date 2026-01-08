@@ -10,12 +10,17 @@ import (
 // Test vectors generated with known seed for deterministic testing
 var testSeed = make([]uint8, 48)
 
-func newTestXMSS(height Height) *XMSS {
-	return InitializeTree(height, SHAKE_128, testSeed)
+func newTestXMSS(t *testing.T, height Height) *XMSS {
+	t.Helper()
+	xmss, err := InitializeTree(height, SHAKE_128, testSeed)
+	if err != nil {
+		t.Fatalf("InitializeTree failed: %v", err)
+	}
+	return xmss
 }
 
 func TestInitializeTreeHeight4(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 	if xmss == nil {
 		t.Fatal("InitializeTree returned nil")
 	}
@@ -30,7 +35,7 @@ func TestInitializeTreeHeight4(t *testing.T) {
 }
 
 func TestInitializeTreeHeight6(t *testing.T) {
-	xmss := newTestXMSS(6)
+	xmss := newTestXMSS(t, 6)
 	if xmss == nil {
 		t.Fatal("InitializeTree returned nil")
 	}
@@ -41,7 +46,7 @@ func TestInitializeTreeHeight6(t *testing.T) {
 }
 
 func TestInitializeTreeHeight8(t *testing.T) {
-	xmss := newTestXMSS(8)
+	xmss := newTestXMSS(t, 8)
 	if xmss == nil {
 		t.Fatal("InitializeTree returned nil")
 	}
@@ -53,8 +58,8 @@ func TestInitializeTreeHeight8(t *testing.T) {
 
 func TestInitializeTreeDeterministic(t *testing.T) {
 	// Two trees with same seed should produce same keys
-	xmss1 := newTestXMSS(4)
-	xmss2 := newTestXMSS(4)
+	xmss1 := newTestXMSS(t, 4)
+	xmss2 := newTestXMSS(t, 4)
 
 	if !bytes.Equal(xmss1.GetSK(), xmss2.GetSK()) {
 		t.Error("Secret keys should be equal for same seed")
@@ -74,8 +79,14 @@ func TestInitializeTreeDifferentSeeds(t *testing.T) {
 	seed2 := make([]uint8, 48)
 	seed2[0] = 1 // Different seed
 
-	xmss1 := InitializeTree(4, SHAKE_128, seed1)
-	xmss2 := InitializeTree(4, SHAKE_128, seed2)
+	xmss1, err := InitializeTree(4, SHAKE_128, seed1)
+	if err != nil {
+		t.Fatalf("InitializeTree failed: %v", err)
+	}
+	xmss2, err := InitializeTree(4, SHAKE_128, seed2)
+	if err != nil {
+		t.Fatalf("InitializeTree failed: %v", err)
+	}
 
 	if bytes.Equal(xmss1.GetSK(), xmss2.GetSK()) {
 		t.Error("Secret keys should differ for different seeds")
@@ -87,7 +98,7 @@ func TestInitializeTreeDifferentSeeds(t *testing.T) {
 }
 
 func TestGetSeed(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 	seed := xmss.GetSeed()
 
 	if !bytes.Equal(seed, testSeed) {
@@ -96,7 +107,7 @@ func TestGetSeed(t *testing.T) {
 }
 
 func TestGetSK(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 	sk := xmss.GetSK()
 
 	if len(sk) != 132 {
@@ -105,7 +116,7 @@ func TestGetSK(t *testing.T) {
 }
 
 func TestGetPKSeed(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 	pkSeed := xmss.GetPKSeed()
 
 	if len(pkSeed) != 32 {
@@ -114,7 +125,7 @@ func TestGetPKSeed(t *testing.T) {
 }
 
 func TestGetRoot(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 	root := xmss.GetRoot()
 
 	if len(root) != 32 {
@@ -123,7 +134,7 @@ func TestGetRoot(t *testing.T) {
 }
 
 func TestGetIndex(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Initial index should be 0
 	if xmss.GetIndex() != 0 {
@@ -132,7 +143,7 @@ func TestGetIndex(t *testing.T) {
 }
 
 func TestSetIndex(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Set index to 5
 	if err := xmss.SetIndex(5); err != nil {
@@ -145,7 +156,7 @@ func TestSetIndex(t *testing.T) {
 }
 
 func TestSetIndexLimit(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Height 4 means 2^4 = 16 signatures, max index is 15
 	if err := xmss.SetIndex(15); err != nil {
@@ -158,7 +169,7 @@ func TestSetIndexLimit(t *testing.T) {
 }
 
 func TestSetIndexTooHigh(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Height 4 means max index is 15, 16 should fail
 	err := xmss.SetIndex(16)
@@ -168,7 +179,7 @@ func TestSetIndexTooHigh(t *testing.T) {
 }
 
 func TestSetIndexWayTooHigh(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Way beyond limit
 	err := xmss.SetIndex(1000)
@@ -178,7 +189,7 @@ func TestSetIndexWayTooHigh(t *testing.T) {
 }
 
 func TestSignAndVerify(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 	for i := range message {
@@ -201,7 +212,7 @@ func TestSignAndVerify(t *testing.T) {
 }
 
 func TestSignAndVerifyMultiple(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 
@@ -223,7 +234,7 @@ func TestSignAndVerifyMultiple(t *testing.T) {
 }
 
 func TestVerifyCorruptedSignature(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 
@@ -251,7 +262,7 @@ func TestVerifyCorruptedSignature(t *testing.T) {
 }
 
 func TestVerifyCorruptedMessage(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 
@@ -279,11 +290,14 @@ func TestVerifyCorruptedMessage(t *testing.T) {
 }
 
 func TestVerifyWrongPublicKey(t *testing.T) {
-	xmss1 := newTestXMSS(4)
+	xmss1 := newTestXMSS(t, 4)
 
 	seed2 := make([]uint8, 48)
 	seed2[0] = 1
-	xmss2 := InitializeTree(4, SHAKE_128, seed2)
+	xmss2, err := InitializeTree(4, SHAKE_128, seed2)
+	if err != nil {
+		t.Fatalf("InitializeTree failed: %v", err)
+	}
 
 	message := make([]uint8, 32)
 
@@ -303,7 +317,7 @@ func TestVerifyWrongPublicKey(t *testing.T) {
 }
 
 func TestVerifyInvalidSignatureSize(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 	invalidSig := make([]uint8, 100) // Too short
@@ -319,7 +333,7 @@ func TestVerifyInvalidSignatureSize(t *testing.T) {
 }
 
 func TestVerifyEmptySignature(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 	emptySig := make([]uint8, 0)
@@ -335,7 +349,7 @@ func TestVerifyEmptySignature(t *testing.T) {
 }
 
 func TestVerifyMisalignedSignatureSize(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 32)
 	// Signature size that doesn't align to (4 + n*32)
@@ -352,7 +366,7 @@ func TestVerifyMisalignedSignatureSize(t *testing.T) {
 }
 
 func TestSignIncrementsIndex(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	initialIndex := xmss.GetIndex()
 	if initialIndex != 0 {
@@ -373,7 +387,7 @@ func TestSignIncrementsIndex(t *testing.T) {
 }
 
 func TestMultipleSignatures(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	pk := make([]uint8, 64)
 	copy(pk[:32], xmss.GetRoot())
@@ -402,7 +416,7 @@ func TestMultipleSignatures(t *testing.T) {
 }
 
 func TestZeroize(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	// Get copies before zeroize
 	sk := make([]uint8, len(xmss.GetSK()))
@@ -461,26 +475,40 @@ func TestHeightIsValid(t *testing.T) {
 	}
 }
 
-func TestToHeightPanicsOnInvalid(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("ToHeight(7) should panic")
-		}
-	}()
-	ToHeight(7) // Odd number - should panic
+func TestToHeightReturnsErrorOnInvalid(t *testing.T) {
+	// Odd number - should return error
+	_, err := ToHeight(7)
+	if err == nil {
+		t.Error("ToHeight(7) should return error for odd height")
+	}
+
+	// Height 0 - should return error
+	_, err = ToHeight(0)
+	if err == nil {
+		t.Error("ToHeight(0) should return error")
+	}
+
+	// Height > MaxHeight - should return error
+	_, err = ToHeight(32)
+	if err == nil {
+		t.Error("ToHeight(32) should return error for height > MaxHeight")
+	}
 }
 
-func TestInitializeTreePanicsOnInvalidHeight(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("InitializeTree with odd height should panic")
-		}
-	}()
+func TestInitializeTreeReturnsErrorOnInvalidHeight(t *testing.T) {
+	// Height 3 is invalid (odd) - should fail at ToHeight
+	_, err := ToHeight(3)
+	if err == nil {
+		t.Error("ToHeight(3) should return error for odd height")
+	}
 
+	// Height 2 with k=2 fails BDS check (k >= height)
+	// WOTSParamK is 2, so height 2 is invalid for BDS traversal
 	seed := make([]uint8, 48)
-	// Height 3 is invalid (odd) but passes ToHeight check differently
-	// This tests the BDS traversal check in InitializeTree
-	InitializeTree(Height(3), SHAKE_128, seed)
+	_, err = InitializeTree(2, SHAKE_128, seed)
+	if err == nil {
+		t.Error("InitializeTree with height=2 should return error (k >= height)")
+	}
 }
 
 func TestDifferentHashFunctions(t *testing.T) {
@@ -490,9 +518,9 @@ func TestDifferentHashFunctions(t *testing.T) {
 
 	for _, hf := range hashFunctions {
 		t.Run(fmt.Sprintf("HashFunction_%d", hf), func(t *testing.T) {
-			xmss := InitializeTree(4, hf, seed)
-			if xmss == nil {
-				t.Fatal("InitializeTree returned nil")
+			xmss, err := InitializeTree(4, hf, seed)
+			if err != nil {
+				t.Fatalf("InitializeTree failed: %v", err)
 			}
 
 			if xmss.GetHashFunction() != hf {
@@ -523,10 +551,14 @@ func TestDifferentHashFunctions(t *testing.T) {
 }
 
 func TestKnownTestVector(t *testing.T) {
-	// Test vector from legacy wallet tests
-	// Zero seed should produce known root/address
+	// Test vector from legacy wallet tests (legacy QRL python/cpp/js qrllib)
+	// This ensures backward compatibility with existing QRL addresses.
+	// Zero seed should produce known root/address.
 	seed := make([]uint8, 48)
-	xmss := InitializeTree(4, SHAKE_128, seed)
+	xmss, err := InitializeTree(4, SHAKE_128, seed)
+	if err != nil {
+		t.Fatalf("InitializeTree failed: %v", err)
+	}
 
 	root := xmss.GetRoot()
 	pkSeed := xmss.GetPKSeed()
@@ -559,7 +591,7 @@ func TestKnownTestVector(t *testing.T) {
 }
 
 func TestEmptyMessage(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 0) // Empty message
 
@@ -578,7 +610,7 @@ func TestEmptyMessage(t *testing.T) {
 }
 
 func TestLargeMessage(t *testing.T) {
-	xmss := newTestXMSS(4)
+	xmss := newTestXMSS(t, 4)
 
 	message := make([]uint8, 10000) // Large message
 	for i := range message {

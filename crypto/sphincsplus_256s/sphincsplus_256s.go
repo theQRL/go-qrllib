@@ -50,6 +50,9 @@ func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())
 	}
+	if len(unsizedSeed) != CRYPTO_SEEDBYTES {
+		return nil, fmt.Errorf("invalid seed length: expected %d bytes, got %d", CRYPTO_SEEDBYTES, len(unsizedSeed))
+	}
 	var seed [CRYPTO_SEEDBYTES]uint8
 	copy(seed[:], unsizedSeed)
 	return NewSphincsPlus256sFromSeed(seed)

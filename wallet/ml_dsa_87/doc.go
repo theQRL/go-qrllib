@@ -7,7 +7,7 @@
 //   - QRL address generation with proper descriptor formatting
 //   - Hardcoded "ZOND" context for QRL blockchain domain separation
 //   - Seed management and mnemonic conversion
-//   - Signature verification with address validation
+//   - Signature verification with address descriptor validation
 //
 // # Context Handling
 //
@@ -32,9 +32,11 @@
 //
 // # Address Format
 //
-// QRL addresses are generated from the public key with a descriptor prefix:
+// QRL addresses are generated from the public key with a descriptor prefix using SHAKE256:
 //
-//	Address = "Q" + hex(Descriptor + SHA256(SHA256(Descriptor + PK)))
+//	Address = "Q" + hex(SHAKE256(Descriptor || PK)[:20])
+//
+// This produces a standard 20-byte address (plus 'Q' prefix).
 //
 // # Example Usage
 //

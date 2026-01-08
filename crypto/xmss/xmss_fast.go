@@ -8,10 +8,10 @@ import (
 )
 
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
-	pk, sk []uint8, bdsState *BDSState, seed []uint8) {
+	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
 
 	if xmssParams.h&1 == 1 {
-		panic("Not a valid h, only even numbers supported! Try again with an even number")
+		return fmt.Errorf("invalid XMSS height %d: must be even", xmssParams.h)
 	}
 
 	n := xmssParams.n
@@ -36,6 +36,7 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	addr := make([]uint32, 8)
 	treeHashSetup(hashFunction, pk, 0, bdsState, sk[4:4+n], xmssParams, sk[4+2*n:4+2*n+n], addr)
 	copy(sk[4+3*n:], pk[:pks])
+	return nil
 }
 
 func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uint8, bdsState *BDSState, message []uint8) ([]uint8, error) {
@@ -313,7 +314,8 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 
 	for j := currentIdx; j < newIdx; j++ {
 		if j >= numElems {
-			panic(fmt.Sprintf("index out of bounds: j=%d >= numElems=%d", j, numElems))
+			// This should never happen due to earlier bounds check, but return error defensively
+			return fmt.Errorf("internal error: index out of bounds: j=%d >= numElems=%d", j, numElems)
 		}
 
 		bdsRound(hashFunction, bdsState, j, skSeed, params, pubSeed, &otsAddr)

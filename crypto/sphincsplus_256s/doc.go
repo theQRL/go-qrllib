@@ -20,7 +20,7 @@
 //   - Public Key:  64 bytes (SPX_PK_BYTES)
 //   - Secret Key:  128 bytes (SPX_SK_BYTES)
 //   - Signature:   29,792 bytes (SPX_BYTES)
-//   - Seed:        96 bytes (SPX_SEED_BYTES)
+//   - Seed:        96 bytes (CRYPTO_SEEDBYTES)
 //
 // # When to Use SPHINCS+
 //

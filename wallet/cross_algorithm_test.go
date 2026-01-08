@@ -163,7 +163,10 @@ func TestMnemonicRecoveryConsistency(t *testing.T) {
 			t.Fatalf("failed to create wallet: %v", err)
 		}
 
-		mnemonic := original.GetMnemonic()
+		mnemonic, err := original.GetMnemonic()
+		if err != nil {
+			t.Fatalf("GetMnemonic() error: %v", err)
+		}
 
 		recovered, err := ml_dsa_wallet.NewWalletFromMnemonic(mnemonic)
 		if err != nil {
@@ -194,7 +197,10 @@ func TestMnemonicRecoveryConsistency(t *testing.T) {
 			t.Fatalf("failed to create wallet: %v", err)
 		}
 
-		mnemonic := original.GetMnemonic()
+		mnemonic, err := original.GetMnemonic()
+		if err != nil {
+			t.Fatalf("GetMnemonic() error: %v", err)
+		}
 
 		recovered, err := sphincs_wallet.NewWalletFromMnemonic(mnemonic)
 		if err != nil {
@@ -220,16 +226,28 @@ func TestMnemonicRecoveryConsistency(t *testing.T) {
 // cannot be used to create wallets of another algorithm type.
 func TestMnemonicCrossAlgorithmIsolation(t *testing.T) {
 	// Create ML-DSA wallet and get mnemonic
-	mlWallet, _ := ml_dsa_wallet.NewWallet()
-	mlMnemonic := mlWallet.GetMnemonic()
+	mlWallet, err := ml_dsa_wallet.NewWallet()
+	if err != nil {
+		t.Fatalf("failed to create ML-DSA wallet: %v", err)
+	}
+	mlMnemonic, err := mlWallet.GetMnemonic()
+	if err != nil {
+		t.Fatalf("GetMnemonic() error: %v", err)
+	}
 
 	// Create SPHINCS+ wallet and get mnemonic
-	sphincsWallet, _ := sphincs_wallet.NewWallet()
-	sphincsMnemonic := sphincsWallet.GetMnemonic()
+	sphincsWallet, err := sphincs_wallet.NewWallet()
+	if err != nil {
+		t.Fatalf("failed to create SPHINCS+ wallet: %v", err)
+	}
+	sphincsMnemonic, err := sphincsWallet.GetMnemonic()
+	if err != nil {
+		t.Fatalf("GetMnemonic() error: %v", err)
+	}
 
 	// Attempting to recover ML-DSA mnemonic as SPHINCS+ should fail
 	// (descriptor type mismatch)
-	_, err := sphincs_wallet.NewWalletFromMnemonic(mlMnemonic)
+	_, err = sphincs_wallet.NewWalletFromMnemonic(mlMnemonic)
 	if err == nil {
 		t.Error("recovering ML-DSA mnemonic as SPHINCS+ should fail")
 	}
@@ -362,11 +380,23 @@ func TestAddressFormatConsistency(t *testing.T) {
 // TestExtendedSeedIsolation verifies that extended seeds properly encode
 // algorithm type and prevent cross-algorithm usage.
 func TestExtendedSeedIsolation(t *testing.T) {
-	mlWallet, _ := ml_dsa_wallet.NewWallet()
-	sphincsWallet, _ := sphincs_wallet.NewWallet()
+	mlWallet, err := ml_dsa_wallet.NewWallet()
+	if err != nil {
+		t.Fatalf("failed to create ML-DSA wallet: %v", err)
+	}
+	sphincsWallet, err := sphincs_wallet.NewWallet()
+	if err != nil {
+		t.Fatalf("failed to create SPHINCS+ wallet: %v", err)
+	}
 
-	mlExtSeed := mlWallet.GetExtendedSeed()
-	sphincsExtSeed := sphincsWallet.GetExtendedSeed()
+	mlExtSeed, err := mlWallet.GetExtendedSeed()
+	if err != nil {
+		t.Fatalf("GetExtendedSeed() error: %v", err)
+	}
+	sphincsExtSeed, err := sphincsWallet.GetExtendedSeed()
+	if err != nil {
+		t.Fatalf("GetExtendedSeed() error: %v", err)
+	}
 
 	// Verify extended seed size is consistent
 	if len(mlExtSeed) != common.ExtendedSeedSize {
@@ -387,7 +417,7 @@ func TestExtendedSeedIsolation(t *testing.T) {
 	}
 
 	// Verify cross-algorithm extended seed recovery fails
-	_, err := ml_dsa_wallet.NewWalletFromExtendedSeed(sphincsExtSeed)
+	_, err = ml_dsa_wallet.NewWalletFromExtendedSeed(sphincsExtSeed)
 	if err == nil {
 		t.Error("ML-DSA wallet from SPHINCS+ extended seed should fail")
 	}
@@ -401,8 +431,14 @@ func TestExtendedSeedIsolation(t *testing.T) {
 // TestHexSeedRoundTrip verifies hex seed encoding/decoding works for both algorithms.
 func TestHexSeedRoundTrip(t *testing.T) {
 	t.Run("ML-DSA-87", func(t *testing.T) {
-		original, _ := ml_dsa_wallet.NewWallet()
-		hexSeed := original.GetHexSeed()
+		original, err := ml_dsa_wallet.NewWallet()
+		if err != nil {
+			t.Fatalf("failed to create wallet: %v", err)
+		}
+		hexSeed, err := original.GetHexSeed()
+		if err != nil {
+			t.Fatalf("GetHexSeed() error: %v", err)
+		}
 
 		recovered, err := ml_dsa_wallet.NewWalletFromHexExtendedSeed(hexSeed[2:]) // trim 0x
 		if err != nil {
@@ -415,8 +451,14 @@ func TestHexSeedRoundTrip(t *testing.T) {
 	})
 
 	t.Run("SPHINCS+", func(t *testing.T) {
-		original, _ := sphincs_wallet.NewWallet()
-		hexSeed := original.GetHexSeed()
+		original, err := sphincs_wallet.NewWallet()
+		if err != nil {
+			t.Fatalf("failed to create wallet: %v", err)
+		}
+		hexSeed, err := original.GetHexSeed()
+		if err != nil {
+			t.Fatalf("GetHexSeed() error: %v", err)
+		}
 
 		recovered, err := sphincs_wallet.NewWalletFromHexExtendedSeed(hexSeed[2:])
 		if err != nil {
