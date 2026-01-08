@@ -12,15 +12,9 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-
-issues:
-  # Exclude specific files or directories from certain linters
-  exclude-rules:
-    # Exclude unused warnings for crypto/sphincsplus_256s (WIP)
-    - path: crypto/sphincsplus_256s/
-      linters:
-        - unused
-    # Exclude unused warnings for test helper functions
-    - path: _test\.go
-      linters:
-        - unused
+  exclusions:
+    rules:
+      # Exclude unused warnings for test helper functions
+      - path: _test\.go
+        linters:
+          - unused
