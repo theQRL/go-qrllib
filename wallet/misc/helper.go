@@ -76,7 +76,7 @@ func MnemonicToBin(mnemonic string) ([]uint8, error) {
 			buffering -= 2
 			current &= mask
 			result[resultIndex] = uint8(tmp)
-			resultIndex++
+			resultIndex++ //nolint:ineffassign // may be used in final buffering check
 		}
 	}
 
