@@ -8,10 +8,10 @@ import (
 )
 
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
-	pk, sk []uint8, bdsState *BDSState, seed []uint8) {
+	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
 
 	if xmssParams.h&1 == 1 {
-		panic("Not a valid h, only even numbers supported! Try again with an even number")
+		return fmt.Errorf("invalid XMSS height %d: must be even", xmssParams.h)
 	}
 
 	n := xmssParams.n
@@ -36,6 +36,7 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	addr := make([]uint32, 8)
 	treeHashSetup(hashFunction, pk, 0, bdsState, sk[4:4+n], xmssParams, sk[4+2*n:4+2*n+n], addr)
 	copy(sk[4+3*n:], pk[:pks])
+	return nil
 }
 
 func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uint8, bdsState *BDSState, message []uint8) ([]uint8, error) {
@@ -51,7 +52,7 @@ func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uin
 	copy(pubSeed, sk[4+2*n:4+2*n+n])
 
 	var idxBytes32 [32]uint8
-	misc.ToByteLittleEndian(idxBytes32[:], idx, 32)
+	misc.ToByteBigEndian(idxBytes32[:], idx, 32) // RFC 8391 requires big-endian encoding
 
 	hashKey := make([]uint8, 3*n)
 
@@ -66,7 +67,7 @@ func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uin
 	prf(hashFunction, R, idxBytes32[:], skPRF, n)
 	copy(hashKey[:n], R)
 	copy(hashKey[n:n+n], sk[4+3*n:4+3*n+n])
-	misc.ToByteLittleEndian(hashKey[2*n:2*n+n], idx, n)
+	misc.ToByteBigEndian(hashKey[2*n:2*n+n], idx, n) // RFC 8391 requires big-endian encoding
 	msgHash := make([]uint8, n)
 	err := hMsg(hashFunction, msgHash, message, hashKey, n)
 	if err != nil {
@@ -223,7 +224,7 @@ func wOTSPKGen(hashFunction HashFunction, pk, sk []uint8, wOTSParams *WOTSParams
 func expandSeed(hashFunction HashFunction, outSeeds, inSeeds []uint8, n, len uint32) {
 	var ctr [32]uint8
 	for i := uint32(0); i < len; i++ {
-		misc.ToByteLittleEndian(ctr[:], i, 32)
+		misc.ToByteBigEndian(ctr[:], i, 32) // RFC 8391 requires big-endian encoding
 		prf(hashFunction, outSeeds[i*n:i*n+n], ctr[:], inSeeds, n)
 	}
 }
@@ -313,7 +314,8 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 
 	for j := currentIdx; j < newIdx; j++ {
 		if j >= numElems {
-			panic(fmt.Sprintf("index out of bounds: j=%d >= numElems=%d", j, numElems))
+			// This should never happen due to earlier bounds check, but return error defensively
+			return fmt.Errorf("internal error: index out of bounds: j=%d >= numElems=%d", j, numElems)
 		}
 
 		bdsRound(hashFunction, bdsState, j, skSeed, params, pubSeed, &otsAddr)
@@ -509,7 +511,7 @@ func wotsSign(hashFunction HashFunction, sig, msg, sk []uint8, params *WOTSParam
 	len2Bytes := ((params.len2 * params.logW) + 7) / 8
 
 	cSumBytes := make([]uint8, len2Bytes)
-	misc.ToByteLittleEndian(cSumBytes, csum, len2Bytes)
+	misc.ToByteBigEndian(cSumBytes, csum, len2Bytes) // RFC 8391 requires big-endian encoding
 
 	cSumBaseW := make([]uint8, params.len2)
 
@@ -533,6 +535,11 @@ func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, p
 	sigMsgOffset := uint32(0)
 
 	n := wotsParams.n
+
+	// Validate public key length (must be at least 2*n bytes: root + pubSeed)
+	if uint32(len(pk)) < 2*n {
+		return false
+	}
 
 	wotsPK := make([]uint8, wotsParams.keySize)
 	pkHash := make([]uint8, n)
@@ -562,7 +569,7 @@ func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, p
 	// Generate hash key (R || root || idx)
 	copy(hashKey[:n], sigMsg[4:4+n])
 	copy(hashKey[n:n+n], pk[:n])
-	misc.ToByteLittleEndian(hashKey[2*n:2*n+n], idx, n)
+	misc.ToByteBigEndian(hashKey[2*n:2*n+n], idx, n) // RFC 8391 requires big-endian encoding
 
 	sigMsgOffset += n + 4
 
@@ -666,7 +673,7 @@ func wotsPKFromSig(hashfunction HashFunction, pk, sig, msg []uint8, wotsParams *
 
 	cSum = cSum << (8 - ((XMSSWOTSLEN2 * XMSSWOTSLOGW) % 8))
 
-	misc.ToByteLittleEndian(cSumBytes, cSum, ((XMSSWOTSLEN2*XMSSWOTSLOGW)+7)/8)
+	misc.ToByteBigEndian(cSumBytes, cSum, ((XMSSWOTSLEN2*XMSSWOTSLOGW)+7)/8) // RFC 8391 requires big-endian encoding
 	calcBaseW(cSumBaseW, XMSSWOTSLEN2, cSumBytes, wotsParams)
 
 	for i := uint32(0); i < XMSSWOTSLEN2; i++ {

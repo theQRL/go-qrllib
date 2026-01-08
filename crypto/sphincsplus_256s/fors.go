@@ -31,13 +31,16 @@ func forsGenLeafX1(leaf []byte, ctx *SPXCtx, addrIdx uint32, info any) {
 }
 
 func messageToIndices(indices []uint32, m []byte) {
-	offset := 0
+	offset := uint(0)
 
 	for i := 0; i < params.SPX_FORS_TREES; i++ {
 		indices[i] = 0
 		for j := 0; j < params.SPX_FORS_HEIGHT; j++ {
-			bit := (m[offset>>3] >> (7 - (offset & 0x7))) & 1
-			indices[i] ^= uint32(bit) << (params.SPX_FORS_HEIGHT - 1 - j)
+			byteIdx := int(offset >> 3)
+			bitOffset := ^offset & 0x7
+			bit := (m[byteIdx] >> bitOffset) & 1
+			shift := uint(params.SPX_FORS_HEIGHT - 1 - j)
+			indices[i] ^= uint32(bit) << shift
 			offset++
 		}
 	}

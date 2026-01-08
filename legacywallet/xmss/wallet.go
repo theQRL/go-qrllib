@@ -18,38 +18,51 @@ type XMSSWallet struct {
 	xmss *xmss.XMSS
 }
 
-func NewWalletFromSeed(seed [SeedSize]uint8, height xmss.Height, hashFunction xmss.HashFunction, addrFormatType common.AddrFormatType) *XMSSWallet {
+func NewWalletFromSeed(seed [SeedSize]uint8, height xmss.Height, hashFunction xmss.HashFunction, addrFormatType common.AddrFormatType) (*XMSSWallet, error) {
 	signatureType := legacywallet.WalletTypeXMSS // Signature Type hard coded for now
 	if height > xmss.MaxHeight {
-		panic(fmt.Sprintf("Height should be <= %d", xmss.MaxHeight))
+		return nil, fmt.Errorf("height %d exceeds maximum %d", height, xmss.MaxHeight)
 	}
 	desc := NewQRLDescriptor(height, hashFunction, signatureType, addrFormatType)
+
+	tree, err := xmss.InitializeTree(desc.height, desc.hashFunction, seed[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize XMSS tree: %w", err)
+	}
 
 	return &XMSSWallet{
 		seed: seed,
 		desc: desc,
-		xmss: xmss.InitializeTree(desc.height, desc.hashFunction, seed[:]),
-	}
+		xmss: tree,
+	}, nil
 }
 
-func NewWalletFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *XMSSWallet {
-	desc := NewQRLDescriptorFromExtendedSeed(extendedSeed)
+func NewWalletFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) (*XMSSWallet, error) {
+	desc, err := NewQRLDescriptorFromExtendedSeed(extendedSeed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse descriptor: %w", err)
+	}
 
 	var seed [SeedSize]uint8
 	copy(seed[:], extendedSeed[DescriptorSize:])
 
+	tree, err := xmss.InitializeTree(desc.height, desc.hashFunction, seed[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize XMSS tree: %w", err)
+	}
+
 	return &XMSSWallet{
 		seed: seed,
 		desc: desc,
-		xmss: xmss.InitializeTree(desc.height, desc.hashFunction, seed[:]),
-	}
+		xmss: tree,
+	}, nil
 }
 
-func NewWalletFromHeight(height xmss.Height, hashFunction xmss.HashFunction) *XMSSWallet {
+func NewWalletFromHeight(height xmss.Height, hashFunction xmss.HashFunction) (*XMSSWallet, error) {
 	var seed [SeedSize]uint8
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic("Failed to generate random seed for XMSS address")
+		return nil, fmt.Errorf("failed to generate random seed: %w", err)
 	}
 	return NewWalletFromSeed(seed, height, hashFunction, common.SHA256_2X)
 }
@@ -80,13 +93,9 @@ func (w *XMSSWallet) GetHexSeed() string {
 	return "0x" + hex.EncodeToString(eSeed[:])
 }
 
-func (w *XMSSWallet) GetMnemonic() string {
+func (w *XMSSWallet) GetMnemonic() (string, error) {
 	extendedSeed := w.GetExtendedSeed()
-	mnemonic, err := misc2.BinToMnemonic(extendedSeed[:])
-	if err != nil {
-		panic(err)
-	}
-	return mnemonic
+	return misc2.BinToMnemonic(extendedSeed[:])
 }
 
 func (w *XMSSWallet) GetRoot() []uint8 {
@@ -105,17 +114,11 @@ func (w *XMSSWallet) GetPK() [ExtendedPKSize]uint8 {
 
 	var output [ExtendedPKSize]uint8
 	offset := 0
-	for i := 0; i < len(desc); i++ {
-		output[i] = desc[i]
-	}
+	copy(output[:], desc[:])
 	offset += len(desc)
-	for i := 0; i < len(root); i++ {
-		output[offset+i] = root[i]
-	}
+	copy(output[offset:], root[:])
 	offset += len(root)
-	for i := 0; i < len(pubSeed); i++ {
-		output[offset+i] = pubSeed[i]
-	}
+	copy(output[offset:], pubSeed[:])
 	return output
 }
 
@@ -123,7 +126,7 @@ func (w *XMSSWallet) GetSK() []uint8 {
 	return w.xmss.GetSK()
 }
 
-func (w *XMSSWallet) GetAddress() [AddressSize]uint8 {
+func (w *XMSSWallet) GetAddress() ([AddressSize]uint8, error) {
 	return GetXMSSAddressFromPK(w.GetPK())
 }
 
@@ -136,14 +139,18 @@ func (w *XMSSWallet) Sign(message []uint8) ([]uint8, error) {
 }
 
 func Verify(message, signature []uint8, extendedPK [ExtendedPKSize]uint8) (result bool) {
-	height := xmss.GetHeightFromSigSize(uint32(len(signature)), xmss.WOTSParamW)
-	if !height.IsValid() {
+	height, err := xmss.GetHeightFromSigSize(uint32(len(signature)), xmss.WOTSParamW)
+	if err != nil {
 		return false
 	}
 
-	desc := NewQRLDescriptorFromExtendedPK(&extendedPK)
+	desc, err := NewQRLDescriptorFromExtendedPK(&extendedPK)
+	if err != nil {
+		return false
+	}
+
 	if desc.GetSignatureType() != legacywallet.WalletTypeXMSS {
-		panic("invalid signature type")
+		return false
 	}
 
 	if desc.GetHeight() != height {

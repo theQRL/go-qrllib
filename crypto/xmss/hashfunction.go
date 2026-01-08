@@ -1,6 +1,12 @@
 package xmss
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidHashFunction is returned when an unknown hash function is specified.
+var ErrInvalidHashFunction = errors.New("invalid XMSS hash function")
 
 type HashFunction uint8
 
@@ -10,15 +16,19 @@ const (
 	SHAKE_256
 )
 
-func ToHashFunction(val uint8) HashFunction {
+// ToHashFunction converts a uint8 to a HashFunction, returning an error if invalid.
+// Valid hash functions are SHA2_256 (0), SHAKE_128 (1), and SHAKE_256 (2).
+func ToHashFunction(val uint8) (HashFunction, error) {
 	h := HashFunction(val)
 	if !h.IsValid() {
-		panic(fmt.Errorf("unknown XMSS Hash Function: %d", val))
+		return 0, fmt.Errorf("%w: %d", ErrInvalidHashFunction, val)
 	}
-	return h
+	return h, nil
 }
 
-func HashFunctionFromDescriptorByte(val uint8) HashFunction {
+// HashFunctionFromDescriptorByte extracts a HashFunction from a descriptor byte.
+// Returns an error if the extracted hash function is invalid.
+func HashFunctionFromDescriptorByte(val uint8) (HashFunction, error) {
 	return ToHashFunction((val >> 4) & 0x0f)
 }
 

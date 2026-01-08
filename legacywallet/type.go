@@ -1,6 +1,12 @@
 package legacywallet
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidWalletType is returned when an unknown wallet type is specified.
+var ErrInvalidWalletType = errors.New("invalid wallet type")
 
 /*
 WalletType
@@ -14,12 +20,13 @@ const (
 	WalletTypeXMSS WalletType = iota
 )
 
-func ToWalletType(val uint8) WalletType {
+// ToWalletType converts a uint8 to a WalletType, returning an error if invalid.
+func ToWalletType(val uint8) (WalletType, error) {
 	w := WalletType(val)
 	if !w.IsValid() {
-		panic(fmt.Errorf("unknown wallet type: %d", val))
+		return 0, fmt.Errorf("%w: %d", ErrInvalidWalletType, val)
 	}
-	return w
+	return w, nil
 }
 
 func (w WalletType) IsValid() bool {

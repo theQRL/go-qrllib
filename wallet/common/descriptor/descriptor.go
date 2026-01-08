@@ -47,8 +47,12 @@ func (d Descriptor) Type() byte {
 }
 
 func (d Descriptor) IsValid() bool {
-	// TODO (cyyber): Add checks for WalletType
-	return true
+	switch wallettype.WalletType(d[0]) {
+	case wallettype.SPHINCSPLUS_256S, wallettype.ML_DSA_87:
+		return true
+	default:
+		return false
+	}
 }
 
 func (d Descriptor) ToBytes() []byte {

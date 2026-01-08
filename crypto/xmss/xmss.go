@@ -1,6 +1,12 @@
 package xmss
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidBDSParams is returned when BDS traversal parameters are invalid.
+var ErrInvalidBDSParams = errors.New("invalid BDS traversal parameters: H - K must be even, with H > K >= 2")
 
 type XMSS struct {
 	xmssParams   *XMSSParams
@@ -12,7 +18,9 @@ type XMSS struct {
 	bdsState *BDSState
 }
 
-func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
+// InitializeTree creates a new XMSS tree with the specified parameters.
+// Returns an error if the height/k parameters are invalid for BDS traversal.
+func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, error) {
 	height := uint32(h)
 	sk := make([]uint8, 132)
 	pk := make([]uint8, 64)
@@ -22,13 +30,15 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
 	n := WOTSParamN
 
 	if k >= height || (height-k)%2 == 1 {
-		panic("For BDS traversal, H - K must be even, with H > K >= 2!")
+		return nil, fmt.Errorf("%w: height=%d, k=%d", ErrInvalidBDSParams, height, k)
 	}
 
 	xmssParams := NewXMSSParams(n, height, w, k)
 	bdsState := NewBDSState(height, n, k)
 
-	XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed)
+	if err := XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed); err != nil {
+		return nil, fmt.Errorf("failed to generate XMSS keypair: %w", err)
+	}
 	return &XMSS{
 		xmssParams,
 		hashFunction,
@@ -36,7 +46,7 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) *XMSS {
 		seed,
 		sk,
 		bdsState,
-	}
+	}, nil
 }
 
 func (x *XMSS) GetSeed() []uint8 {
@@ -60,7 +70,9 @@ func (x *XMSS) GetHashFunction() HashFunction {
 }
 
 func (x *XMSS) GetHeight() Height {
-	return ToHeight(x.height)
+	// Height is validated at construction time, so this should never fail.
+	// We use the value directly since it was stored from a valid Height.
+	return Height(x.height)
 }
 
 func (x *XMSS) GetIndex() uint32 {
@@ -80,6 +92,17 @@ func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)
 }
 
+// Zeroize clears sensitive key material from memory.
+// This should be called when the XMSS instance is no longer needed.
+func (x *XMSS) Zeroize() {
+	for i := range x.sk {
+		x.sk[i] = 0
+	}
+	for i := range x.seed {
+		x.seed[i] = 0
+	}
+}
+
 func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (result bool) {
 	return VerifyWithCustomWOTSParamW(hashFunction, message, signature, pk, WOTSParamW)
 }
@@ -87,12 +110,27 @@ func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (
 func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []uint8, pk []uint8, wotsParamW uint32) (result bool) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
-	if uint32(len(signature)) > signatureBaseSize+uint32(MaxHeight)*32 {
-		panic("invalid signature size. Height<=254")
+
+	sigSize := uint32(len(signature))
+
+	// Check for undersized signatures
+	if sigSize < signatureBaseSize {
+		return false
 	}
 
-	height := GetHeightFromSigSize(uint32(len(signature)), wotsParamW)
-	if !height.IsValid() {
+	// Check signature size alignment (must be 4 + n*32 for some n)
+	if (sigSize-4)%32 != 0 {
+		return false
+	}
+
+	// Check for oversized signatures
+	if sigSize > signatureBaseSize+uint32(MaxHeight)*32 {
+		return false
+	}
+
+	// Get height from signature size - returns error for invalid sizes
+	height, err := GetHeightFromSigSize(sigSize, wotsParamW)
+	if err != nil {
 		return false
 	}
 
@@ -101,7 +139,8 @@ func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []
 	n := WOTSParamN
 
 	if k >= height.ToUInt32() || (height.ToUInt32()-k)%2 == 1 {
-		panic("For BDS traversal, H - K must be even, with H > K >= 2!")
+		// Invalid BDS traversal parameters - return false instead of panicking
+		return false
 	}
 
 	params := NewXMSSParams(n, height.ToUInt32(), w, k)

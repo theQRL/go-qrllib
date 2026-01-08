@@ -102,7 +102,11 @@ func TestWallet_ExtendedSeed(t *testing.T) {
 		for _, tc := range walletTestCases {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
 				w := creator(t, tc)
-				if got := hex.EncodeToString(w.GetExtendedSeed().ToBytes()); got != tc.extendedSeed {
+				extSeed, err := w.GetExtendedSeed()
+				if err != nil {
+					t.Fatalf("GetExtendedSeed() error: %v", err)
+				}
+				if got := hex.EncodeToString(extSeed.ToBytes()); got != tc.extendedSeed {
 					t.Errorf("ExtendedSeed = %v\nwant %v", got, tc.extendedSeed)
 				}
 			})
@@ -116,7 +120,11 @@ func TestWallet_HexSeed(t *testing.T) {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
 				w := creator(t, tc)
 				wantHexSeed := "0x" + tc.extendedSeed
-				if got := w.GetHexSeed(); got != wantHexSeed {
+				got, err := w.GetHexSeed()
+				if err != nil {
+					t.Fatalf("GetHexSeed() error: %v", err)
+				}
+				if got != wantHexSeed {
 					t.Errorf("HexSeed = %v\nwant %v", got, wantHexSeed)
 				}
 			})
@@ -129,7 +137,11 @@ func TestWallet_Mnemonic(t *testing.T) {
 		for _, tc := range walletTestCases {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
 				w := creator(t, tc)
-				if got := w.GetMnemonic(); got != tc.wantMnemonic {
+				got, err := w.GetMnemonic()
+				if err != nil {
+					t.Fatalf("GetMnemonic() error: %v", err)
+				}
+				if got != tc.wantMnemonic {
 					t.Errorf("Mnemonic = %v\nwant %v", got, tc.wantMnemonic)
 				}
 			})
@@ -212,8 +224,11 @@ func TestWallet_Sign(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	for _, tc := range walletTestCases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
-			desc := NewMLDSA87Descriptor()
+		t.Run(tc.name, func(t *testing.T) {
+			desc, err := NewMLDSA87Descriptor()
+			if err != nil {
+				t.Fatalf("NewMLDSA87Descriptor() error: %v", err)
+			}
 			pk, err := HexStrToPK(tc.wantPK)
 			if err != nil {
 				t.Fatal("failed to decode public key ", err.Error())
@@ -346,7 +361,11 @@ func createWalletFromSeed(t *testing.T, tc *walletTestCase) *Wallet {
 	if err != nil {
 		t.Fatalf("failed to create extended seed: %v", err)
 	}
-	w, err := NewWalletFromSeed(extendedSeed.GetSeed())
+	seed, err := extendedSeed.GetSeed()
+	if err != nil {
+		t.Fatalf("failed to get seed: %v", err)
+	}
+	w, err := NewWalletFromSeed(seed)
 	if err != nil {
 		t.Fatalf("NewWalletFromSeed() error = %v", err)
 	}

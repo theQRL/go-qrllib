@@ -1,10 +1,16 @@
 package xmss
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/crypto/xmss"
 	"github.com/theQRL/go-qrllib/legacywallet"
 )
+
+// ErrInvalidDescriptorSize is returned when descriptor bytes have wrong length.
+var ErrInvalidDescriptorSize = errors.New("invalid descriptor size: expected 3 bytes")
 
 type QRLDescriptor struct {
 	hashFunction   xmss.HashFunction
@@ -22,42 +28,72 @@ func NewQRLDescriptor(height xmss.Height, hashFunction xmss.HashFunction, signat
 	}
 }
 
-func NewQRLDescriptorFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) *QRLDescriptor {
+func NewQRLDescriptorFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) (*QRLDescriptor, error) {
 	return NewQRLDescriptorFromBytes(extendedSeed[:DescriptorSize])
 }
 
-func NewQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescriptor {
+func NewQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) (*QRLDescriptor, error) {
 	return NewQRLDescriptorFromBytes(extendedPK[:DescriptorSize])
 }
 
-func LegacyQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) *QRLDescriptor {
+func LegacyQRLDescriptorFromExtendedPK(extendedPK *[ExtendedPKSize]uint8) (*QRLDescriptor, error) {
 	return LegacyQRLDescriptorFromBytes(extendedPK[:DescriptorSize])
 }
 
-func NewQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
+func NewQRLDescriptorFromBytes(descriptorBytes []uint8) (*QRLDescriptor, error) {
 	if len(descriptorBytes) != 3 {
-		panic("Descriptor size should be 3 bytes")
+		return nil, fmt.Errorf("%w: got %d", ErrInvalidDescriptorSize, len(descriptorBytes))
+	}
+
+	hashFunction, err := xmss.ToHashFunction(descriptorBytes[0] & 0x0f)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hash function in descriptor: %w", err)
+	}
+
+	height, err := xmss.ToHeight((descriptorBytes[1] & 0x0f) << 1)
+	if err != nil {
+		return nil, fmt.Errorf("invalid height in descriptor: %w", err)
+	}
+
+	signatureType, err := legacywallet.ToWalletType((descriptorBytes[0] >> 4) & 0x0F)
+	if err != nil {
+		return nil, fmt.Errorf("invalid signature type in descriptor: %w", err)
 	}
 
 	return &QRLDescriptor{
-		hashFunction:   xmss.ToHashFunction(descriptorBytes[0] & 0x0f),
-		signatureType:  legacywallet.ToWalletType((descriptorBytes[0] >> 4) & 0x0F),
-		height:         xmss.ToHeight((descriptorBytes[1] & 0x0f) << 1),
+		hashFunction:   hashFunction,
+		signatureType:  signatureType,
+		height:         height,
 		addrFormatType: common.AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
-	}
+	}, nil
 }
 
-func LegacyQRLDescriptorFromBytes(descriptorBytes []uint8) *QRLDescriptor {
+func LegacyQRLDescriptorFromBytes(descriptorBytes []uint8) (*QRLDescriptor, error) {
 	if len(descriptorBytes) != 3 {
-		panic("Descriptor size should be 3 bytes")
+		return nil, fmt.Errorf("%w: got %d", ErrInvalidDescriptorSize, len(descriptorBytes))
+	}
+
+	hashFunction, err := xmss.ToHashFunction(descriptorBytes[0] & 0x0f)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hash function in descriptor: %w", err)
+	}
+
+	height, err := xmss.ToHeight((descriptorBytes[1] & 0x0f) << 1)
+	if err != nil {
+		return nil, fmt.Errorf("invalid height in descriptor: %w", err)
+	}
+
+	signatureType, err := legacywallet.ToWalletType((descriptorBytes[0] >> 4) & 0x0F)
+	if err != nil {
+		return nil, fmt.Errorf("invalid signature type in descriptor: %w", err)
 	}
 
 	return &QRLDescriptor{
-		hashFunction:   xmss.ToHashFunction(descriptorBytes[0] & 0x0f),
-		signatureType:  legacywallet.ToWalletType((descriptorBytes[0] >> 4) & 0x0F),
-		height:         xmss.ToHeight((descriptorBytes[1] & 0x0f) << 1),
+		hashFunction:   hashFunction,
+		signatureType:  signatureType,
+		height:         height,
 		addrFormatType: common.AddrFormatType((descriptorBytes[1] & 0xF0) >> 4),
-	}
+	}, nil
 }
 
 func (d *QRLDescriptor) GetHeight() xmss.Height {

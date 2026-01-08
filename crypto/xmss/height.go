@@ -1,34 +1,50 @@
 package xmss
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrInvalidHeight is returned when an invalid XMSS tree height is provided.
+// Valid heights are even numbers from 2 to MaxHeight (30).
+var ErrInvalidHeight = errors.New("invalid XMSS height")
+
+// ErrInvalidSignatureSize is returned when a signature has an invalid size.
+var ErrInvalidSignatureSize = errors.New("invalid signature size")
 
 type Height uint8
 
-func ToHeight(val uint8) Height {
+// ToHeight converts a uint8 to a Height, returning an error if invalid.
+// Valid heights are even numbers from 2 to MaxHeight (30).
+func ToHeight(val uint8) (Height, error) {
 	h := Height(val)
 	if !h.IsValid() {
-		panic(fmt.Errorf("invalid XMSS height: %d", val))
+		return 0, fmt.Errorf("%w: %d (must be even, 2-%d)", ErrInvalidHeight, val, MaxHeight)
 	}
-	return h
+	return h, nil
 }
 
-func UInt32ToHeight(val uint32) Height {
-	// Need a check here before we convert it to uint8
+// UInt32ToHeight converts a uint32 to a Height, returning an error if invalid.
+func UInt32ToHeight(val uint32) (Height, error) {
 	if val > MaxHeight {
-		panic(fmt.Errorf("invalid XMSS height: %d", val))
+		return 0, fmt.Errorf("%w: %d exceeds maximum %d", ErrInvalidHeight, val, MaxHeight)
 	}
 	return ToHeight(uint8(val))
 }
 
-func HeightFromDescriptorByte(val uint8) Height {
+// HeightFromDescriptorByte extracts a Height from a descriptor byte.
+// Returns an error if the extracted height is invalid.
+func HeightFromDescriptorByte(val uint8) (Height, error) {
 	return ToHeight((val & 0x0f) << 1)
 }
 
-func (h Height) ToDescriptorByte() byte {
+// ToDescriptorByte converts the height to its descriptor byte representation.
+// Returns an error if the height is invalid.
+func (h Height) ToDescriptorByte() (byte, error) {
 	if !h.IsValid() {
-		panic(fmt.Errorf("invalid XMSS height: %d", h))
+		return 0, fmt.Errorf("%w: %d", ErrInvalidHeight, h)
 	}
-	return uint8((h >> 1) & 0x0f)
+	return uint8((h >> 1) & 0x0f), nil
 }
 
 func (h Height) ToUInt32() uint32 {
@@ -42,15 +58,17 @@ func (h Height) IsValid() bool {
 	return true
 }
 
-func GetHeightFromSigSize(sigSize, wotsParamW uint32) Height {
+// GetHeightFromSigSize calculates the tree height from a signature size.
+// Returns an error if the signature size is invalid.
+func GetHeightFromSigSize(sigSize, wotsParamW uint32) (Height, error) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if sigSize < signatureBaseSize {
-		panic("Invalid signature size")
+		return 0, fmt.Errorf("%w: size %d is smaller than base size %d", ErrInvalidSignatureSize, sigSize, signatureBaseSize)
 	}
 
 	if (sigSize-4)%32 != 0 {
-		panic("Invalid signature size")
+		return 0, fmt.Errorf("%w: size %d is not properly aligned", ErrInvalidSignatureSize, sigSize)
 	}
 
 	return UInt32ToHeight((sigSize - signatureBaseSize) / 32)

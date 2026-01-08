@@ -32,7 +32,7 @@ func prf(hashFunction HashFunction, out, in, key []uint8, keyLen uint32) {
 
 func coreHash(hashFunction HashFunction, out []uint8, typeValue uint32, key []uint8, keyLen uint32, in []uint8, inLen uint32, n uint32) {
 	buf := make([]uint8, inLen+n+keyLen)
-	misc.ToByteLittleEndian(buf, typeValue, n)
+	misc.ToByteBigEndian(buf, typeValue, n) // RFC 8391 requires big-endian encoding
 
 	for i := uint32(0); i < keyLen; i++ {
 		buf[i+n] = key[i]

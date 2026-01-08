@@ -2,7 +2,6 @@ package sphincsplus_256s
 
 import (
 	"encoding/binary"
-	"unsafe"
 
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 )
@@ -24,89 +23,113 @@ func init() {
 	}
 }
 
-func setByteAtOffset(addr *[8]uint32, offset int, value byte) {
-	if offset < 0 || offset >= 32 {
-		panic("offset out of range in SetByteAtOffset")
+// addrToBytes converts [8]uint32 to [32]byte using big-endian encoding.
+// SPHINCS+ addresses are defined as 32-byte big-endian structures.
+func addrToBytes(addr *[8]uint32) [32]byte {
+	var out [32]byte
+	for i := 0; i < 8; i++ {
+		binary.BigEndian.PutUint32(out[i*4:], addr[i])
 	}
-	wordIndex := offset / 4
-	byteOffset := offset % 4
-	shift := 8 * (3 - byteOffset) // big-endian byte order
-
-	mask := uint32(0xFF) << shift
-	addr[wordIndex] = (addr[wordIndex] &^ mask) | (uint32(value) << shift)
+	return out
 }
 
-func getByteAtOffset(addr *[8]uint32, offset int) byte {
-	if offset < 0 || offset >= 32 {
-		panic("GetByteAtOffset: offset out of range")
+// bytesToAddr converts [32]byte to [8]uint32 using big-endian encoding.
+func bytesToAddr(b []byte) [8]uint32 {
+	var addr [8]uint32
+	for i := 0; i < 8; i++ {
+		addr[i] = binary.BigEndian.Uint32(b[i*4:])
 	}
-	wordIndex := offset / 4
-	byteOffset := offset % 4
-	shift := 8 * (3 - byteOffset) // big-endian
-	return byte((addr[wordIndex] >> shift) & 0xFF)
+	return addr
+}
+
+// updateAddrByte sets a single byte at the given offset in the address.
+// This is done by converting to bytes, modifying, and converting back.
+func updateAddrByte(addr *[8]uint32, offset int, value byte) {
+	bytes := addrToBytes(addr)
+	bytes[offset] = value
+	*addr = bytesToAddr(bytes[:])
+}
+
+// updateAddrBytes updates a range of bytes in the address.
+func updateAddrBytes(addr *[8]uint32, offset int, data []byte) {
+	bytes := addrToBytes(addr)
+	copy(bytes[offset:], data)
+	*addr = bytesToAddr(bytes[:])
+}
+
+// getAddrByte gets a single byte at the given offset in the address.
+func getAddrByte(addr *[8]uint32, offset int) byte {
+	bytes := addrToBytes(addr)
+	return bytes[offset]
 }
 
 func setLayerAddr(addr *[8]uint32, layer uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	byteAddr[params.SPX_OFFSET_LAYER] = byte(layer)
+	updateAddrByte(addr, params.SPX_OFFSET_LAYER, byte(layer))
 }
 
 func setTreeAddr(addr *[8]uint32, tree uint64) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-
-	// Write tree in big-endian format at offset SPX_OFFSET_TREE
-	binary.BigEndian.PutUint64(byteAddr[params.SPX_OFFSET_TREE:], tree)
+	bytes := addrToBytes(addr)
+	binary.BigEndian.PutUint64(bytes[params.SPX_OFFSET_TREE:], tree)
+	*addr = bytesToAddr(bytes[:])
 }
 
 func setType(addr *[8]uint32, typ uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	byteAddr[params.SPX_OFFSET_TYPE] = byte(typ)
+	updateAddrByte(addr, params.SPX_OFFSET_TYPE, byte(typ))
 }
 
 func copySubtreeAddr(out, in *[8]uint32) {
-	inBytes := (*[32]byte)(unsafe.Pointer(in))[:]
-	outBytes := (*[32]byte)(unsafe.Pointer(out))[:]
+	inBytes := addrToBytes(in)
+	outBytes := addrToBytes(out)
 	copy(outBytes[:params.SPX_OFFSET_TREE+8], inBytes[:params.SPX_OFFSET_TREE+8])
+	*out = bytesToAddr(outBytes[:])
 }
 
 func setKeypairAddr(addr *[8]uint32, keypair uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	binary.BigEndian.PutUint32(byteAddr[params.SPX_OFFSET_KP_ADDR:], keypair)
+	bytes := addrToBytes(addr)
+	binary.BigEndian.PutUint32(bytes[params.SPX_OFFSET_KP_ADDR:], keypair)
+	*addr = bytesToAddr(bytes[:])
 }
 
 func memcpy(out []byte, in *[8]uint32) {
-	inBytes := (*[32]byte)(unsafe.Pointer(in))[:]
+	inBytes := addrToBytes(in)
 	copy(out, inBytes[:])
 }
 
 func copyKeypairAddr(out, in *[8]uint32) {
-	// Reinterpret addr as a 32-byte array
-	inBytes := (*[32]byte)(unsafe.Pointer(in))[:]
-	outBytes := (*[32]byte)(unsafe.Pointer(out))[:]
+	inBytes := addrToBytes(in)
+	outBytes := addrToBytes(out)
 
 	// Copy first (SPX_OFFSET_TREE + 8) bytes
 	copy(outBytes[:params.SPX_OFFSET_TREE+8], inBytes[:params.SPX_OFFSET_TREE+8])
 
 	// Copy 4 bytes at SPX_OFFSET_KP_ADDR (typically offset 28)
 	copy(outBytes[params.SPX_OFFSET_KP_ADDR:params.SPX_OFFSET_KP_ADDR+4], inBytes[params.SPX_OFFSET_KP_ADDR:params.SPX_OFFSET_KP_ADDR+4])
+
+	*out = bytesToAddr(outBytes[:])
 }
 
 func setChainAddr(addr *[8]uint32, chain uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	byteAddr[params.SPX_OFFSET_CHAIN_ADDR] = byte(chain)
+	updateAddrByte(addr, params.SPX_OFFSET_CHAIN_ADDR, byte(chain))
 }
 
 func setHashAddr(addr *[8]uint32, hash uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	byteAddr[params.SPX_OFFSET_HASH_ADDR] = byte(hash)
+	updateAddrByte(addr, params.SPX_OFFSET_HASH_ADDR, byte(hash))
 }
 
 func setTreeHeight(addr *[8]uint32, treeHeight uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	byteAddr[params.SPX_OFFSET_TREE_HGT] = byte(treeHeight)
+	updateAddrByte(addr, params.SPX_OFFSET_TREE_HGT, byte(treeHeight))
 }
 
 func setTreeIndex(addr *[8]uint32, treeIndex uint32) {
-	byteAddr := (*[32]byte)(unsafe.Pointer(addr))[:]
-	binary.BigEndian.PutUint32(byteAddr[params.SPX_OFFSET_TREE_INDEX:], treeIndex)
+	bytes := addrToBytes(addr)
+	binary.BigEndian.PutUint32(bytes[params.SPX_OFFSET_TREE_INDEX:], treeIndex)
+	*addr = bytesToAddr(bytes[:])
+}
+
+func setByteAtOffset(addr *[8]uint32, offset int, value byte) {
+	updateAddrByte(addr, offset, value)
+}
+
+func getByteAtOffset(addr *[8]uint32, offset int) byte {
+	return getAddrByte(addr, offset)
 }

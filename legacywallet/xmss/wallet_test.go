@@ -15,9 +15,14 @@ const (
 	Address = "01020095f03f084bcb29b96b0529c17ce92c54c1e8290193a93803812ead95e8e6902506b67897"
 )
 
-func newTestXMSSWallet(height xmsscrypto.Height) *XMSSWallet {
+func newTestXMSSWallet(t *testing.T, height xmsscrypto.Height) *XMSSWallet {
+	t.Helper()
 	var seed [SeedSize]uint8
-	return NewWalletFromSeed(seed, height, xmsscrypto.SHAKE_128, common.SHA256_2X)
+	w, err := NewWalletFromSeed(seed, height, xmsscrypto.SHAKE_128, common.SHA256_2X)
+	if err != nil {
+		t.Fatalf("NewWalletFromSeed failed: %v", err)
+	}
+	return w
 }
 
 func expectPanicWithMessage(t *testing.T, expected string, fn func()) {
@@ -35,27 +40,27 @@ func expectPanicWithMessage(t *testing.T, expected string, fn func()) {
 }
 
 func TestXMSS_GetAddress(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
-	address := xmss.GetAddress()
+	address, _ := xmss.GetAddress()
 	if Address != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", Address, hex.EncodeToString(address[:]))
 	}
 }
 
 func TestXMSS_GetLegacyAddress(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
-	address := xmss.GetAddress()
+	address, _ := xmss.GetAddress()
 	if Address != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", Address, hex.EncodeToString(address[:]))
 	}
 }
 
 func TestIsValidXMSSAddress(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
-	address := xmss.GetAddress()
+	address, _ := xmss.GetAddress()
 	if !IsValidXMSSAddress(address) {
 		t.Errorf("Invalid Address")
 	}
@@ -71,17 +76,20 @@ func TestIsValidLegacyXMSSAddress(t *testing.T) {
 }
 
 func TestXMSS_GetMnemonic(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
 	expectedMnemonic := "absorb bunny aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback aback"
-	mnemonic := xmss.GetMnemonic()
+	mnemonic, err := xmss.GetMnemonic()
+	if err != nil {
+		t.Fatalf("GetMnemonic() error: %v", err)
+	}
 	if expectedMnemonic != mnemonic {
 		t.Errorf("Mnemonic Mismatch\nExpected: %s\nFound: %s", expectedMnemonic, mnemonic)
 	}
 }
 
 func TestXMSS_GetExtendedSeed(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
 	expectedESeed := "010200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 	eSeed := xmss.GetExtendedSeed()
@@ -92,7 +100,7 @@ func TestXMSS_GetExtendedSeed(t *testing.T) {
 }
 
 func TestXMSSCreationHeight4(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 
 	expectedPK := "010200c25188b585f731c128e2b457069e" +
 		"afd1e3fa3961605af8c58a1aec4d82ac" +
@@ -105,17 +113,17 @@ func TestXMSSCreationHeight4(t *testing.T) {
 		t.Errorf("PK Mismatch\nExpected: %s\nFound: %s", expectedPK, hex.EncodeToString(pk[:]))
 	}
 
-	address := xmss.GetAddress()
+	address, _ := xmss.GetAddress()
 	if Address != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", Address, hex.EncodeToString(address[:]))
 	}
 
-	tmpAddr := GetXMSSAddressFromPK(pk)
+	tmpAddr, _ := GetXMSSAddressFromPK(pk)
 	if Address != hex.EncodeToString(tmpAddr[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", Address, hex.EncodeToString(tmpAddr[:]))
 	}
 
-	desc := NewQRLDescriptorFromExtendedPK(&pk)
+	desc, _ := NewQRLDescriptorFromExtendedPK(&pk)
 	if desc.GetHeight() != 4 {
 		t.Errorf("Height Mismatch\nExpected: %d\nFound: %d", 6, desc.GetHeight())
 	}
@@ -126,7 +134,7 @@ func TestXMSSCreationHeight4(t *testing.T) {
 }
 
 func TestXMSSCreationHeight6(t *testing.T) {
-	xmss := newTestXMSSWallet(6)
+	xmss := newTestXMSSWallet(t, 6)
 
 	expectedAddress := "0103008b0e18dd0bac2c3fdc9a48e10fc466eef899ef074449d12ddf050317b2083527aee74bc3"
 	expectedPK := "010300859060f15adc3825adeec85c7483" +
@@ -140,17 +148,17 @@ func TestXMSSCreationHeight6(t *testing.T) {
 		t.Errorf("PK Mismatch\nExpected: %s\nFound: %s", expectedPK, hex.EncodeToString(pk[:]))
 	}
 
-	address := xmss.GetAddress()
+	address, _ := xmss.GetAddress()
 	if expectedAddress != hex.EncodeToString(address[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(address[:]))
 	}
 
-	tmpAddr := GetXMSSAddressFromPK(pk)
+	tmpAddr, _ := GetXMSSAddressFromPK(pk)
 	if expectedAddress != hex.EncodeToString(tmpAddr[:]) {
 		t.Errorf("Address Mismatch\nExpected: %s\nFound: %s", expectedAddress, hex.EncodeToString(tmpAddr[:]))
 	}
 
-	desc := NewQRLDescriptorFromExtendedPK(&pk)
+	desc, _ := NewQRLDescriptorFromExtendedPK(&pk)
 	if desc.GetHeight() != 6 {
 		t.Errorf("Height Mismatch\nExpected: %d\nFound: %d", 6, desc.GetHeight())
 	}
@@ -161,8 +169,11 @@ func TestXMSSCreationHeight6(t *testing.T) {
 }
 
 func TestXMSS(t *testing.T) {
-	height := xmsscrypto.ToHeight(4)
-	xmss := newTestXMSSWallet(height)
+	height, err := xmsscrypto.ToHeight(4)
+	if err != nil {
+		t.Fatalf("ToHeight failed: %v", err)
+	}
+	xmss := newTestXMSSWallet(t, height)
 
 	if xmss == nil {
 		t.Errorf("XMSS cannot be nil")
@@ -208,9 +219,11 @@ func TestXMSS(t *testing.T) {
 }
 
 func TestXMSSExceptionConstructor(t *testing.T) {
-	expectPanicWithMessage(t, "For BDS traversal, H - K must be even, with H > K >= 2!", func() {
-		newTestXMSSWallet(7)
-	})
+	// Height 7 is invalid (must be even), so ToHeight should return an error
+	_, err := xmsscrypto.ToHeight(7)
+	if err == nil {
+		t.Error("Expected error for odd height 7")
+	}
 }
 
 func TestIsValidXMSSAddress2Verify(t *testing.T) {
@@ -218,9 +231,10 @@ func TestIsValidXMSSAddress2Verify(t *testing.T) {
 	var signature [2287]uint8
 	var pk [ExtendedPKSize]uint8
 
-	expectPanicWithMessage(t, "Invalid signature size", func() {
-		Verify(message[:], signature[:], pk)
-	})
+	// Invalid signature size should return false, not panic
+	if Verify(message[:], signature[:], pk) {
+		t.Error("Expected Verify to return false for invalid signature size")
+	}
 }
 
 func TestXMSSExceptionVerify2(t *testing.T) {
@@ -229,13 +243,14 @@ func TestXMSSExceptionVerify2(t *testing.T) {
 	var pk [ExtendedPKSize]uint8
 
 	pk[0] = uint8(legacywallet.WalletTypeXMSS) << 4
-	expectPanicWithMessage(t, "Invalid signature size", func() {
-		Verify(message[:], signature[:], pk)
-	})
+	// Invalid signature size should return false, not panic
+	if Verify(message[:], signature[:], pk) {
+		t.Error("Expected Verify to return false for invalid signature size")
+	}
 }
 
 func TestXMSSChangeIndexTooHigh(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 	err := xmss.SetIndex(20)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
@@ -247,7 +262,7 @@ func TestXMSSChangeIndexTooHigh(t *testing.T) {
 }
 
 func TestXMSSChangeIndexHigh(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
+	xmss := newTestXMSSWallet(t, 4)
 	err := xmss.SetIndex(16)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
@@ -259,16 +274,20 @@ func TestXMSSChangeIndexHigh(t *testing.T) {
 }
 
 func TestXMSSChangeIndexLimit(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
-	xmss.SetIndex(15)
+	xmss := newTestXMSSWallet(t, 4)
+	if err := xmss.SetIndex(15); err != nil {
+		t.Fatalf("SetIndex failed: %v", err)
+	}
 	if xmss.GetIndex() != 15 {
 		t.Errorf("Index Mismatch\nExpected: %d\nFound: %d", 15, xmss.GetIndex())
 	}
 }
 
 func TestXMSSChangeIndex(t *testing.T) {
-	xmss := newTestXMSSWallet(4)
-	xmss.SetIndex(0)
+	xmss := newTestXMSSWallet(t, 4)
+	if err := xmss.SetIndex(0); err != nil {
+		t.Fatalf("SetIndex failed: %v", err)
+	}
 	if xmss.GetIndex() != 0 {
 		t.Errorf("Index Mismatch\nExpected: %d\nFound: %d", 0, xmss.GetIndex())
 	}

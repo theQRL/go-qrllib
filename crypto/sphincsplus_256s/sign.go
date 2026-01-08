@@ -1,7 +1,7 @@
 package sphincsplus_256s
 
 import (
-	"bytes"
+	"crypto/subtle"
 
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 )
@@ -60,7 +60,7 @@ func cryptoSignVerify(sig, m, pk []byte) bool {
 		tree = tree >> params.SPX_TREE_HEIGHT
 	}
 
-	return bytes.Equal(root[:params.SPX_N], pubRoot[:params.SPX_N])
+	return subtle.ConstantTimeCompare(root[:params.SPX_N], pubRoot[:params.SPX_N]) == 1
 }
 
 func cryptoSignOpen(m, sm, pk []byte) bool {

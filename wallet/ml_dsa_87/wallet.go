@@ -24,13 +24,16 @@ func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
 	if err != nil {
-		panic(fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err))
+		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
 	}
 	return NewWalletFromSeed(seed)
 }
 
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
-	desc := NewMLDSA87Descriptor()
+	desc, err := NewMLDSA87Descriptor()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create descriptor: %w", err)
+	}
 	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
 	if err != nil {
 		return nil, err
@@ -110,26 +113,32 @@ func (w *Wallet) GetSeed() common.Seed {
 	return w.seed
 }
 
-func (w *Wallet) GetExtendedSeed() common.ExtendedSeed {
+func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
-		panic(fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.ML_DSA_87, err))
+		return common.ExtendedSeed{}, fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.ML_DSA_87, err)
 	}
-	return extendedSeed
+	return extendedSeed, nil
 }
 
-func (w *Wallet) GetHexSeed() string {
-	eSeed := w.GetExtendedSeed()
-	return "0x" + hex.EncodeToString(eSeed[:])
+func (w *Wallet) GetHexSeed() (string, error) {
+	eSeed, err := w.GetExtendedSeed()
+	if err != nil {
+		return "", err
+	}
+	return "0x" + hex.EncodeToString(eSeed[:]), nil
 }
 
-func (w *Wallet) GetMnemonic() string {
-	eSeed := w.GetExtendedSeed()
+func (w *Wallet) GetMnemonic() (string, error) {
+	eSeed, err := w.GetExtendedSeed()
+	if err != nil {
+		return "", err
+	}
 	mnemonic, err := misc.BinToMnemonic(eSeed[:])
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return mnemonic
+	return mnemonic, nil
 }
 
 func (w *Wallet) GetPK() PK {
@@ -165,13 +174,14 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	}
 
 	if len(signature) != SigSize {
-		panic(fmt.Errorf(common.ErrInvalidSignatureSize, wallettype.ML_DSA_87, len(signature), SigSize))
+		// Invalid signature size - return false instead of panicking
+		return false
 	}
 
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	var pk2 [ml_dsa_87.CryptoPublicKeyBytes]uint8
+	var pk2 [ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8
 	copy(pk2[:], pk[:])
 
 	return ml_dsa_87.Verify(ctx, message, sig, &pk2)

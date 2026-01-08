@@ -7,19 +7,36 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// Take a random seed, and compute sk/pk pair.
-func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[CryptoSecretKeyBytes]uint8) ([]uint8, error) {
-	var tr [SeedBytes]uint8
-	//var rho, rhoprime, key [SeedBytes]byte
-	var rho, key [SeedBytes]uint8
-	var rhoPrime [CRHBytes]uint8
+// cryptoSignKeypair generates a Dilithium keypair from a seed.
+//
+// The function expands the seed using SHAKE-256 into three components:
+//   - rho: public random seed for matrix A expansion
+//   - rhoPrime: secret seed for sampling s1, s2
+//   - key: secret key material for deterministic signing
+//
+// Key generation follows the Dilithium specification:
+//  1. Expand seed into (rho, rhoPrime, key)
+//  2. Generate matrix A from rho
+//  3. Sample secret vectors s1, s2 with coefficients in [-eta, eta]
+//  4. Compute t = A*s1 + s2
+//  5. Split t into (t1, t0) using Power2Round
+//  6. Pack public key as (rho, t1)
+//  7. Pack secret key as (rho, key, tr, t0, s1, s2) where tr = H(pk)
+//
+// If seed is nil, a random 32-byte seed is generated.
+// Returns the seed used and any error encountered.
+func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([]uint8, error) {
+	var tr [TR_BYTES]uint8
+	//var rho, rhoprime, key [SEED_BYTES]byte
+	var rho, key [SEED_BYTES]uint8
+	var rhoPrime [CRH_BYTES]uint8
 
 	var mat [K]polyVecL
 	var s1, s1hat polyVecL
 	var s2, t1, t0 polyVecK
 
 	if seed == nil {
-		seed = make([]uint8, SeedBytes)
+		seed = make([]uint8, SEED_BYTES)
 		_, err := rand.Read(seed)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random seed: %v", err)
@@ -75,31 +92,53 @@ func cryptoSignKeypair(seed []uint8, pk *[CryptoPublicKeyBytes]uint8, sk *[Crypt
 	return seed, nil
 }
 
-func cryptoSignSignature(sig, m []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) error {
-	var rho, key, tr [SeedBytes]uint8
-	var mu, rhoPrime [CRHBytes]uint8
+// cryptoSignSignature generates a Dilithium signature for message m.
+//
+// The signing algorithm uses rejection sampling to find a valid signature:
+//  1. Unpack secret key components (rho, tr, key, t0, s1, s2)
+//  2. Compute mu = H(tr || m) as the message representative
+//  3. Derive rhoPrime for masking (deterministic or random based on randomizedSigning)
+//  4. Loop (rejection sampling at label "rej:"):
+//     a. Sample masking vector y with coefficients in [-GAMMA1+1, GAMMA1]
+//     b. Compute w = A*y and decompose into (w1, w0)
+//     c. Compute challenge c = H(mu || w1)
+//     d. Compute z = y + c*s1
+//     e. Reject if ||z||∞ >= GAMMA1 - BETA (≈30% rejection rate)
+//     f. Reject if ||w0 - c*s2||∞ >= GAMMA2 - BETA (≈5% rejection rate)
+//     g. Reject if ||c*t0||∞ >= GAMMA2 (<1% rejection rate)
+//     h. Compute hints h; reject if count > OMEGA (≈1% rejection rate)
+//  5. Pack signature as (c, z, h)
+//
+// The rejection sampling loop typically completes in 4-7 iterations on average.
+// The loop is probabilistically bounded - see const.go for detailed probability analysis.
+// Setting randomizedSigning=false enables deterministic signatures for testing.
+func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) error {
+	var rho, key [SEED_BYTES]uint8
+	var tr [TR_BYTES]uint8
+	var mu, rhoPrime [CRH_BYTES]uint8
 	var s1, y, z polyVecL
 	var mat [K]polyVecL
 	var s2, t0, w1, h, w0 polyVecK
 	var cp poly
 	var nonce uint16
 
-	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
+	unpackSk(&rho, &key, &tr, &t0, &s1, &s2, sk)
 
 	/* Compute CRH(tr, msg) */
-	state := sha3.NewShake256()
-	state.Write(tr[:])
-	state.Write(m)
-	state.Read(mu[:])
+	state := getShake256()
+	defer putShake256(state)
+	_, _ = state.Write(tr[:])
+	_, _ = state.Write(m)
+	_, _ = state.Read(mu[:]) // ShakeHash.Read never returns an error
 
 	if randomizedSigning {
 		if _, err := rand.Read(rhoPrime[:]); err != nil {
 			return err
 		}
 	} else {
-		var dataToBeHashed [SeedBytes + CRHBytes]uint8
-		copy(dataToBeHashed[:], key[:SeedBytes])
-		copy(dataToBeHashed[SeedBytes:], mu[:CRHBytes])
+		var dataToBeHashed [SEED_BYTES + CRH_BYTES]uint8
+		copy(dataToBeHashed[:], key[:SEED_BYTES])
+		copy(dataToBeHashed[SEED_BYTES:], mu[:CRH_BYTES])
 		sha3.ShakeSum256(rhoPrime[:], dataToBeHashed[:])
 	}
 
@@ -127,21 +166,21 @@ rej:
 	/* Decompose w and call the random oracle */
 	polyVecKCAddQ(&w1)
 	polyVecKDecompose(&w1, &w0, &w1)
-	if err := polyVecKPackW1(sig[:K*PolyW1PackedBytes], &w1); err != nil {
+	if err := polyVecKPackW1(sig[:K*POLY_W1_PACKED_BYTES], &w1); err != nil {
 		return err
 	}
 
-	state = sha3.NewShake256()
+	state.Reset() // Reuse pooled hasher
 	if _, err := state.Write(mu[:]); err != nil {
 		return err
 	}
-	if _, err := state.Write(sig[:K*PolyW1PackedBytes]); err != nil {
+	if _, err := state.Write(sig[:K*POLY_W1_PACKED_BYTES]); err != nil {
 		return err
 	}
-	if _, err := state.Read(sig[:SeedBytes]); err != nil {
+	if _, err := state.Read(sig[:SEED_BYTES]); err != nil {
 		return err
 	}
-	if err := polyChallenge(&cp, sig[:SeedBytes]); err != nil {
+	if err := polyChallenge(&cp, sig[:SEED_BYTES]); err != nil {
 		return err
 	}
 	polyNTT(&cp)
@@ -179,24 +218,38 @@ rej:
 		goto rej
 	}
 
-	if err := packSig(sig[:CryptoBytes], sig[:SeedBytes], &z, &h); err != nil {
+	if err := packSig(sig[:CRYPTO_BYTES], sig[:SEED_BYTES], &z, &h); err != nil {
 		return err
 	}
 	return nil
 }
 
-// attached sig wrappers
-func cryptoSign(msg []uint8, sk *[CryptoSecretKeyBytes]uint8, randomizedSigning bool) ([]uint8, error) {
-	sm := make([]uint8, CryptoBytes+len(msg))
-	copy(sm[CryptoBytes:], msg)
-	err := cryptoSignSignature(sm[:CryptoBytes], sm[CryptoBytes:], sk, randomizedSigning)
+// cryptoSign creates a signed message by prepending a signature to the message.
+// Returns signature || message as a single byte slice.
+// This is the "attached signature" format where the message is included with the signature.
+func cryptoSign(msg []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) ([]uint8, error) {
+	sm := make([]uint8, CRYPTO_BYTES+len(msg))
+	copy(sm[CRYPTO_BYTES:], msg)
+	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], sk, randomizedSigning)
 	return sm, err
 }
 
-func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyBytes]uint8) (bool, error) {
-	var buf [K * PolyW1PackedBytes]uint8
-	var rho, c, c2 [SeedBytes]uint8
-	var mu [CRHBytes]uint8
+// cryptoSignVerify verifies a Dilithium signature against a message and public key.
+//
+// Verification algorithm:
+//  1. Unpack public key (rho, t1) and signature (c, z, h)
+//  2. Check that z has coefficients within valid bounds
+//  3. Compute mu = H(H(pk) || m)
+//  4. Recompute w'1 = UseHint(h, Az - c*t1*2^d)
+//  5. Recompute c' = H(mu || w'1)
+//  6. Accept if c == c'
+//
+// Returns (true, nil) if signature is valid, (false, nil) if invalid,
+// or (false, error) if verification encountered an error.
+func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
+	var buf [K * POLY_W1_PACKED_BYTES]uint8
+	var rho, c, c2 [SEED_BYTES]uint8
+	var mu [CRH_BYTES]uint8
 	var z polyVecL
 	var mat [K]polyVecL
 	var t1, w1, h polyVecK
@@ -211,15 +264,16 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 	}
 
 	/* Compute CRH(H(rho, t1), msg) */
-	sha3.ShakeSum256(mu[:SeedBytes], pk[:CryptoPublicKeyBytes])
-	state := sha3.NewShake256()
-	if _, err := state.Write(mu[:SeedBytes]); err != nil {
+	sha3.ShakeSum256(mu[:TR_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
+	state := getShake256()
+	defer putShake256(state)
+	if _, err := state.Write(mu[:TR_BYTES]); err != nil {
 		return false, err
 	}
 	if _, err := state.Write(m); err != nil {
 		return false, err
 	}
-	if _, err := state.Read(mu[:CRHBytes]); err != nil {
+	if _, err := state.Read(mu[:CRH_BYTES]); err != nil {
 		return false, err
 	}
 
@@ -251,17 +305,17 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 	}
 
 	/* Call random oracle and verify challenge */
-	state = sha3.NewShake256()
-	if _, err := state.Write(mu[:CRHBytes]); err != nil {
+	state.Reset() // Reuse pooled hasher
+	if _, err := state.Write(mu[:CRH_BYTES]); err != nil {
 		return false, err
 	}
-	if _, err := state.Write(buf[:K*PolyW1PackedBytes]); err != nil {
+	if _, err := state.Write(buf[:K*POLY_W1_PACKED_BYTES]); err != nil {
 		return false, err
 	}
-	if _, err := state.Read(c2[:SeedBytes]); err != nil {
+	if _, err := state.Read(c2[:SEED_BYTES]); err != nil {
 		return false, err
 	}
-	for i := 0; i < SeedBytes; i++ {
+	for i := 0; i < SEED_BYTES; i++ {
 		if c[i] != c2[i] {
 			return false, nil
 		}
@@ -270,16 +324,19 @@ func cryptoSignVerify(sig [CryptoBytes]uint8, m []uint8, pk *[CryptoPublicKeyByt
 	return true, nil
 }
 
-func cryptoSignOpen(sm []uint8, pk *[CryptoPublicKeyBytes]uint8) ([]uint8, error) {
-	if len(sm) < CryptoBytes {
+// cryptoSignOpen verifies and extracts a message from a signed message.
+// The signed message format is signature || message (attached signature).
+// Returns the original message if valid, or nil if verification fails.
+func cryptoSignOpen(sm []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	if len(sm) < CRYPTO_BYTES {
 		return nil, nil
 	}
 
-	var sig [CryptoBytes]uint8
-	msg := make([]uint8, len(sm)-CryptoBytes)
+	var sig [CRYPTO_BYTES]uint8
+	msg := make([]uint8, len(sm)-CRYPTO_BYTES)
 
 	copy(sig[:], sm)
-	copy(msg, sm[CryptoBytes:])
+	copy(msg, sm[CRYPTO_BYTES:])
 
 	if result, err := cryptoSignVerify(sig, msg, pk); err != nil || !result {
 		return nil, err
