@@ -13,7 +13,7 @@ jobs:
     name: Dilithium (Round 3) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -63,7 +63,7 @@ jobs:
     name: ML-DSA-87 (FIPS 204) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -112,7 +112,7 @@ jobs:
     name: SPHINCS+ (SHAKE-256s-robust) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -166,7 +166,7 @@ jobs:
     name: XMSS (SHA2_10_256) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
