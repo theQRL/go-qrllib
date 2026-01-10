@@ -34,7 +34,7 @@ jobs:
         run: |
           cd /tmp/dilithium-ref/ref
           gcc -o /tmp/verify_dilithium -DDILITHIUM_MODE=5 \
-            $GITHUB_WORKSPACE/.github/cross-verify/dilithium_verify_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/dilithium_verify_ref.c" \
             sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
             rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
 
@@ -48,7 +48,7 @@ jobs:
         run: |
           cd /tmp/dilithium-ref/ref
           gcc -o /tmp/sign_dilithium_ref -DDILITHIUM_MODE=5 \
-            $GITHUB_WORKSPACE/.github/cross-verify/dilithium_sign_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/dilithium_sign_ref.c" \
             sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
             rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
           /tmp/sign_dilithium_ref
@@ -83,7 +83,7 @@ jobs:
         run: |
           cd /tmp/mldsa-ref/ref
           gcc -o /tmp/verify_mldsa -DDILITHIUM_MODE=5 \
-            $GITHUB_WORKSPACE/.github/cross-verify/mldsa87_verify_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/mldsa87_verify_ref.c" \
             sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
             rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
 
@@ -97,7 +97,7 @@ jobs:
         run: |
           cd /tmp/mldsa-ref/ref
           gcc -o /tmp/sign_mldsa_ref -DDILITHIUM_MODE=5 \
-            $GITHUB_WORKSPACE/.github/cross-verify/mldsa87_sign_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/mldsa87_sign_ref.c" \
             sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
             rounding.c symmetric-shake.c fips202.c randombytes.c -I. -O2
           /tmp/sign_mldsa_ref
@@ -134,7 +134,7 @@ jobs:
           cd /tmp/sphincs-ref/ref
           gcc -o /tmp/verify_sphincs \
             -DPARAMS=sphincs-shake-256s -DTHASH=robust \
-            $GITHUB_WORKSPACE/.github/cross-verify/sphincs_verify_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/sphincs_verify_ref.c" \
             address.c merkle.c wots.c wotsx1.c utils.c utilsx1.c \
             fors.c sign.c hash_shake.c thash_shake_robust.c fips202.c \
             randombytes.c -I. -O2
@@ -150,7 +150,7 @@ jobs:
           cd /tmp/sphincs-ref/ref
           gcc -o /tmp/sign_sphincs_ref \
             -DPARAMS=sphincs-shake-256s -DTHASH=robust \
-            $GITHUB_WORKSPACE/.github/cross-verify/sphincs_sign_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/sphincs_sign_ref.c" \
             address.c merkle.c wots.c wotsx1.c utils.c utilsx1.c \
             fors.c sign.c hash_shake.c thash_shake_robust.c fips202.c \
             randombytes.c -I. -O2
@@ -186,7 +186,7 @@ jobs:
         run: |
           cd /tmp/xmss-ref
           gcc -o /tmp/verify_xmss -Wall -O2 -I. \
-            $GITHUB_WORKSPACE/.github/cross-verify/xmss_verify_ref.c \
+            "$GITHUB_WORKSPACE/.github/cross-verify/xmss_verify_ref.c" \
             params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
             xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 
