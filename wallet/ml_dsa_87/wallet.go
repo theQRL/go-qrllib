@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
@@ -47,6 +48,9 @@ func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 }
 
 func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
+	if strings.HasPrefix(hexSeed, "0x") || strings.HasPrefix(hexSeed, "0X") {
+		hexSeed = hexSeed[2:]
+	}
 	binSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
@@ -83,6 +87,9 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 }
 
 func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
+	if strings.HasPrefix(hexExtendedSeed, "0x") || strings.HasPrefix(hexExtendedSeed, "0X") {
+		hexExtendedSeed = hexExtendedSeed[2:]
+	}
 	binExtendedSeed, err := hex.DecodeString(hexExtendedSeed)
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())

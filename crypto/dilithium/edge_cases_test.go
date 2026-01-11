@@ -335,6 +335,14 @@ func TestEdgeCaseHexSeedParsing(t *testing.T) {
 			t.Error("Odd length hex should return error")
 		}
 	})
+
+	t.Run("valid_hex_with_prefix", func(t *testing.T) {
+		validSeed := "0102030405060708091011121314151617181920212223242526272829303132"
+		_, err := NewDilithiumFromHexSeed("0x" + validSeed)
+		if err != nil {
+			t.Fatalf("Valid hex seed with 0x prefix should work: %v", err)
+		}
+	})
 }
 
 // TestSeedLengthValidation (QUA-004) tests comprehensive seed length validation

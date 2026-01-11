@@ -115,6 +115,16 @@ func TestNewMLDSA87FromHexSeed(t *testing.T) {
 	}
 }
 
+func TestNewMLDSA87FromHexSeedWithPrefix(t *testing.T) {
+	d, err := NewMLDSA87FromHexSeed("0x" + HexSeed)
+	if err != nil {
+		t.Fatalf("failed to generate new ml-dsa-87 from prefixed hex seed: %v", err)
+	}
+	if d == nil {
+		t.Fatal("ml-dsa-87 is nil")
+	}
+}
+
 func TestMLDSA87_GetPK(t *testing.T) {
 	pk := PKHStrToBin(PK)
 

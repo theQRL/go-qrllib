@@ -359,17 +359,15 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 func TestEdgeCaseHexSeedParsing(t *testing.T) {
 	t.Run("empty_hex", func(t *testing.T) {
 		_, err := NewMLDSA87FromHexSeed("")
-		// Should work but with zero-padded seed
-		if err != nil {
-			t.Logf("Empty hex seed error (expected): %v", err)
+		if err == nil {
+			t.Error("Empty hex seed should return error")
 		}
 	})
 
 	t.Run("short_hex", func(t *testing.T) {
-		// Short hex will be zero-padded
 		_, err := NewMLDSA87FromHexSeed("0102030405")
-		if err != nil {
-			t.Fatalf("Short hex seed should work: %v", err)
+		if err == nil {
+			t.Error("Short hex seed should return error")
 		}
 	})
 
@@ -384,6 +382,14 @@ func TestEdgeCaseHexSeedParsing(t *testing.T) {
 		_, err := NewMLDSA87FromHexSeed("123") // Odd length
 		if err == nil {
 			t.Error("Odd length hex should return error")
+		}
+	})
+
+	t.Run("valid_hex_with_prefix", func(t *testing.T) {
+		validSeed := "0102030405060708091011121314151617181920212223242526272829303132"
+		_, err := NewMLDSA87FromHexSeed("0x" + validSeed)
+		if err != nil {
+			t.Fatalf("Valid hex seed with 0x prefix should work: %v", err)
 		}
 	})
 }
