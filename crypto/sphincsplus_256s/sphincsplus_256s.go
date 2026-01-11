@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 	"github.com/theQRL/go-qrllib/wallet/common"
@@ -46,6 +47,9 @@ func NewSphincsPlus256sFromSeed(seed [CRYPTO_SEEDBYTES]uint8) (*SphincsPlus256s,
 }
 
 func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
+	if strings.HasPrefix(hexSeed, "0x") || strings.HasPrefix(hexSeed, "0X") {
+		hexSeed = hexSeed[2:]
+	}
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())

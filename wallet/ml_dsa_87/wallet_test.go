@@ -132,6 +132,21 @@ func TestWallet_HexSeed(t *testing.T) {
 	}
 }
 
+func TestNewWalletFromHexExtendedSeed_Prefix(t *testing.T) {
+	tc := walletTestCases[0]
+	w, err := NewWalletFromHexExtendedSeed("0x" + tc.extendedSeed)
+	if err != nil {
+		t.Fatalf("NewWalletFromHexExtendedSeed() error: %v", err)
+	}
+	got, err := w.GetHexSeed()
+	if err != nil {
+		t.Fatalf("GetHexSeed() error: %v", err)
+	}
+	if got != "0x"+tc.extendedSeed {
+		t.Errorf("HexSeed = %v\nwant %v", got, "0x"+tc.extendedSeed)
+	}
+}
+
 func TestWallet_Mnemonic(t *testing.T) {
 	for creatorName, creator := range walletCreators {
 		for _, tc := range walletTestCases {

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/theQRL/go-qrllib/misc"
 )
@@ -48,6 +49,9 @@ func NewDilithiumFromSeed(seed [SEED_BYTES]uint8) (*Dilithium, error) {
 }
 
 func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
+	if strings.HasPrefix(hexSeed, "0x") || strings.HasPrefix(hexSeed, "0X") {
+		hexSeed = hexSeed[2:]
+	}
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode hex seed: %w", err)

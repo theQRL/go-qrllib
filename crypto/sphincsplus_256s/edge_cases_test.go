@@ -347,4 +347,12 @@ func TestEdgeCaseHexSeedParsing(t *testing.T) {
 			t.Error("Odd length hex should return error")
 		}
 	})
+
+	t.Run("valid_hex_with_prefix", func(t *testing.T) {
+		validSeed := "0x" + strings.Repeat("00", CRYPTO_SEEDBYTES)
+		_, err := NewSphincsPlus256sFromHexSeed(validSeed)
+		if err != nil {
+			t.Fatalf("Valid hex seed with 0x prefix should work: %v", err)
+		}
+	})
 }

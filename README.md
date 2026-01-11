@@ -4,6 +4,7 @@ Go implementation of the Quantum Resistant Ledger (QRL) cryptographic library.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/theQRL/go-qrllib.svg)](https://pkg.go.dev/github.com/theQRL/go-qrllib)
 [![Go Report Card](https://goreportcard.com/badge/github.com/theQRL/go-qrllib)](https://goreportcard.com/report/github.com/theQRL/go-qrllib)
+[![codecov](https://codecov.io/gh/theQRL/go-qrllib/branch/main/graph/badge.svg)](https://codecov.io/gh/theQRL/go-qrllib)
 
 ## Overview
 
