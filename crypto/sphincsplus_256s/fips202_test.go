@@ -94,7 +94,7 @@ func TestShake256XOFMatchesShake256(t *testing.T) {
 	// XOF result
 	xof := Shake256XOF(input)
 	xofResult := make([]byte, outputLen)
-	xof.Read(xofResult)
+	_, _ = xof.Read(xofResult)
 
 	// Direct Shake256 result
 	directResult := make([]byte, outputLen)

@@ -27,6 +27,11 @@ func TestNewExtendedSeed_Valid(t *testing.T) {
 	if len(extSeed) != ExtendedSeedSize {
 		t.Errorf("extended seed size: got %d, want %d", len(extSeed), ExtendedSeedSize)
 	}
+
+	// Verify descriptor bytes are correctly placed at the start
+	if extSeed[0] != byte(wallettype.ML_DSA_87) {
+		t.Errorf("descriptor type byte: got %d, want %d", extSeed[0], wallettype.ML_DSA_87)
+	}
 }
 
 func TestNewExtendedSeed_InvalidDescriptor(t *testing.T) {
