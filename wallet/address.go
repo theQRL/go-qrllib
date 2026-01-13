@@ -23,6 +23,8 @@ func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error
 		}
 		_, err = sphincsplus_256s.NewSphincsPlus256sDescriptorFromDescriptor(descriptor)
 		if err != nil {
+			//coverage:ignore
+			//rationale: descriptor.IsValid() already passed, can't fail for valid wallet type
 			return err
 		}
 	case wallettype.ML_DSA_87:
@@ -32,9 +34,13 @@ func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error
 		}
 		_, err = ml_dsa_87.NewMLDSA87DescriptorFromDescriptor(descriptor)
 		if err != nil {
+			//coverage:ignore
+			//rationale: descriptor.IsValid() already passed, can't fail for valid wallet type
 			return err
 		}
 	default:
+		//coverage:ignore
+		//rationale: switch covers all valid wallet types, unreachable with valid descriptor
 		return fmt.Errorf("unknown wallet type: %d", descriptor[0])
 	}
 	return nil

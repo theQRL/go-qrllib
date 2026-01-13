@@ -22,7 +22,8 @@ func init() {
 	if buf[0] == 0xCD {
 		nativeEndian = littleEndian
 	} else {
-		//coverage:ignore - big-endian branch only executes on big-endian architectures
+		//coverage:ignore
+		//rationale: big-endian branch only executes on big-endian architectures
 		nativeEndian = bigEndian
 	}
 }

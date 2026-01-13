@@ -48,7 +48,8 @@ func polyVecLPointWisePolyMontgomery(r *polyVecL, a *poly, v *polyVecL) {
 	}
 }
 
-//coverage:ignore - polyUniform's sha3 operations never return errors
+//coverage:ignore
+//rationale: polyUniform's sha3 operations never return errors
 func polyVecMatrixExpand(mat *[K]polyVecL, rho *[SEED_BYTES]uint8) error {
 	for i := 0; i < K; i++ {
 		for j := 0; j < L; j++ {
@@ -158,7 +159,8 @@ func polyVecMatrixPointWiseMontgomery(t *polyVecK, mat *[K]polyVecL, v *polyVecL
 func polyVecLUniformETA(v *polyVecL, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	for i := 0; i < L; i++ {
 		if err := polyUniformEta(&v.vec[i], seed, nonce); err != nil {
-			//coverage:ignore - polyUniformEta's sha3 operations never return errors
+			//coverage:ignore
+			//rationale: polyUniformEta's sha3 operations never return errors
 			return err
 		}
 		nonce++
@@ -169,7 +171,8 @@ func polyVecLUniformETA(v *polyVecL, seed *[CRH_BYTES]uint8, nonce uint16) error
 func polyVecKUniformETA(v *polyVecK, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	for i := 0; i < K; i++ {
 		if err := polyUniformEta(&v.vec[i], seed, nonce); err != nil {
-			//coverage:ignore - polyUniformEta's sha3 operations never return errors
+			//coverage:ignore
+			//rationale: polyUniformEta's sha3 operations never return errors
 			return err
 		}
 		nonce++

@@ -49,10 +49,21 @@ func TestValidatePKAndDescriptor_InvalidDescriptor(t *testing.T) {
 	}
 }
 
-func TestValidatePKAndDescriptor_WrongPKSize(t *testing.T) {
+func TestValidatePKAndDescriptor_WrongPKSize_MLDSA87(t *testing.T) {
 	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 	wrongPK := make([]byte, 64)
+
+	err := validatePKAndDescriptor(wrongPK, desc)
+	if err == nil {
+		t.Error("expected error for wrong PK size")
+	}
+}
+
+func TestValidatePKAndDescriptor_WrongPKSize_SPHINCS(t *testing.T) {
+	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
+	desc := descriptor.New(descBytes)
+	wrongPK := make([]byte, 32) // SPHINCS+ PKSize is 64, so 32 is wrong
 
 	err := validatePKAndDescriptor(wrongPK, desc)
 	if err == nil {
