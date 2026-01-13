@@ -278,3 +278,266 @@ func TestXMSSChangeIndex(t *testing.T) {
 		t.Errorf("Index Mismatch\nExpected: %d\nFound: %d", 0, xmss.GetIndex())
 	}
 }
+
+func TestNewWalletFromHeight(t *testing.T) {
+	wallet, err := NewWalletFromHeight(4, xmsscrypto.SHAKE_128)
+	if err != nil {
+		t.Fatalf("NewWalletFromHeight failed: %v", err)
+	}
+
+	if wallet.GetHeight() != 4 {
+		t.Errorf("Height mismatch: got %d, want 4", wallet.GetHeight())
+	}
+
+	// Seed should be non-zero (randomly generated)
+	seed := wallet.GetSeed()
+	allZero := true
+	for _, b := range seed {
+		if b != 0 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		t.Error("seed should be randomly generated, not all zeros")
+	}
+}
+
+func TestNewWalletFromExtendedSeed(t *testing.T) {
+	// Create a wallet first to get a valid extended seed
+	original := newTestXMSSWallet(t, 4)
+	extSeed := original.GetExtendedSeed()
+
+	// Create new wallet from extended seed
+	recovered, err := NewWalletFromExtendedSeed(extSeed)
+	if err != nil {
+		t.Fatalf("NewWalletFromExtendedSeed failed: %v", err)
+	}
+
+	// Should match original
+	if original.GetSeed() != recovered.GetSeed() {
+		t.Error("seed mismatch")
+	}
+	if original.GetHeight() != recovered.GetHeight() {
+		t.Error("height mismatch")
+	}
+	if original.GetPK() != recovered.GetPK() {
+		t.Error("PK mismatch")
+	}
+}
+
+func TestNewWalletFromExtendedSeed_InvalidDescriptor(t *testing.T) {
+	var extSeed [ExtendedSeedSize]uint8
+	extSeed[0] = 0xFF // Invalid signature type
+
+	_, err := NewWalletFromExtendedSeed(extSeed)
+	if err == nil {
+		t.Error("expected error for invalid descriptor")
+	}
+}
+
+func TestNewWalletFromSeed_HeightExceedsMax(t *testing.T) {
+	var seed [SeedSize]uint8
+	_, err := NewWalletFromSeed(seed, 100, xmsscrypto.SHAKE_128, common.SHA256_2X)
+	if err == nil {
+		t.Error("expected error for height exceeding maximum")
+	}
+}
+
+func TestXMSS_GetHexSeed(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	hexSeed := xmss.GetHexSeed()
+
+	// Should start with 0x
+	if hexSeed[:2] != "0x" {
+		t.Errorf("hex seed should start with 0x, got %s", hexSeed[:2])
+	}
+
+	// Should be 0x + 51 bytes * 2 = 104 chars total
+	expectedLen := 2 + ExtendedSeedSize*2
+	if len(hexSeed) != expectedLen {
+		t.Errorf("hex seed length: got %d, want %d", len(hexSeed), expectedLen)
+	}
+}
+
+func TestXMSS_GetSK(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	sk := xmss.GetSK()
+
+	if len(sk) == 0 {
+		t.Error("SK should not be empty")
+	}
+}
+
+func TestXMSS_GetRoot(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	root := xmss.GetRoot()
+
+	if len(root) != 32 {
+		t.Errorf("root length: got %d, want 32", len(root))
+	}
+}
+
+func TestVerify_WrongSignatureType(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	message := []byte("test message")
+	sig, err := xmss.Sign(message)
+	if err != nil {
+		t.Fatalf("Sign failed: %v", err)
+	}
+
+	pk := xmss.GetPK()
+	// Tamper with signature type in PK
+	pk[0] = 0x10 // Change signature type to 1 (not XMSS)
+
+	if Verify(message, sig, pk) {
+		t.Error("expected verification to fail with wrong signature type")
+	}
+}
+
+func TestVerify_WrongHeight(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	message := []byte("test message")
+	sig, err := xmss.Sign(message)
+	if err != nil {
+		t.Fatalf("Sign failed: %v", err)
+	}
+
+	pk := xmss.GetPK()
+	// Tamper with height in descriptor
+	pk[1] = (pk[1] & 0xF0) | 0x03 // Change height to 6 instead of 4
+
+	if Verify(message, sig, pk) {
+		t.Error("expected verification to fail with wrong height in descriptor")
+	}
+}
+
+func TestIsValidXMSSAddress_Invalid(t *testing.T) {
+	tests := []struct {
+		name    string
+		address [AddressSize]uint8
+	}{
+		{"all zeros", [AddressSize]uint8{}},
+		{"invalid descriptor", func() [AddressSize]uint8 {
+			var addr [AddressSize]uint8
+			addr[0] = 0xFF // Invalid signature type
+			return addr
+		}()},
+		{"invalid checksum", func() [AddressSize]uint8 {
+			var addr [AddressSize]uint8
+			addr[0] = 0x01 // Valid XMSS signature type
+			addr[1] = 0x02 // SHA256_2X address format
+			// Rest is zeros, checksum won't match
+			return addr
+		}()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if IsValidXMSSAddress(tt.address) {
+				t.Error("expected address to be invalid")
+			}
+		})
+	}
+}
+
+func TestQRLDescriptor_Getters(t *testing.T) {
+	desc := NewQRLDescriptor(4, xmsscrypto.SHAKE_128, legacywallet.WalletTypeXMSS, common.SHA256_2X)
+
+	if desc.GetHeight() != 4 {
+		t.Errorf("GetHeight: got %d, want 4", desc.GetHeight())
+	}
+	if desc.GetHashFunction() != xmsscrypto.SHAKE_128 {
+		t.Errorf("GetHashFunction: got %d, want %d", desc.GetHashFunction(), xmsscrypto.SHAKE_128)
+	}
+	if desc.GetSignatureType() != legacywallet.WalletTypeXMSS {
+		t.Errorf("GetSignatureType: got %d, want %d", desc.GetSignatureType(), legacywallet.WalletTypeXMSS)
+	}
+	if desc.GetAddrFormatType() != common.SHA256_2X {
+		t.Errorf("GetAddrFormatType: got %d, want %d", desc.GetAddrFormatType(), common.SHA256_2X)
+	}
+}
+
+func TestQRLDescriptor_GetBytes_RoundTrip(t *testing.T) {
+	original := NewQRLDescriptor(6, xmsscrypto.SHAKE_256, legacywallet.WalletTypeXMSS, common.SHA256_2X)
+	bytes := original.GetBytes()
+
+	recovered, err := NewQRLDescriptorFromBytes(bytes[:])
+	if err != nil {
+		t.Fatalf("NewQRLDescriptorFromBytes failed: %v", err)
+	}
+
+	if original.GetHeight() != recovered.GetHeight() {
+		t.Error("height mismatch after round-trip")
+	}
+	if original.GetHashFunction() != recovered.GetHashFunction() {
+		t.Error("hash function mismatch after round-trip")
+	}
+	if original.GetSignatureType() != recovered.GetSignatureType() {
+		t.Error("signature type mismatch after round-trip")
+	}
+	if original.GetAddrFormatType() != recovered.GetAddrFormatType() {
+		t.Error("address format type mismatch after round-trip")
+	}
+}
+
+func TestNewQRLDescriptorFromBytes_InvalidLength(t *testing.T) {
+	tests := []struct {
+		name  string
+		bytes []uint8
+	}{
+		{"too short", []uint8{0, 1}},
+		{"too long", []uint8{0, 1, 2, 3}},
+		{"empty", []uint8{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewQRLDescriptorFromBytes(tt.bytes)
+			if err == nil {
+				t.Error("expected error for invalid length")
+			}
+		})
+	}
+}
+
+func TestNewQRLDescriptorFromBytes_InvalidHashFunction(t *testing.T) {
+	// Create descriptor bytes with invalid hash function (0x0F)
+	bytes := []uint8{0x0F, 0x02, 0x00}
+	_, err := NewQRLDescriptorFromBytes(bytes)
+	if err == nil {
+		t.Error("expected error for invalid hash function")
+	}
+}
+
+func TestNewQRLDescriptorFromBytes_InvalidHeight(t *testing.T) {
+	// Create descriptor bytes with invalid height
+	// Height is calculated as (byte[1] & 0x0F) << 1
+	// Using 0x00 for byte[1] gives height 0, which is invalid (min is 2)
+	bytes := []uint8{0x01, 0x00, 0x00}
+	_, err := NewQRLDescriptorFromBytes(bytes)
+	if err == nil {
+		t.Error("expected error for invalid height")
+	}
+}
+
+func TestLegacyQRLDescriptorFromBytes_InvalidLength(t *testing.T) {
+	_, err := LegacyQRLDescriptorFromBytes([]uint8{0, 1})
+	if err == nil {
+		t.Error("expected error for invalid length")
+	}
+}
+
+func TestLegacyQRLDescriptorFromExtendedPK(t *testing.T) {
+	xmss := newTestXMSSWallet(t, 4)
+	pk := xmss.GetPK()
+
+	desc, err := LegacyQRLDescriptorFromExtendedPK(&pk)
+	if err != nil {
+		t.Fatalf("LegacyQRLDescriptorFromExtendedPK failed: %v", err)
+	}
+
+	if desc.GetHeight() != 4 {
+		t.Errorf("height mismatch: got %d, want 4", desc.GetHeight())
+	}
+}

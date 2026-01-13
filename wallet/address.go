@@ -47,6 +47,3 @@ func GetAddressFromPKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor)
 	return common.UnsafeGetAddress(pk, descriptor), nil
 }
 
-func IsValidAddress(address [common.AddressSize]uint8) bool {
-	return true
-}

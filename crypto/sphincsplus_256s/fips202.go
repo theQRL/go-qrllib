@@ -14,10 +14,12 @@ func Shake256(output, input []byte) {
 	shake := sha3.NewShake256()
 	_, err := shake.Write(input)
 	if err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake256: write failed: " + err.Error())
 	}
 	_, err = shake.Read(output)
 	if err != nil {
+		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
 		panic("shake256: read failed: " + err.Error())
 	}
 }
@@ -27,6 +29,7 @@ func Shake256XOF(input []byte) sha3.ShakeHash {
 	shake := sha3.NewShake256()
 	_, err := shake.Write(input)
 	if err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake256 XOF: write failed: " + err.Error())
 	}
 	return shake

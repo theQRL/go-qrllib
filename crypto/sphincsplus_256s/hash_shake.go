@@ -14,7 +14,9 @@ var (
 )
 
 // initializeHashFunction is a no-op for SHAKE256
+//coverage:ignore - empty function body has no statements to test
 func initializeHashFunction(ctx *SPXCtx) {
+	//coverage:ignore
 	// no-op, as in C
 }
 
@@ -28,10 +30,12 @@ func prfAddr(out []byte, ctx *SPXCtx, addr *[8]uint32) {
 
 	shake := sha3.NewShake256()
 	if _, err := shake.Write(buf); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake write failed: " + err.Error())
 	}
 
 	if _, err := shake.Read(out[:params.SPX_N]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
 		panic("shake read failed: " + err.Error())
 	}
 }
@@ -40,15 +44,19 @@ func prfAddr(out []byte, ctx *SPXCtx, addr *[8]uint32) {
 func genMessageRandom(R, skPrf, optRand, m []byte, ctx *SPXCtx) {
 	shake := sha3.NewShake256()
 	if _, err := shake.Write(skPrf[:params.SPX_N]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake.Write(skPrf) failed: " + err.Error())
 	}
 	if _, err := shake.Write(optRand[:params.SPX_N]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake.Write(optRand) failed: " + err.Error())
 	}
 	if _, err := shake.Write(m); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("shake.Write(m) failed: " + err.Error())
 	}
 	if _, err := shake.Read(R[:params.SPX_N]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
 		panic("shake.Read(R) failed: " + err.Error())
 	}
 }
@@ -60,15 +68,19 @@ func hashMessage(digest []byte, tree *uint64, leafIdx *uint32,
 	buf := make([]byte, SPX_DGST_BYTES)
 	shake := sha3.NewShake256()
 	if _, err := shake.Write(R[:params.SPX_N]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("SHAKE256 write error on R: " + err.Error())
 	}
 	if _, err := shake.Write(pk[:params.SPX_PK_BYTES]); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("SHAKE256 write error on pk: " + err.Error())
 	}
 	if _, err := shake.Write(m); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		panic("SHAKE256 write error on message: " + err.Error())
 	}
 	if _, err := shake.Read(buf); err != nil {
+		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
 		panic("SHAKE256 read error: " + err.Error())
 	}
 
