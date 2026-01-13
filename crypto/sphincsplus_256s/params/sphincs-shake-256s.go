@@ -64,8 +64,10 @@ func (e *ParamError) Error() string {
 
 func init() {
 	//coverage:ignore
+	//rationale: compile-time constant validation, never fails with valid hardcoded params
 	if err := ValidateParams(SPX_WOTS_W, SPX_N, SPX_TREE_HEIGHT, SPX_D, SPX_FULL_HEIGHT); err != nil {
 		//coverage:ignore
+		//rationale: panic branch is dead code, validation always passes with hardcoded params
 		panic(err.Error())
 	}
 }

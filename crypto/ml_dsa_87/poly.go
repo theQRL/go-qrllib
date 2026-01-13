@@ -111,22 +111,26 @@ func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
 
 	state := sha3.NewShake128()
 	if _, err := state.Write(seed[:]); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
 	if _, err := state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)}); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
 	if _, err := state.Read(buf[:]); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return err
 	}
 
 	ctr := rejUniform(a.coeffs[:], buf[:])
 
-	//coverage:ignore - rejection sampling loop rarely executes; initial buffer is sized to
-	// contain enough valid samples with overwhelming probability (rejection rate ~0.02%)
+	//coverage:ignore
+	//rationale: rejection sampling loop rarely executes; initial buffer is sized to
+	//           contain enough valid samples with overwhelming probability (rejection rate ~0.02%)
 	for ctr < N {
 		off := bufLen % 3
 		for i := 0; i < off; i++ {
@@ -134,7 +138,8 @@ func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
 		}
 
 		if _, err := state.Read(buf[off : STREAM128_BLOCK_BYTES+off]); err != nil {
-			//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+			//coverage:ignore
+			//rationale: sha3.ShakeHash.Read never returns an error for XOF
 			return err
 		}
 		bufLen = STREAM128_BLOCK_BYTES + off
@@ -191,23 +196,28 @@ func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	state := sha3.NewShake256()
 
 	if _, err := state.Write(seed[:]); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
 	if _, err := state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)}); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
 	if _, err := state.Read(buf[:]); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return err
 	}
 
 	ctr := rejEta(a.coeffs[:], buf[:])
-	//coverage:ignore - rejection sampling loop rarely executes; buffer is sized for high success probability
+	//coverage:ignore
+	//rationale: rejection sampling loop rarely executes; buffer is sized for high success probability
 	for ctr < N {
 		if _, err := state.Read(buf[:STREAM256_BLOCK_BYTES]); err != nil {
-			//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+			//coverage:ignore
+			//rationale: sha3.ShakeHash.Read never returns an error for XOF
 			return err
 		}
 		ctr += rejEta(a.coeffs[ctr:], buf[:STREAM256_BLOCK_BYTES])
@@ -234,11 +244,13 @@ func polyChallenge(c *poly, seed []uint8) error {
 	var buf [SHAKE256_RATE]uint8
 	state := sha3.NewShake256()
 	if _, err := state.Write(seed); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
 	if _, err := state.Read(buf[:]); err != nil {
-		//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+		//coverage:ignore
+		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return err
 	}
 
@@ -253,10 +265,12 @@ func polyChallenge(c *poly, seed []uint8) error {
 	}
 	for i := N - TAU; i < N; i++ {
 		for {
-			//coverage:ignore - inner rejection loop for Fisher-Yates shuffle rarely needs extra blocks
+			//coverage:ignore
+			//rationale: inner rejection loop for Fisher-Yates shuffle rarely needs extra blocks
 			if pos >= SHAKE256_RATE {
 				if _, err := state.Read(buf[:]); err != nil {
-					//coverage:ignore - sha3.ShakeHash.Read never returns an error for XOF
+					//coverage:ignore
+					//rationale: sha3.ShakeHash.Read never returns an error for XOF
 					return err
 				}
 				pos = 0

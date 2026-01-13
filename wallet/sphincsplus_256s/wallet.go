@@ -22,7 +22,9 @@ type Wallet struct {
 func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
-	if err != nil { //coverage:ignore - crypto/rand.Read only fails if system entropy source is broken
+	if err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err)
 	}
 	return NewWalletFromSeed(seed)
@@ -36,11 +38,15 @@ func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8
 
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc, err := NewSphincsPlus256sDescriptor()
-	if err != nil { //coverage:ignore - descriptor uses hardcoded valid wallet type, cannot fail
+	if err != nil {
+		//coverage:ignore
+		//rationale: descriptor uses hardcoded valid wallet type, cannot fail
 		return nil, fmt.Errorf("failed to create descriptor: %w", err)
 	}
 	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
-	if err != nil { //coverage:ignore - keypair generation only fails if buffer sizes wrong, but Go's type system guarantees correct sizes
+	if err != nil {
+		//coverage:ignore
+		//rationale: keypair generation only fails if buffer sizes wrong, Go's type system guarantees correct sizes
 		return nil, err
 	}
 
@@ -74,12 +80,14 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 	}
 
 	seed, err := common.ToSeed(extendedSeed.GetSeedBytes())
-	if err != nil { //coverage:ignore - ExtendedSeed.GetSeedBytes() always returns exactly SeedSize bytes
+	if err != nil {
+		//coverage:ignore
 		return nil, fmt.Errorf(common.ErrExtendedSeedToSeed, wallettype.SPHINCSPLUS_256S, err)
 	}
 
 	d, err := sphincsplus_256s.NewSphincsPlus256sFromSeed(toSphincsPlus256sSeed(seed.HashSHAKE256(sphincsplus_256s.CRYPTO_SEEDBYTES)))
-	if err != nil { //coverage:ignore - keypair generation only fails if buffer sizes wrong, but Go's type system guarantees correct sizes
+	if err != nil {
+		//coverage:ignore
 		return nil, err
 	}
 
@@ -146,7 +154,8 @@ func (w *Wallet) GetMnemonic() (string, error) {
 		return "", err
 	}
 	mnemonic, err := misc.BinToMnemonic(eSeed[:])
-	if err != nil { //coverage:ignore - ExtendedSeed is always 51 bytes (divisible by 3) and buffer writes never error
+	if err != nil {
+		//coverage:ignore
 		return "", err
 	}
 	return mnemonic, nil

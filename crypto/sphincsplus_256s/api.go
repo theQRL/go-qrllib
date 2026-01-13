@@ -35,7 +35,8 @@ func cryptoSignKeypair(pk, sk []byte, seed [CRYPTO_SEEDBYTES]byte) error {
 
 func generateOptrand(optRand []byte) error {
 	if _, err := rand.Read(optRand); err != nil {
-		//coverage:ignore - crypto/rand.Read only fails if system entropy source is broken
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return err
 	}
 	return nil
