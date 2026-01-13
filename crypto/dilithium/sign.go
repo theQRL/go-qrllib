@@ -38,12 +38,14 @@ func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CR
 	if seed == nil {
 		seed = make([]uint8, SEED_BYTES)
 		_, err := rand.Read(seed)
+		//coverage:ignore - crypto/rand.Read only fails if system entropy source is broken
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random seed: %v", err)
 		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
 	state := sha3.NewShake256()
+	//coverage:ignore - sha3.ShakeHash.Write/Read never returns an error per Go's hash.Hash contract
 	if _, err := state.Write(seed); err != nil {
 		return nil, err
 	}
@@ -58,11 +60,13 @@ func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CR
 	}
 
 	/* Expand matrix */
+	//coverage:ignore - polyVecMatrixExpand's sha3 operations never return errors
 	if err := polyVecMatrixExpand(&mat, &rho); err != nil {
 		return nil, err
 	}
 
 	/* Sample short vectors s1 and s2 */
+	//coverage:ignore - polyVec uniform eta sha3 operations never return errors
 	if err := polyVecLUniformETA(&s1, &rhoPrime, 0); err != nil {
 		return nil, err
 	}
@@ -132,6 +136,7 @@ func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, ran
 	_, _ = state.Read(mu[:]) // ShakeHash.Read never returns an error
 
 	if randomizedSigning {
+		//coverage:ignore - crypto/rand.Read only fails if system entropy source is broken
 		if _, err := rand.Read(rhoPrime[:]); err != nil {
 			return err
 		}
@@ -143,6 +148,7 @@ func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, ran
 	}
 
 	/* Expand matrix and transform vectors */
+	//coverage:ignore - polyVecMatrixExpand's sha3 operations never return errors
 	if err := polyVecMatrixExpand(&mat, &rho); err != nil {
 		return err
 	}
@@ -171,6 +177,7 @@ rej:
 	}
 
 	state.Reset() // Reuse pooled hasher
+	//coverage:ignore - sha3.ShakeHash.Write/Read never returns an error per Go's hash.Hash contract
 	if _, err := state.Write(mu[:]); err != nil {
 		return err
 	}
@@ -180,6 +187,7 @@ rej:
 	if _, err := state.Read(sig[:SEED_BYTES]); err != nil {
 		return err
 	}
+	//coverage:ignore - polyChallenge's sha3 operations never return errors
 	if err := polyChallenge(&cp, sig[:SEED_BYTES]); err != nil {
 		return err
 	}
@@ -267,6 +275,7 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 	sha3.ShakeSum256(mu[:TR_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
 	state := getShake256()
 	defer putShake256(state)
+	//coverage:ignore - sha3.ShakeHash.Write/Read never returns an error per Go's hash.Hash contract
 	if _, err := state.Write(mu[:TR_BYTES]); err != nil {
 		return false, err
 	}
@@ -278,6 +287,7 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 	}
 
 	/* Matrix-vector multiplication; compute Az - c2^dt1 */
+	//coverage:ignore - polyChallenge/polyVecMatrixExpand sha3 operations never return errors
 	if err := polyChallenge(&cp, c[:]); err != nil {
 		return false, err
 	}
@@ -306,6 +316,7 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 
 	/* Call random oracle and verify challenge */
 	state.Reset() // Reuse pooled hasher
+	//coverage:ignore - sha3.ShakeHash.Write/Read never returns an error per Go's hash.Hash contract
 	if _, err := state.Write(mu[:CRH_BYTES]); err != nil {
 		return false, err
 	}

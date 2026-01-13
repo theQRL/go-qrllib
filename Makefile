@@ -3,6 +3,7 @@
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
 GOVULNCHECK := $(shell which govulncheck 2>/dev/null || echo "$(HOME)/go/bin/govulncheck")
+GO_IGNORE_COV := $(shell which go-ignore-cov 2>/dev/null || echo "$(HOME)/go/bin/go-ignore-cov")
 
 # Fuzz test duration (default: 10s per target)
 FUZZ_TIME ?= 10s
@@ -39,9 +40,13 @@ test-verbose:
 	@go test -v ./...
 
 # Run tests with coverage (generates coverage.out and coverage.html)
+# Uses go-ignore-cov to process //coverage:ignore comments in source files
+# Install: go install github.com/hexira/go-ignore-cov@latest
 test-coverage:
 	@echo "Running tests with coverage..."
 	@go test -coverprofile=coverage.out -covermode=atomic ./...
+	@echo "Processing coverage exclusions (//coverage:ignore comments)..."
+	@$(GO_IGNORE_COV) --file coverage.out || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/hexira/go-ignore-cov@latest"
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out
 	@echo ""
@@ -51,6 +56,8 @@ test-coverage:
 test-coverage-fast:
 	@echo "Running fast tests with coverage (excludes SPHINCS+)..."
 	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/internal/... ./wallet/... ./legacywallet/...
+	@echo "Processing coverage exclusions (//coverage:ignore comments)..."
+	@$(GO_IGNORE_COV) --file coverage.out || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/hexira/go-ignore-cov@latest"
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out
 	@echo ""
@@ -160,6 +167,7 @@ tools:
 	@echo "Installing development tools..."
 	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@go install github.com/hexira/go-ignore-cov@latest
 
 # Run vulnerability check
 vulncheck:

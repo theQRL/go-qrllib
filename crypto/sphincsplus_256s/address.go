@@ -17,8 +17,10 @@ const (
 )
 
 func init() {
+	//coverage:ignore - compile-time constant assertion, never fails with valid params
 	//noinspection GoBoolExpressions
 	if (params.SPX_TREE_HEIGHT * (params.SPX_D - 1)) > 64 {
+		//coverage:ignore
 		panic("Subtree addressing is limited to at most 2^64 trees")
 	}
 }

@@ -1,7 +1,8 @@
 \.idea
 coverage/
-coverage.out
+coverage*.out
 coverage.html
+test-*.out
 
 # Test binaries
 *.test

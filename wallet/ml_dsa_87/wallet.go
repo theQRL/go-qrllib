@@ -24,7 +24,7 @@ type Wallet struct {
 func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
-	if err != nil {
+	if err != nil { //coverage:ignore - crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
 	}
 	return NewWalletFromSeed(seed)
@@ -32,11 +32,11 @@ func NewWallet() (*Wallet, error) {
 
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc, err := NewMLDSA87Descriptor()
-	if err != nil {
+	if err != nil { //coverage:ignore - descriptor uses hardcoded valid wallet type, cannot fail
 		return nil, fmt.Errorf("failed to create descriptor: %w", err)
 	}
 	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
-	if err != nil {
+	if err != nil { //coverage:ignore - keypair generation is deterministic mathematics, only fails if seed is nil
 		return nil, err
 	}
 
@@ -70,12 +70,12 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 	}
 
 	seed, err := common.ToSeed(extendedSeed.GetSeedBytes())
-	if err != nil {
+	if err != nil { //coverage:ignore - ExtendedSeed.GetSeedBytes() always returns exactly SeedSize bytes
 		return nil, fmt.Errorf(common.ErrExtendedSeedToSeed, wallettype.ML_DSA_87, err)
 	}
 
 	d, err := ml_dsa_87.NewMLDSA87FromSeed(seed.HashSHA256())
-	if err != nil {
+	if err != nil { //coverage:ignore - keypair generation is deterministic mathematics, only fails if seed is nil
 		return nil, err
 	}
 
@@ -142,7 +142,7 @@ func (w *Wallet) GetMnemonic() (string, error) {
 		return "", err
 	}
 	mnemonic, err := misc.BinToMnemonic(eSeed[:])
-	if err != nil {
+	if err != nil { //coverage:ignore - ExtendedSeed is always 51 bytes (divisible by 3) and buffer writes never error
 		return "", err
 	}
 	return mnemonic, nil

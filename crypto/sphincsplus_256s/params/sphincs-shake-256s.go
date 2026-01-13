@@ -36,14 +36,36 @@ const (
 	SPX_SHAKE             = 1
 )
 
+// ValidateParams checks that SPHINCS+ parameters are consistent.
+// Returns an error describing the first invalid parameter found, or nil if all valid.
+func ValidateParams(wotsW, n, treeHeight, d, fullHeight int) error {
+	if wotsW != 16 {
+		return &ParamError{"SPX_WOTS_W", wotsW, 16}
+	}
+	if n != 32 {
+		return &ParamError{"SPX_N", n, 32}
+	}
+	if treeHeight*d != fullHeight {
+		return &ParamError{"SPX_TREE_HEIGHT*SPX_D", treeHeight * d, fullHeight}
+	}
+	return nil
+}
+
+// ParamError represents an invalid parameter configuration.
+type ParamError struct {
+	Param    string
+	Got      int
+	Expected int
+}
+
+func (e *ParamError) Error() string {
+	return e.Param + " must be " + string(rune('0'+e.Expected))
+}
+
 func init() {
-	if SPX_WOTS_W != 16 {
-		panic("SPX_WOTS_W must be 16")
-	}
-	if SPX_N != 32 {
-		panic("SPX_N must be 32")
-	}
-	if SPX_TREE_HEIGHT*SPX_D != SPX_FULL_HEIGHT {
-		panic("SPX_TREE_HEIGHT * SPX_D must be SPX_FULL_HEIGHT")
+	//coverage:ignore
+	if err := ValidateParams(SPX_WOTS_W, SPX_N, SPX_TREE_HEIGHT, SPX_D, SPX_FULL_HEIGHT); err != nil {
+		//coverage:ignore
+		panic(err.Error())
 	}
 }
