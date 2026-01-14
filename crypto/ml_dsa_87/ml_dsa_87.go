@@ -46,10 +46,14 @@ func New() (*MLDSA87, error) {
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
 	}
 
 	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if sha3 operations fail, which never happens
 		return nil, err
 	}
 
@@ -61,6 +65,8 @@ func NewMLDSA87FromSeed(seed [SEED_BYTES]uint8) (*MLDSA87, error) {
 	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
 
 	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if sha3 operations fail, which never happens
 		return nil, err
 	}
 

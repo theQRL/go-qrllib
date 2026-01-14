@@ -159,6 +159,68 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 	})
 }
 
+// TestEdgeCaseMalformedSignatureHints tests signature hint encoding validation
+func TestEdgeCaseMalformedSignatureHints(t *testing.T) {
+	mldsa, err := New()
+	if err != nil {
+		t.Fatalf("Failed to create MLDSA87: %v", err)
+	}
+
+	msg := []byte("test message")
+	ctx := []byte{}
+	pk := mldsa.GetPK()
+
+	// Get a valid signature to use as base
+	validSig, err := mldsa.Sign(ctx, msg)
+	if err != nil {
+		t.Fatalf("Failed to sign: %v", err)
+	}
+
+	// Signature layout: c_tilde (64) || z (L*640=4480) || hints (OMEGA+K=83)
+	// Hints layout: hint_indices[OMEGA] || cumulative_counts[K]
+	hintStart := C_TILDE_BYTES + L*POLY_Z_PACKED_BYTES // 64 + 4480 = 4544
+
+	t.Run("non_increasing_hint_indices", func(t *testing.T) {
+		// Create a signature with non-increasing hint indices
+		malformedSig := validSig
+		// Set hint indices that are not strictly increasing
+		// First, set cumulative count to indicate we have 2 hints in first polynomial
+		malformedSig[hintStart+OMEGA] = 2 // cumulative count for poly 0
+		// Set hint indices: second should be > first, but we make it equal
+		malformedSig[hintStart+0] = 10
+		malformedSig[hintStart+1] = 10 // Not strictly increasing!
+
+		if Verify(ctx, msg, malformedSig, &pk) {
+			t.Error("Signature with non-increasing hint indices should not verify")
+		}
+	})
+
+	t.Run("decreasing_hint_indices", func(t *testing.T) {
+		malformedSig := validSig
+		malformedSig[hintStart+OMEGA] = 2
+		malformedSig[hintStart+0] = 20
+		malformedSig[hintStart+1] = 10 // Decreasing!
+
+		if Verify(ctx, msg, malformedSig, &pk) {
+			t.Error("Signature with decreasing hint indices should not verify")
+		}
+	})
+
+	t.Run("non_zero_padding_in_hints", func(t *testing.T) {
+		malformedSig := validSig
+		// Set all cumulative counts to 0 (no hints)
+		for i := 0; i < K; i++ {
+			malformedSig[hintStart+OMEGA+i] = 0
+		}
+		// But put non-zero data in the hint indices area
+		malformedSig[hintStart+0] = 0xFF // Should be zero if no hints
+
+		if Verify(ctx, msg, malformedSig, &pk) {
+			t.Error("Signature with non-zero hint padding should not verify")
+		}
+	})
+}
+
 // TestEdgeCaseInvalidPublicKey tests verification with invalid public keys
 func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 	mldsa, err := New()
@@ -226,6 +288,20 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 			}
 		})
 	}
+
+	// Test context exceeding max length (256 bytes, exceeds 255 limit per FIPS 204)
+	t.Run("context_too_long", func(t *testing.T) {
+		longCtx := bytes.Repeat([]byte{0x42}, 256)
+		_, err := mldsa.Sign(longCtx, msg)
+		if err == nil {
+			t.Error("Sign should fail with context > 255 bytes")
+		}
+
+		_, err = mldsa.Seal(longCtx, msg)
+		if err == nil {
+			t.Error("Seal should fail with context > 255 bytes")
+		}
+	})
 }
 
 // TestEdgeCaseExtractFunctions tests Extract functions with edge cases

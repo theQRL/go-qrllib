@@ -194,6 +194,8 @@ func polyVecKCAddQ(v *polyVecK) {
 
 func polyVecKPackW1(r []uint8, w1 *polyVecK) error {
 	if len(r) != K*POLY_W1_PACKED_BYTES {
+		//coverage:ignore
+		//rationale: internal callers always pass correctly sized buffers
 		return fmt.Errorf("invalid length | length expected %d | found %d", K*POLY_W1_PACKED_BYTES, len(r))
 	}
 	for i := 0; i < K; i++ {

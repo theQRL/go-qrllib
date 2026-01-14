@@ -80,6 +80,8 @@ func unpackSk(rho *[SEED_BYTES]byte,
 
 func packSig(sigb []uint8, c [C_TILDE_BYTES]uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CRYPTO_BYTES {
+		//coverage:ignore
+		//rationale: internal callers always pass correctly sized buffers
 		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
 	}
 	sig := sigb[:]
