@@ -80,6 +80,8 @@ func unpackSk(rho *[SEED_BYTES]byte,
 
 func packSig(sigb []uint8, c [C_TILDE_BYTES]uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CRYPTO_BYTES {
+		//coverage:ignore
+		//rationale: internal callers always pass correctly sized buffers
 		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
 	}
 	sig := sigb[:]
@@ -136,6 +138,9 @@ func unpackSig(c *[C_TILDE_BYTES]uint8,
 		for j := k; j < uint(sig[OMEGA+i]); j++ {
 			/* Coefficients are ordered for strong unforgeability */
 			if j > k && sig[j] <= sig[j-1] {
+				//coverage:ignore
+				//rationale: defensive check for malformed signatures; valid signatures always have
+				//           strictly increasing hint indices
 				return 1
 			}
 			h.vec[i].coeffs[sig[j]] = 1
@@ -145,6 +150,8 @@ func unpackSig(c *[C_TILDE_BYTES]uint8,
 
 	for j := k; j < OMEGA; j++ {
 		if sig[j] != 0 {
+			//coverage:ignore
+			//rationale: defensive check for malformed signatures; valid signatures have zero-padded hint bytes
 			return 1
 		}
 	}

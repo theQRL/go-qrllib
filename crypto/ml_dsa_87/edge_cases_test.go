@@ -226,6 +226,20 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 			}
 		})
 	}
+
+	// Test context exceeding max length (256 bytes, exceeds 255 limit per FIPS 204)
+	t.Run("context_too_long", func(t *testing.T) {
+		longCtx := bytes.Repeat([]byte{0x42}, 256)
+		_, err := mldsa.Sign(longCtx, msg)
+		if err == nil {
+			t.Error("Sign should fail with context > 255 bytes")
+		}
+
+		_, err = mldsa.Seal(longCtx, msg)
+		if err == nil {
+			t.Error("Seal should fail with context > 255 bytes")
+		}
+	})
 }
 
 // TestEdgeCaseExtractFunctions tests Extract functions with edge cases
