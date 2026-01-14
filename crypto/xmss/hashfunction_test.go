@@ -124,6 +124,27 @@ func TestHashFunction_IsValid(t *testing.T) {
 	}
 }
 
+func TestHashFunction_String(t *testing.T) {
+	tests := []struct {
+		hf   HashFunction
+		want string
+	}{
+		{SHA2_256, "SHA2_256"},
+		{SHAKE_128, "SHAKE_128"},
+		{SHAKE_256, "SHAKE_256"},
+		{HashFunction(99), "UnknownHashFunction(99)"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.want, func(t *testing.T) {
+			got := tc.hf.String()
+			if got != tc.want {
+				t.Errorf("HashFunction(%d).String() = %q, want %q", tc.hf, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestHashFunctionDescriptorRoundTrip(t *testing.T) {
 	hashFunctions := []HashFunction{SHA2_256, SHAKE_128, SHAKE_256}
 

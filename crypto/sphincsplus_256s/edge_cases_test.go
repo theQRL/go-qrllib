@@ -310,6 +310,38 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 	})
 }
 
+// TestEdgeCaseInvalidSignatureSize tests cryptoSignVerify with wrong signature size
+func TestEdgeCaseInvalidSignatureSize(t *testing.T) {
+	spx, err := New()
+	if err != nil {
+		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
+	}
+	pk := spx.GetPK()
+	msg := []byte("test message")
+
+	// Signature that is not exactly SPX_BYTES
+	shortSig := make([]byte, params.SPX_BYTES-1)
+	if cryptoSignVerify(shortSig, msg, pk[:]) {
+		t.Error("cryptoSignVerify should return false for signature with wrong size")
+	}
+}
+
+// TestEdgeCaseInvalidSealedMessageSize tests cryptoSignOpen with wrong message size
+func TestEdgeCaseInvalidSealedMessageSize(t *testing.T) {
+	spx, err := New()
+	if err != nil {
+		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
+	}
+	pk := spx.GetPK()
+
+	// Sealed message that is too short
+	shortSealed := make([]byte, params.SPX_BYTES-1)
+	m := make([]byte, 100)
+	if cryptoSignOpen(m, shortSealed, pk[:]) {
+		t.Error("cryptoSignOpen should return false for message with wrong size")
+	}
+}
+
 // TestEdgeCaseHexSeedParsing tests hex seed parsing edge cases
 func TestEdgeCaseHexSeedParsing(t *testing.T) {
 	t.Run("empty_hex", func(t *testing.T) {

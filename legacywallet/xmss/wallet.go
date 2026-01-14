@@ -62,6 +62,8 @@ func NewWalletFromHeight(height xmss.Height, hashFunction xmss.HashFunction) (*X
 	var seed [SeedSize]uint8
 	_, err := rand.Read(seed[:])
 	if err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf("failed to generate random seed: %w", err)
 	}
 	return NewWalletFromSeed(seed, height, hashFunction, common.SHA256_2X)
@@ -150,6 +152,8 @@ func Verify(message, signature []uint8, extendedPK [ExtendedPKSize]uint8) (resul
 	}
 
 	if desc.GetSignatureType() != legacywallet.WalletTypeXMSS {
+		//coverage:ignore
+		//rationale: NewQRLDescriptorFromExtendedPK validates signature type, only XMSS (0) is accepted
 		return false
 	}
 

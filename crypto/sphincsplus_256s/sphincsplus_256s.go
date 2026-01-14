@@ -25,10 +25,14 @@ func New() (*SphincsPlus256s, error) {
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err)
 	}
 
 	if err := cryptoSignKeypair(pk[:], sk[:], seed); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if buffers are wrong size, but we use fixed-size arrays
 		return nil, err
 	}
 
@@ -40,6 +44,8 @@ func NewSphincsPlus256sFromSeed(seed [CRYPTO_SEEDBYTES]uint8) (*SphincsPlus256s,
 	var pk [params.SPX_PK_BYTES]uint8
 
 	if err := cryptoSignKeypair(pk[:], sk[:], seed); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if buffers are wrong size, but we use fixed-size arrays
 		return nil, err
 	}
 

@@ -154,7 +154,7 @@ func (w *Wallet) GetMnemonic() (string, error) {
 	mnemonic, err := misc.BinToMnemonic(eSeed[:])
 	if err != nil {
 		//coverage:ignore
-		//rationale: ExtendedSeed is always 51 bytes (divisible by 3) and buffer writes never error
+		//rationale: returned ExtendedSeed is always 51 bytes (divisible by 3) and buffer writes never error
 		return "", err
 	}
 	return mnemonic, nil

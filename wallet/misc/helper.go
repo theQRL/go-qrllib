@@ -41,6 +41,8 @@ func BinToMnemonic(input []uint8) (string, error) {
 		}
 		_, err := fmt.Fprint(buf, separator, qrl.WordList[idx])
 		if err != nil {
+			//coverage:ignore
+			//rationale: bytes.Buffer.Write never returns an error
 			return "", fmt.Errorf("BinToMnemonic Fprint error %s", err)
 		}
 		separator = " "

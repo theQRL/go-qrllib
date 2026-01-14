@@ -111,6 +111,46 @@ func TestHeightDescriptorRoundTrip(t *testing.T) {
 	}
 }
 
+func TestGetHeightFromSigSize(t *testing.T) {
+	// With WOTSParamW=16 and WOTSParamN=32:
+	// keySize = 67 * 32 = 2144
+	// signatureBaseSize = 4 + 32 + 2144 = 2180
+	// signature size for height h = 2180 + h*32
+
+	tests := []struct {
+		name    string
+		sigSize uint32
+		want    Height
+		wantErr bool
+	}{
+		{"height 4", 2180 + 4*32, Height(4), false},
+		{"height 10", 2180 + 10*32, Height(10), false},
+		{"height 30", 2180 + 30*32, Height(30), false},
+		{"too small", 100, 0, true},
+		{"not aligned", 2180 + 4*32 + 1, 0, true},
+		{"height 0 (invalid)", 2180, 0, true},
+		{"height 32 (exceeds max)", 2180 + 32*32, 0, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := GetHeightFromSigSize(tc.sigSize, WOTSParamW)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("GetHeightFromSigSize(%d) expected error", tc.sigSize)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetHeightFromSigSize(%d) unexpected error: %v", tc.sigSize, err)
+				}
+				if got != tc.want {
+					t.Errorf("GetHeightFromSigSize(%d) = %v, want %v", tc.sigSize, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func TestUInt32ToHeight(t *testing.T) {
 	tests := []struct {
 		name    string

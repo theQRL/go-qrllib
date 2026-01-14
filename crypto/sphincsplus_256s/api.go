@@ -10,6 +10,8 @@ import (
 
 func cryptoSignSeedKeypair(pk, sk []byte, seed []byte) error {
 	if len(seed) != CRYPTO_SEEDBYTES {
+		//coverage:ignore
+		//rationale: All callers use fixed-size [CRYPTO_SEEDBYTES] arrays converted to slices
 		return fmt.Errorf("invalid seed length | expected %d | found %d", CRYPTO_SEEDBYTES, len(seed))
 	}
 	copy(sk[:CRYPTO_SEEDBYTES], seed)
@@ -28,6 +30,8 @@ func cryptoSignSeedKeypair(pk, sk []byte, seed []byte) error {
 
 func cryptoSignKeypair(pk, sk []byte, seed [CRYPTO_SEEDBYTES]byte) error {
 	if len(pk) != CRYPTO_PUBLICKEYBYTES || len(sk) != CRYPTO_SECRETKEYBYTES {
+		//coverage:ignore
+		//rationale: All callers use fixed-size arrays with correct sizes
 		return errors.New("buffer is too small")
 	}
 	return cryptoSignSeedKeypair(pk, sk, seed[:])
@@ -65,6 +69,8 @@ func cryptoSignSignature(sig []byte, m []byte, sk []byte, generateOptRand func([
 	setType(&treeAddr, SPX_ADDR_TYPE_HASHTREE)
 
 	if err := generateOptRand(optRand); err != nil {
+		//coverage:ignore
+		//rationale: generateOptRand uses crypto/rand.Read which only fails if system entropy is broken
 		return err
 	}
 	genMessageRandom(sig[:params.SPX_N], skPrf, optRand, m, &ctx)
@@ -99,6 +105,8 @@ func cryptoSign(m []byte, sk []byte, generateOptRand func([]byte) error) ([]byte
 	// Assumes sm is preallocated with at least len(m) + SPX_BYTES bytes
 	err := cryptoSignSignature(sm, m, sk, generateOptRand)
 	if err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignSignature only fails if generateOptRand fails (system entropy broken)
 		return nil, err
 	}
 
