@@ -23,12 +23,16 @@ func New() (*Dilithium, error) {
 
 	_, err := rand.Read(seed[:])
 	if err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
 		return nil, fmt.Errorf("failed to generate random seed for Dilithium address: %v", err)
 	}
 
 	var hashedSeed [32]uint8
 	misc.SHAKE256(hashedSeed[:], seed[:])
 	if _, err := cryptoSignKeypair(hashedSeed[:], &pk, &sk); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if sha3 operations fail, which never happens
 		return nil, err
 	}
 
@@ -42,6 +46,8 @@ func NewDilithiumFromSeed(seed [SEED_BYTES]uint8) (*Dilithium, error) {
 	var hashedSeed [32]uint8
 	misc.SHAKE256(hashedSeed[:], seed[:])
 	if _, err := cryptoSignKeypair(hashedSeed[:], &pk, &sk); err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignKeypair only fails if sha3 operations fail, which never happens
 		return nil, err
 	}
 
@@ -108,6 +114,8 @@ func Open(signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 
 func Verify(message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
 	result, err := cryptoSignVerify(signature, message, pk)
 	if err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignVerify only returns error from sha3 operations, which never fail
 		return false
 	}
 	return result
@@ -180,6 +188,8 @@ func SignWithSecretKey(message []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([CR
 	// randomizedSigning is set to false (deterministic signing)
 	err := cryptoSignSignature(signature[:], message, sk, false)
 	if err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignSignature only fails if sha3 operations fail, which never happens
 		return signature, err
 	}
 

@@ -48,12 +48,12 @@ func polyVecLPointWisePolyMontgomery(r *polyVecL, a *poly, v *polyVecL) {
 	}
 }
 
-//coverage:ignore
-//rationale: polyUniform's sha3 operations never return errors
 func polyVecMatrixExpand(mat *[K]polyVecL, rho *[SEED_BYTES]uint8) error {
 	for i := 0; i < K; i++ {
 		for j := 0; j < L; j++ {
 			if err := polyUniform(&mat[i].vec[j], rho, (uint16(i)<<8)+uint16(j)); err != nil {
+				//coverage:ignore
+				//rationale: polyUniform's sha3 operations never return errors
 				return err
 			}
 		}
@@ -194,6 +194,8 @@ func polyVecKCAddQ(v *polyVecK) {
 
 func polyVecKPackW1(r []uint8, w1 *polyVecK) error {
 	if len(r) != K*POLY_W1_PACKED_BYTES {
+		//coverage:ignore
+		//rationale: internal callers always pass correctly sized buffers
 		return fmt.Errorf("invalid length | length expected %d | found %d", K*POLY_W1_PACKED_BYTES, len(r))
 	}
 	for i := 0; i < K; i++ {
