@@ -222,6 +222,24 @@ func TestEdgeCaseSignatureSize(t *testing.T) {
 	})
 }
 
+// TestEdgeCaseBDSTraversalCheck tests signatures with valid size but invalid BDS parameters
+func TestEdgeCaseBDSTraversalCheck(t *testing.T) {
+	seed := make([]byte, 48)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
+
+	msg := []byte("test message")
+	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
+
+	// Height 2 fails BDS check because WOTSParamK (2) >= height (2)
+	// Signature size for height 2 = 2180 + 2*32 = 2244
+	height2SigSize := getTestSignatureSize(2)
+	sig := make([]byte, height2SigSize)
+
+	if Verify(xmss.GetHashFunction(), msg, sig, pk) {
+		t.Error("Signature with invalid BDS parameters (height 2) should not verify")
+	}
+}
+
 // TestEdgeCaseHashFunctions tests edge cases for different hash functions
 func TestEdgeCaseHashFunctions(t *testing.T) {
 	seed := make([]byte, 48)
@@ -414,5 +432,85 @@ func TestEdgeCaseVerifyCustomWOTSParam(t *testing.T) {
 	// Wrong WOTS param should fail
 	if VerifyWithCustomWOTSParamW(xmss.GetHashFunction(), msg, sig, pk, WOTSParamW+1) {
 		t.Error("Verification with wrong WOTS param should fail")
+	}
+}
+
+// TestEdgeCaseExhaustedTree tests signing when all signatures have been used
+func TestEdgeCaseExhaustedTree(t *testing.T) {
+	seed := make([]byte, 48)
+	// Use height 4 = 16 signatures max (indices 0-15)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
+
+	// Set to max valid index (15)
+	maxIndex := uint32(1<<4 - 1) // 15
+	err := xmss.SetIndex(maxIndex)
+	if err != nil {
+		t.Fatalf("Failed to set index to max: %v", err)
+	}
+
+	// Sign at max index - this should succeed
+	msg := []byte("test")
+	_, err = xmss.Sign(msg)
+	if err != nil {
+		t.Fatalf("Failed to sign at max index: %v", err)
+	}
+
+	// Now index is 16 (2^4), which equals numElems
+	// Trying to sign again should fail
+	_, err = xmss.Sign(msg)
+	if err == nil {
+		t.Error("Sign should fail when tree is exhausted")
+	}
+}
+
+// TestEdgeCaseSetIndexBackward tests that SetIndex cannot go backward
+func TestEdgeCaseSetIndexBackward(t *testing.T) {
+	seed := make([]byte, 48)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
+
+	// Set index to 5
+	err := xmss.SetIndex(5)
+	if err != nil {
+		t.Fatalf("Failed to set index to 5: %v", err)
+	}
+
+	// Try to set index backward to 3 - should fail
+	err = xmss.SetIndex(3)
+	if err == nil {
+		t.Error("SetIndex backward should fail")
+	}
+}
+
+// TestEdgeCaseOversizedSignature tests verification with signature larger than max height
+func TestEdgeCaseOversizedSignature(t *testing.T) {
+	seed := make([]byte, 48)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
+
+	msg := []byte("test message")
+	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
+
+	// Create a signature larger than max height (30) allows
+	// Max signature size = 2180 + 30*32 = 3140
+	// Create one larger
+	oversizedSig := make([]byte, 3140+32)
+	if Verify(xmss.GetHashFunction(), msg, oversizedSig, pk) {
+		t.Error("Oversized signature should not verify")
+	}
+}
+
+// TestEdgeCaseHeightZeroSignature tests verification with signature size corresponding to height 0
+func TestEdgeCaseHeightZeroSignature(t *testing.T) {
+	seed := make([]byte, 48)
+	xmss, _ := InitializeTree(4, SHAKE_128, seed)
+
+	msg := []byte("test message")
+	pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
+
+	// Height 0 signature size = 2180 (signatureBaseSize with 0 auth path nodes)
+	height0SigSize := getTestSignatureSize(0)
+	sig := make([]byte, height0SigSize)
+
+	if Verify(xmss.GetHashFunction(), msg, sig, pk) {
+		t.Error("Height 0 signature should not verify (invalid height)")
 	}
 }

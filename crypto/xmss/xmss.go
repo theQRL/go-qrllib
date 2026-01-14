@@ -37,6 +37,8 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	bdsState := NewBDSState(height, n, k)
 
 	if err := XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed); err != nil {
+		//coverage:ignore
+		//rationale: XMSSFastGenKeyPair only fails for odd heights, but BDS check above ensures heights are even
 		return nil, fmt.Errorf("failed to generate XMSS keypair: %w", err)
 	}
 	return &XMSS{

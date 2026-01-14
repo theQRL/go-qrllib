@@ -101,6 +101,8 @@ func hashMessage(digest []byte, tree *uint64, leafIdx *uint32,
 
 	//noinspection GoBoolExpressions
 	if SPX_D == 1 {
+		//coverage:ignore
+		//rationale: SPX_D is a compile-time constant (8 for 256s params), this branch is dead code
 		*tree = 0
 	} else {
 		*tree = bytesToULL(buf[offset : offset+SPX_TREE_BYTES])

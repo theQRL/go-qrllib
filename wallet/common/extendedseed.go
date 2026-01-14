@@ -17,6 +17,8 @@ func NewExtendedSeed(desc descriptor.Descriptor, seed Seed) (ExtendedSeed, error
 
 	// Check in case the value of ExtendedSeedSize changes to some inappropriate value in future
 	if len(desc)+len(seed) != ExtendedSeedSize {
+		//coverage:ignore
+		//rationale: compile-time constant check, len(desc)+len(seed) always equals ExtendedSeedSize
 		return ExtendedSeed{}, fmt.Errorf("len(extended seed) != len(desc)+len(seed) | %d != %d", len(desc)+len(seed), ExtendedSeedSize)
 	}
 
@@ -37,6 +39,8 @@ func NewExtendedSeedFromBytes(extendedSeedBytes []byte) (ExtendedSeed, error) {
 	desc := descriptor.New(d)
 	seed, err := ToSeed(extendedSeedBytes[descriptor.DescriptorSize:])
 	if err != nil {
+		//coverage:ignore
+		//rationale: slice is always exactly SeedSize bytes after ExtendedSeedSize validation
 		return ExtendedSeed{}, err
 	}
 	return NewExtendedSeed(desc, seed)

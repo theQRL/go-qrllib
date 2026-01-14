@@ -23,6 +23,8 @@ Callers MUST ensure:
 func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
 	// noinspection GoBoolExpressions
 	if AddressSize > 32 {
+		//coverage:ignore
+		//rationale: compile-time assertion, AddressSize is a constant (20) which is <= 32
 		panic("AddressSize must be <= 32")
 	}
 
@@ -44,6 +46,8 @@ func GetAddress(pk []byte, desc descriptor.Descriptor) ([AddressSize]byte, error
 	}
 	expectedSize, err := expectedPKSize(desc)
 	if err != nil {
+		//coverage:ignore
+		//rationale: desc.IsValid() above already validates the wallet type
 		return addr, err
 	}
 	if len(pk) != expectedSize {
@@ -59,6 +63,8 @@ func expectedPKSize(desc descriptor.Descriptor) (int, error) {
 	case wallettype.SPHINCSPLUS_256S:
 		return SPHINCSPlus256sPKSize, nil
 	default:
+		//coverage:ignore
+		//rationale: only called from GetAddress after desc.IsValid() check
 		return 0, fmt.Errorf(ErrInvalidDescriptor, wallettype.WalletType(desc.Type()))
 	}
 }
