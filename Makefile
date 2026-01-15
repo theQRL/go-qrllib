@@ -1,8 +1,7 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast
+.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
-GOVULNCHECK := $(shell which govulncheck 2>/dev/null || echo "$(HOME)/go/bin/govulncheck")
 GO_IGNORE_COV := $(shell which go-ignore-cov 2>/dev/null || echo "$(HOME)/go/bin/go-ignore-cov")
 
 # Fuzz test duration (default: 10s per target)
@@ -18,6 +17,20 @@ check: lint test
 lint:
 	@echo "Running golangci-lint..."
 	@$(GOLANGCI_LINT) run ./...
+
+# Run shadow (detect shadowed variables)
+shadow:
+	@echo "Running shadow..."
+	@go run golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest ./...
+
+# Run ineffassign (detect ineffectual assignments)
+ineffassign:
+	@echo "Running ineffassign..."
+	@go run github.com/gordonklaus/ineffassign@latest ./...
+
+# Run all static analysis tools (shadow + ineffassign)
+staticanalysis: shadow ineffassign
+	@echo "Static analysis complete."
 
 # Run tests
 test:
@@ -167,12 +180,32 @@ tools:
 	@echo "Installing development tools..."
 	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@go install github.com/securego/gosec/v2/cmd/gosec@latest
+	@go install github.com/sonatype-nexus-community/nancy@latest
 	@go install github.com/hexira/go-ignore-cov@latest
 
-# Run vulnerability check
-vulncheck:
+# Run govulncheck (vulnerability scanner for Go code)
+govulncheck:
 	@echo "Running govulncheck..."
-	@$(GOVULNCHECK) ./...
+	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+# Run gosec (security scanner for Go code)
+# -tests=false: exclude test files (G404 weak RNG is acceptable in tests)
+# -exclude=G602,G115: exclude false positives in crypto code where bounds/overflow
+#   are mathematically guaranteed by algorithm constraints (fixed N=256 coefficients,
+#   controlled bit-width conversions per NIST specifications)
+gosec:
+	@echo "Running gosec..."
+	@go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-dir=.github -tests=false -exclude=G602,G115 ./...
+
+# Run nancy (dependency vulnerability scanner)
+nancy:
+	@echo "Running nancy..."
+	@go list -json -deps ./... | go run github.com/sonatype-nexus-community/nancy@latest sleuth
+
+# Run all security scans (govulncheck + gosec + nancy)
+scan: govulncheck gosec nancy
+	@echo "Security scan complete."
 
 # Clean test cache, fuzz cache, and coverage files
 clean:
@@ -185,6 +218,9 @@ help:
 	@echo "  all          - Run all checks (lint + test)"
 	@echo "  check        - Run all checks (lint + test)"
 	@echo "  lint         - Run golangci-lint"
+	@echo "  shadow       - Run shadow (detect shadowed variables)"
+	@echo "  ineffassign  - Run ineffassign (detect ineffectual assignments)"
+	@echo "  staticanalysis - Run all static analysis (shadow + ineffassign)"
 	@echo "  test         - Run all tests"
 	@echo "  test-fast    - Run fast tests only (excludes SPHINCS+)"
 	@echo "  test-race    - Run tests with race detector"
@@ -209,7 +245,10 @@ help:
 	@echo "  bench-dilithium - Run Dilithium benchmarks"
 	@echo "  bench-mldsa  - Run ML-DSA-87 benchmarks"
 	@echo "  tools        - Install development tools"
-	@echo "  vulncheck    - Run govulncheck"
+	@echo "  scan         - Run all security scans (govulncheck + gosec + nancy)"
+	@echo "  govulncheck  - Run govulncheck (vulnerability scanner)"
+	@echo "  gosec        - Run gosec (security scanner)"
+	@echo "  nancy        - Run nancy (dependency vulnerability scanner)"
 	@echo "  clean        - Clean test and fuzz cache"
 	@echo ""
 	@echo "Fuzz test duration can be customized: make fuzz FUZZ_TIME=30s"
