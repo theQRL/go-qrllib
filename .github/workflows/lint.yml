@@ -1,0 +1,42 @@
+name: Lint
+
+on: [push, pull_request]
+
+jobs:
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  shadow:
+    name: shadow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+      - name: Run shadow
+        run: go run golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow@latest ./...
+
+  ineffassign:
+    name: ineffassign
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+      - name: Run ineffassign
+        run: go run github.com/gordonklaus/ineffassign@latest ./...

@@ -35,7 +35,7 @@ func TestCryptoSignKeypair(t *testing.T) {
 	var seed [96]byte
 	copy(seed[:], unSizedSeed)
 
-	if err := cryptoSignKeypair(pk, sk, seed); err != nil {
+	if err = cryptoSignKeypair(pk, sk, seed); err != nil {
 		t.Error(err)
 	}
 	if hex.EncodeToString(pk) != expectedPK {

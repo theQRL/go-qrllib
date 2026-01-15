@@ -1,0 +1,15 @@
+# Nancy ignore file for go-qrllib
+# These CVEs are in golang.org/x/crypto SSH packages which this library does not use.
+# go-qrllib only uses x/crypto for non-SSH cryptographic primitives (sha3, etc.)
+
+# SSH client panic on SSH_AGENT_SUCCESS response
+CVE-2025-47913
+
+# SSH server file transfer DoS (slow key exchange)
+CVE-2025-22869
+
+# SSH server denial of service
+CVE-2025-47914
+
+# SSH server GSSAPI authentication unbounded memory consumption
+CVE-2025-58181
