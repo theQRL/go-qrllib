@@ -8,6 +8,9 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   dilithium-cross-verify:
     name: Dilithium (Round 3) Cross-Verification
