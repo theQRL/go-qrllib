@@ -19,6 +19,9 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.version }}
+      new_release_version: ${{ steps.semantic.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -32,8 +35,133 @@ jobs:
           go-version: '1.21'
 
       - name: Semantic Release
+        id: semantic
         uses: go-semantic-release/action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           allow-initial-development-versions: true
           changelog-generator-opt: "emojis=true"
+
+  # Generate checksums, SBOM, and attestations for the release
+  supply-chain-security:
+    name: Supply Chain Security Artifacts
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.new_release_published != ''
+    permissions:
+      contents: write
+      id-token: write      # For Sigstore OIDC
+      attestations: write  # For GitHub attestations
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+
+      - name: Get release version
+        id: version
+        run: echo "version=${{ needs.release.outputs.new_release_version }}" >> "$GITHUB_OUTPUT"
+
+      # Generate checksums for source files
+      - name: Generate checksums
+        run: |
+          mkdir -p dist
+          sha256sum go.mod go.sum > dist/checksums-sha256.txt
+          sha512sum go.mod go.sum > dist/checksums-sha512.txt
+          # Also create a checksums file for the entire source
+          find . -name "*.go" -type f | sort | xargs sha256sum >> dist/source-checksums-sha256.txt
+
+      # Generate SBOM using Syft
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: dist/sbom-spdx.json
+          artifact-name: sbom-spdx.json
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: dist/sbom-cyclonedx.json
+          artifact-name: sbom-cyclonedx.json
+
+      # Attest checksums with GitHub attestations (Sigstore-backed)
+      - name: Attest checksums
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/checksums-sha256.txt
+            dist/checksums-sha512.txt
+
+      # Attest SBOM files
+      - name: Attest SBOM (SPDX)
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/sbom-spdx.json
+          sbom-path: dist/sbom-spdx.json
+
+      - name: Attest SBOM (CycloneDX)
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: dist/sbom-cyclonedx.json
+          sbom-path: dist/sbom-cyclonedx.json
+
+      # Attest go.mod and go.sum directly
+      - name: Attest module files
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            go.mod
+            go.sum
+
+      # Upload artifacts to the release
+      - name: Upload release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "v${{ steps.version.outputs.version }}" \
+            dist/checksums-sha256.txt \
+            dist/checksums-sha512.txt \
+            dist/sbom-spdx.json \
+            dist/sbom-cyclonedx.json \
+            --clobber
+
+  # Compute subjects for SLSA provenance
+  compute-subjects:
+    name: Compute SLSA Subjects
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.new_release_published != ''
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate subject hashes
+        id: hash
+        run: |
+          # Compute SHA256 hashes of go.mod and go.sum
+          set -euo pipefail
+          echo "hashes=$(sha256sum go.mod go.sum | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+  # Generate SLSA provenance (Level 3)
+  provenance:
+    name: SLSA Provenance
+    needs: [release, compute-subjects]
+    if: needs.release.outputs.new_release_published != ''
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.compute-subjects.outputs.hashes }}
+      upload-assets: true
+      provenance-name: provenance.intoto.jsonl

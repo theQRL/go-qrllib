@@ -193,6 +193,90 @@ For production XMSS usage:
 - `go mod verify` runs in CI to detect tampering
 - Dependabot monitors for vulnerable dependencies
 - Minimal dependency footprint
+- **Sigstore attestations** for all release artifacts
+- **SLSA Level 3 provenance** for build verification
+- **SBOM** published in SPDX and CycloneDX formats
+
+---
+
+## Release Verification
+
+All releases include cryptographic attestations and checksums for verification.
+
+### Verifying with GitHub CLI
+
+```bash
+# Verify attestations for go.mod and go.sum
+gh attestation verify go.mod --owner theQRL
+gh attestation verify go.sum --owner theQRL
+
+# Verify SBOM attestation
+gh attestation verify sbom-spdx.json --owner theQRL
+```
+
+### Verifying Checksums
+
+Download and verify checksums from the release:
+
+```bash
+# Download checksums file
+curl -LO https://github.com/theQRL/go-qrllib/releases/download/vX.Y.Z/checksums-sha256.txt
+
+# Verify go.mod and go.sum
+sha256sum -c checksums-sha256.txt
+```
+
+### Verifying SLSA Provenance
+
+```bash
+# Install slsa-verifier
+go install github.com/slsa-framework/slsa-verifier/v2/cli/slsa-verifier@latest
+
+# Download provenance
+curl -LO https://github.com/theQRL/go-qrllib/releases/download/vX.Y.Z/provenance.intoto.jsonl
+
+# Verify provenance
+slsa-verifier verify-artifact go.mod \
+  --provenance-path provenance.intoto.jsonl \
+  --source-uri github.com/theQRL/go-qrllib
+```
+
+### Software Bill of Materials (SBOM)
+
+Each release includes SBOMs in two formats:
+- **SPDX**: `sbom-spdx.json`
+- **CycloneDX**: `sbom-cyclonedx.json`
+
+These can be analyzed with tools like:
+```bash
+# Using grype for vulnerability scanning
+grype sbom:sbom-spdx.json
+
+# Using syft for inspection
+syft convert sbom-cyclonedx.json -o table
+```
+
+### What Gets Attested
+
+| Artifact | Attestation Type | Purpose |
+|----------|-----------------|---------|
+| `go.mod`, `go.sum` | Build provenance | Verify module dependencies |
+| `checksums-sha256.txt` | Build provenance | Integrity verification |
+| `sbom-spdx.json` | SBOM | Software composition |
+| `sbom-cyclonedx.json` | SBOM | Software composition |
+| Source code | SLSA provenance | Build reproducibility |
+
+### Trust Model
+
+Attestations are signed using GitHub's Sigstore integration:
+- **Identity**: GitHub Actions OIDC token
+- **Transparency**: Logged in Sigstore's Rekor transparency log
+- **Verification**: Proves release came from official CI workflow
+
+This provides equivalent (or stronger) guarantees than GPG-signed tags:
+- No key management or distribution required
+- Tied to repository's GitHub Actions identity
+- Publicly auditable via transparency logs
 
 ---
 
