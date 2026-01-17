@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
@@ -61,7 +62,7 @@ func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())
 	}
 	if len(unsizedSeed) != CRYPTO_SEEDBYTES {
-		return nil, fmt.Errorf("invalid seed length: expected %d bytes, got %d", CRYPTO_SEEDBYTES, len(unsizedSeed))
+		return nil, cryptoerrors.ErrInvalidSeed
 	}
 	var seed [CRYPTO_SEEDBYTES]uint8
 	copy(seed[:], unsizedSeed)

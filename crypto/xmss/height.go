@@ -1,16 +1,6 @@
 package xmss
 
-import (
-	"errors"
-	"fmt"
-)
-
-// ErrInvalidHeight is returned when an invalid XMSS tree height is provided.
-// Valid heights are even numbers from 2 to MaxHeight (30).
-var ErrInvalidHeight = errors.New("invalid XMSS height")
-
-// ErrInvalidSignatureSize is returned when a signature has an invalid size.
-var ErrInvalidSignatureSize = errors.New("invalid signature size")
+import cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 
 type Height uint8
 
@@ -19,7 +9,7 @@ type Height uint8
 func ToHeight(val uint8) (Height, error) {
 	h := Height(val)
 	if !h.IsValid() {
-		return 0, fmt.Errorf("%w: %d (must be even, 2-%d)", ErrInvalidHeight, val, MaxHeight)
+		return 0, cryptoerrors.ErrInvalidHeight
 	}
 	return h, nil
 }
@@ -27,7 +17,7 @@ func ToHeight(val uint8) (Height, error) {
 // UInt32ToHeight converts a uint32 to a Height, returning an error if invalid.
 func UInt32ToHeight(val uint32) (Height, error) {
 	if val > MaxHeight {
-		return 0, fmt.Errorf("%w: %d exceeds maximum %d", ErrInvalidHeight, val, MaxHeight)
+		return 0, cryptoerrors.ErrInvalidHeight
 	}
 	return ToHeight(uint8(val))
 }
@@ -42,7 +32,7 @@ func HeightFromDescriptorByte(val uint8) (Height, error) {
 // Returns an error if the height is invalid.
 func (h Height) ToDescriptorByte() (byte, error) {
 	if !h.IsValid() {
-		return 0, fmt.Errorf("%w: %d", ErrInvalidHeight, h)
+		return 0, cryptoerrors.ErrInvalidHeight
 	}
 	return uint8((h >> 1) & 0x0f), nil
 }
@@ -64,11 +54,11 @@ func GetHeightFromSigSize(sigSize, wotsParamW uint32) (Height, error) {
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if sigSize < signatureBaseSize {
-		return 0, fmt.Errorf("%w: size %d is smaller than base size %d", ErrInvalidSignatureSize, sigSize, signatureBaseSize)
+		return 0, cryptoerrors.ErrInvalidSignatureSize
 	}
 
 	if (sigSize-4)%32 != 0 {
-		return 0, fmt.Errorf("%w: size %d is not properly aligned", ErrInvalidSignatureSize, sigSize)
+		return 0, cryptoerrors.ErrInvalidSignatureSize
 	}
 
 	return UInt32ToHeight((sigSize - signatureBaseSize) / 32)

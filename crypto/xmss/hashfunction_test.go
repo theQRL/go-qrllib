@@ -3,6 +3,8 @@ package xmss
 import (
 	"errors"
 	"testing"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 func TestToHashFunction(t *testing.T) {
@@ -26,8 +28,8 @@ func TestToHashFunction(t *testing.T) {
 				if err == nil {
 					t.Errorf("ToHashFunction(%d) expected error, got nil", tc.input)
 				}
-				if !errors.Is(err, ErrInvalidHashFunction) {
-					t.Errorf("ToHashFunction(%d) error = %v, want ErrInvalidHashFunction", tc.input, err)
+				if !errors.Is(err, cryptoerrors.ErrInvalidHashFunction) {
+					t.Errorf("ToHashFunction(%d) error = %v, want cryptoerrors.ErrInvalidHashFunction", tc.input, err)
 				}
 			} else {
 				if err != nil {

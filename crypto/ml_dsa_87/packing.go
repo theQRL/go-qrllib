@@ -1,6 +1,6 @@
 package ml_dsa_87
 
-import "fmt"
+import cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 
 func packPk(pkb *[CRYPTO_PUBLIC_KEY_BYTES]uint8, rho [SEED_BYTES]uint8, t1 *polyVecK) {
 	pk := pkb[:]
@@ -82,7 +82,7 @@ func packSig(sigb []uint8, c [C_TILDE_BYTES]uint8, z *polyVecL, h *polyVecK) err
 	if len(sigb) != CRYPTO_BYTES {
 		//coverage:ignore
 		//rationale: internal callers always pass correctly sized buffers
-		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
+		return cryptoerrors.ErrInvalidSignatureSize
 	}
 	sig := sigb[:]
 

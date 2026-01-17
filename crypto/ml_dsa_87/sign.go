@@ -2,8 +2,9 @@ package ml_dsa_87
 
 import (
 	"crypto/rand"
-	"fmt"
+	"crypto/subtle"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -25,7 +26,7 @@ func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uin
 		if err != nil {
 			//coverage:ignore
 			//rationale: crypto/rand.Read only fails if system entropy source is broken
-			return nil, fmt.Errorf("failed to generate random seed: %v", err)
+			return nil, cryptoerrors.ErrSeedGeneration
 		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
@@ -229,7 +230,7 @@ rej:
 
 func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) error {
 	if len(ctx) > 255 {
-		return fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
+		return cryptoerrors.ErrInvalidContext
 	}
 
 	var rnd [RND_BYTES]uint8
@@ -246,7 +247,7 @@ func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYT
 		if err != nil {
 			//coverage:ignore
 			//rationale: crypto/rand.Read only fails if system entropy source is broken
-			return fmt.Errorf("failed to generate random seed: %v", err)
+			return cryptoerrors.ErrSeedGeneration
 		}
 	}
 
@@ -354,18 +355,14 @@ func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, p
 		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return false, err
 	}
-	for i := 0; i < C_TILDE_BYTES; i++ {
-		if c[i] != c2[i] {
-			return false, nil
-		}
-	}
 
-	return true, nil
+	// Use constant-time comparison to prevent timing side-channel attacks
+	return subtle.ConstantTimeCompare(c[:], c2[:]) == 1, nil
 }
 
 func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
 	if len(ctx) > 255 {
-		return false, fmt.Errorf("invalid context length: %d, expected less than %d", len(ctx), 255)
+		return false, cryptoerrors.ErrInvalidContext
 	}
 
 	pre := make([]uint8, len(ctx)+2)

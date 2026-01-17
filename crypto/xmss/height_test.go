@@ -3,6 +3,8 @@ package xmss
 import (
 	"errors"
 	"testing"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 func TestHeightFromDescriptorByte(t *testing.T) {
@@ -33,8 +35,8 @@ func TestHeightFromDescriptorByte(t *testing.T) {
 				if err == nil {
 					t.Errorf("HeightFromDescriptorByte(0x%02X) expected error", tc.descriptor)
 				}
-				if !errors.Is(err, ErrInvalidHeight) {
-					t.Errorf("HeightFromDescriptorByte(0x%02X) error = %v, want ErrInvalidHeight", tc.descriptor, err)
+				if !errors.Is(err, cryptoerrors.ErrInvalidHeight) {
+					t.Errorf("HeightFromDescriptorByte(0x%02X) error = %v, want cryptoerrors.ErrInvalidHeight", tc.descriptor, err)
 				}
 			} else {
 				if err != nil {

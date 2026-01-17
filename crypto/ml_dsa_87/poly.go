@@ -1,7 +1,7 @@
 package ml_dsa_87
 
 import (
-	"errors"
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -247,7 +247,7 @@ func polyChallenge(c *poly, seed []uint8) error {
 	if len(seed) != C_TILDE_BYTES {
 		//coverage:ignore
 		//rationale: callers always pass C_TILDE_BYTES-length slices
-		return errors.New("invalid seed length")
+		return cryptoerrors.ErrInvalidSeed
 	}
 	var buf [SHAKE256_RATE]uint8
 	state := sha3.NewShake256()

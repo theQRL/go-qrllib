@@ -2,8 +2,9 @@ package dilithium
 
 import (
 	"crypto/rand"
-	"fmt"
+	"crypto/subtle"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -43,7 +44,7 @@ func cryptoSignKeypair(seed []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CR
 		if err != nil {
 			//coverage:ignore
 			//rationale: crypto/rand.Read only fails if system entropy source is broken
-			return nil, fmt.Errorf("failed to generate random seed: %v", err)
+			return nil, cryptoerrors.ErrSeedGeneration
 		}
 	}
 	/* Expand 32 bytes of randomness into rho, rhoprime and key */
@@ -373,13 +374,9 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return false, err
 	}
-	for i := 0; i < SEED_BYTES; i++ {
-		if c[i] != c2[i] {
-			return false, nil
-		}
-	}
 
-	return true, nil
+	// Use constant-time comparison to prevent timing side-channel attacks
+	return subtle.ConstantTimeCompare(c[:], c2[:]) == 1, nil
 }
 
 // cryptoSignOpen verifies and extracts a message from a signed message.

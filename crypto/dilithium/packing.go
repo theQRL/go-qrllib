@@ -1,6 +1,6 @@
 package dilithium
 
-import "fmt"
+import cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 
 // packPk serializes a public key into bytes.
 // Format: rho (32 bytes) || t1[0] || t1[1] || ... || t1[K-1]
@@ -101,12 +101,12 @@ func packSig(sigb []uint8, c []uint8, z *polyVecL, h *polyVecK) error {
 	if len(sigb) != CRYPTO_BYTES {
 		//coverage:ignore
 		//rationale: internal callers always pass correctly sized buffers
-		return fmt.Errorf("invalid sigb length | length expected %v | found %v", CRYPTO_BYTES, len(sigb))
+		return cryptoerrors.ErrInvalidSignatureSize
 	}
 	if len(c) != SEED_BYTES {
 		//coverage:ignore
 		//rationale: internal callers always pass correctly sized buffers
-		return fmt.Errorf("invalid c length | length expected %v | found %v", SEED_BYTES, len(c))
+		return cryptoerrors.ErrInvalidLength
 	}
 	sig := sigb[:]
 

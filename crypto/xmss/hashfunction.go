@@ -1,12 +1,10 @@
 package xmss
 
 import (
-	"errors"
 	"fmt"
-)
 
-// ErrInvalidHashFunction is returned when an unknown hash function is specified.
-var ErrInvalidHashFunction = errors.New("invalid XMSS hash function")
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
+)
 
 type HashFunction uint8
 
@@ -21,7 +19,7 @@ const (
 func ToHashFunction(val uint8) (HashFunction, error) {
 	h := HashFunction(val)
 	if !h.IsValid() {
-		return 0, fmt.Errorf("%w: %d", ErrInvalidHashFunction, val)
+		return 0, cryptoerrors.ErrInvalidHashFunction
 	}
 	return h, nil
 }

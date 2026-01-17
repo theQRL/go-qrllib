@@ -2,9 +2,8 @@ package sphincsplus_256s
 
 import (
 	"crypto/rand"
-	"errors"
-	"fmt"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 )
 
@@ -12,7 +11,7 @@ func cryptoSignSeedKeypair(pk, sk []byte, seed []byte) error {
 	if len(seed) != CRYPTO_SEEDBYTES {
 		//coverage:ignore
 		//rationale: All callers use fixed-size [CRYPTO_SEEDBYTES] arrays converted to slices
-		return fmt.Errorf("invalid seed length | expected %d | found %d", CRYPTO_SEEDBYTES, len(seed))
+		return cryptoerrors.ErrInvalidSeed
 	}
 	copy(sk[:CRYPTO_SEEDBYTES], seed)
 
@@ -32,7 +31,7 @@ func cryptoSignKeypair(pk, sk []byte, seed [CRYPTO_SEEDBYTES]byte) error {
 	if len(pk) != CRYPTO_PUBLICKEYBYTES || len(sk) != CRYPTO_SECRETKEYBYTES {
 		//coverage:ignore
 		//rationale: All callers use fixed-size arrays with correct sizes
-		return errors.New("buffer is too small")
+		return cryptoerrors.ErrBufferTooSmall
 	}
 	return cryptoSignSeedKeypair(pk, sk, seed[:])
 }
