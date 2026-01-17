@@ -1,4 +1,4 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy
+.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
@@ -17,6 +17,11 @@ check: lint test
 lint:
 	@echo "Running golangci-lint..."
 	@$(GOLANGCI_LINT) run ./...
+
+# Run actionlint (lint GitHub Actions workflow files)
+actionlint:
+	@echo "Running actionlint..."
+	@actionlint .github/workflows/*.yml
 
 # Run shadow (detect shadowed variables)
 shadow:
@@ -183,6 +188,7 @@ tools:
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install github.com/sonatype-nexus-community/nancy@latest
 	@go install github.com/hexira/go-ignore-cov@latest
+	@echo "Note: Install actionlint separately: https://github.com/rhysd/actionlint#install"
 
 # Run govulncheck (vulnerability scanner for Go code)
 govulncheck:
@@ -218,6 +224,7 @@ help:
 	@echo "  all          - Run all checks (lint + test)"
 	@echo "  check        - Run all checks (lint + test)"
 	@echo "  lint         - Run golangci-lint"
+	@echo "  actionlint   - Lint GitHub Actions workflow files"
 	@echo "  shadow       - Run shadow (detect shadowed variables)"
 	@echo "  ineffassign  - Run ineffassign (detect ineffectual assignments)"
 	@echo "  staticanalysis - Run all static analysis (shadow + ineffassign)"
