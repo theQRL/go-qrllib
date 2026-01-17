@@ -1,8 +1,6 @@
 package ml_dsa_87
 
-import (
-	"fmt"
-)
+import cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 
 type polyVecK struct {
 	vec [K]poly
@@ -196,7 +194,7 @@ func polyVecKPackW1(r []uint8, w1 *polyVecK) error {
 	if len(r) != K*POLY_W1_PACKED_BYTES {
 		//coverage:ignore
 		//rationale: internal callers always pass correctly sized buffers
-		return fmt.Errorf("invalid length | length expected %d | found %d", K*POLY_W1_PACKED_BYTES, len(r))
+		return cryptoerrors.ErrInvalidLength
 	}
 	for i := 0; i < K; i++ {
 		polyW1Pack(r[i*POLY_W1_PACKED_BYTES:], &w1.vec[i])

@@ -3,9 +3,9 @@ package dilithium
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"strings"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/misc"
 )
 
@@ -25,7 +25,7 @@ func New() (*Dilithium, error) {
 	if err != nil {
 		//coverage:ignore
 		//rationale: crypto/rand.Read only fails if system entropy source is broken
-		return nil, fmt.Errorf("failed to generate random seed for Dilithium address: %v", err)
+		return nil, cryptoerrors.ErrSeedGeneration
 	}
 
 	var hashedSeed [32]uint8
@@ -60,10 +60,10 @@ func NewDilithiumFromHexSeed(hexSeed string) (*Dilithium, error) {
 	}
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hex seed: %w", err)
+		return nil, cryptoerrors.ErrInvalidHexSeed
 	}
 	if len(unsizedSeed) != SEED_BYTES {
-		return nil, fmt.Errorf("invalid seed length: expected %d bytes, got %d", SEED_BYTES, len(unsizedSeed))
+		return nil, cryptoerrors.ErrInvalidSeed
 	}
 	var seed [SEED_BYTES]uint8
 	copy(seed[:], unsizedSeed)
@@ -169,7 +169,7 @@ func SignWithSecretKey(message []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([CR
 	var signature [CRYPTO_BYTES]uint8
 
 	if sk == nil {
-		return signature, fmt.Errorf("secret key cannot be nil")
+		return signature, cryptoerrors.ErrSecretKeyNil
 	}
 
 	// Check for zeroized or uninitialized key
@@ -181,7 +181,7 @@ func SignWithSecretKey(message []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([CR
 		}
 	}
 	if isZero {
-		return signature, fmt.Errorf("secret key is zero (uninitialized or zeroized)")
+		return signature, cryptoerrors.ErrSecretKeyZeroized
 	}
 
 	// Use cryptoSignSignature directly with the provided secret key

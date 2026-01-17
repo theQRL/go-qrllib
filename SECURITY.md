@@ -29,7 +29,7 @@ This library assumes:
 |--------|------------|
 | Quantum computer attacks on signatures | Post-quantum algorithms (ML-DSA, SPHINCS+, XMSS) |
 | Signature forgery | Cryptographic hardness assumptions |
-| Timing side-channels in verification | SPHINCS+ root compare is constant-time; lattice verification uses fixed loops but byte-wise compares |
+| Timing side-channels in verification | All verification uses constant-time comparison (`subtle.ConstantTimeCompare`) |
 | Key material in memory after use | `Zeroize()` methods |
 | Non-canonical signature acceptance | Strict signature validation |
 
@@ -42,6 +42,7 @@ This library assumes:
 | XMSS index reuse | Caller must manage state correctly |
 | Weak random number generation | Ensure `crypto/rand` works correctly |
 | Memory not being zeroed by GC | Go limitation; use with HSM for high security |
+| Brute-force verification attempts | Implement rate limiting at application layer |
 
 ---
 
@@ -109,8 +110,7 @@ This library assumes:
 
 The following operations are implemented in constant-time to prevent timing attacks:
 
-- **SPHINCS+ root comparison** (`subtle.ConstantTimeCompare`)
-- **Lattice verification** uses fixed loop bounds; byte-wise compares are not constant-time
+- **All signature verification** uses `subtle.ConstantTimeCompare` (SPHINCS+, ML-DSA-87, Dilithium)
 - **NTT operations** (fixed loop bounds, no data-dependent branches)
 - **Polynomial rounding** (`MakeHint`, `UseHint` use arithmetic masking)
 - **Coefficient norm checks** (fixed iteration count)

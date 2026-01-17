@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"strings"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
@@ -82,7 +83,7 @@ func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
 	}
 	if len(unsizedSeed) != SEED_BYTES {
-		return nil, fmt.Errorf("invalid seed length: expected %d bytes, got %d", SEED_BYTES, len(unsizedSeed))
+		return nil, cryptoerrors.ErrInvalidSeed
 	}
 	var seed [SEED_BYTES]uint8
 	copy(seed[:], unsizedSeed)

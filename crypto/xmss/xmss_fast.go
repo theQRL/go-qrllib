@@ -1,9 +1,7 @@
 package xmss
 
 import (
-	"fmt"
-
-	"github.com/theQRL/go-qrllib/legacywallet/common"
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/misc"
 )
 
@@ -13,7 +11,7 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	if xmssParams.h&1 == 1 {
 		//coverage:ignore
 		//rationale: InitializeTree validates height with BDS check which ensures even heights before calling this
-		return fmt.Errorf("invalid XMSS height %d: must be even", xmssParams.h)
+		return cryptoerrors.ErrInvalidHeight
 	}
 
 	n := xmssParams.n
@@ -300,11 +298,11 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 	currentIdx := uint32(sk[0])<<24 | uint32(sk[1])<<16 | uint32(sk[2])<<8 | uint32(sk[3])
 
 	if newIdx >= numElems {
-		return fmt.Errorf(common.ErrOTSIndexTooHigh, newIdx, numElems-1)
+		return cryptoerrors.ErrOTSIndexTooHigh
 	}
 
 	if newIdx < currentIdx {
-		return fmt.Errorf(common.ErrCannotRewindOTSIndex, currentIdx, newIdx)
+		return cryptoerrors.ErrOTSIndexRewind
 	}
 
 	skSeed := make([]uint8, params.n)
@@ -320,7 +318,7 @@ func xmssFastUpdate(hashFunction HashFunction, params *XMSSParams, sk []uint8, b
 		if j >= numElems {
 			//coverage:ignore
 			//rationale: This defensive check cannot be reached - newIdx < numElems is verified above, and j < newIdx
-			return fmt.Errorf("internal error: index out of bounds: j=%d >= numElems=%d", j, numElems)
+			return cryptoerrors.ErrXMSSInternal
 		}
 
 		bdsRound(hashFunction, bdsState, j, skSeed, params, pubSeed, &otsAddr)
@@ -724,7 +722,7 @@ func hMsg(hashFunction HashFunction, out, in, key []uint8, n uint32) error {
 	if uint32(len(key)) != 3*n {
 		//coverage:ignore
 		//rationale: All callers (xmssFastSignMessage, verifySig) construct hashKey as make([]uint8, 3*n)
-		return fmt.Errorf("hMsg takes 3n-bit keys, we got n=%d but a keylength of %d", n, len(key))
+		return cryptoerrors.ErrInvalidLength
 	}
 	coreHash(hashFunction, out, 2, key, uint32(len(key)), in, uint32(len(in)), n)
 	return nil

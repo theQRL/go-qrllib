@@ -1,8 +1,7 @@
 package dilithium
 
 import (
-	"errors"
-
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -291,7 +290,7 @@ func polyChallenge(c *poly, seed []uint8) error {
 	if len(seed) != SEED_BYTES {
 		//coverage:ignore
 		//rationale: callers always pass SEED_BYTES-length slices
-		return errors.New("invalid seed length")
+		return cryptoerrors.ErrInvalidSeed
 	}
 	var buf [SHAKE256_RATE]uint8
 	state := sha3.NewShake256()

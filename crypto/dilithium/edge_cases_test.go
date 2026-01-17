@@ -455,34 +455,21 @@ func TestSeedLengthValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("error_message_contains_lengths", func(t *testing.T) {
+	t.Run("error_is_sentinel_error", func(t *testing.T) {
 		_, err := NewDilithiumFromHexSeed("0102030405")
 		if err == nil {
 			t.Fatal("Short seed should return error")
 		}
+		// Error should be a sanitized sentinel error (no length information)
+		// This prevents leaking expected/actual sizes in production
 		errMsg := err.Error()
 		if errMsg == "" {
 			t.Error("Error message should not be empty")
 		}
-		// Error should mention expected vs actual lengths
-		if !contains(errMsg, "32") || !contains(errMsg, "5") {
-			t.Errorf("Error message should mention expected (32) and actual (5) lengths: %s", errMsg)
+		if errMsg != "invalid seed" {
+			t.Errorf("Expected sanitized 'invalid seed' error, got: %s", errMsg)
 		}
 	})
-}
-
-// contains checks if s contains substr (helper for test clarity)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // TestEdgeCaseSignWithSecretKey tests SignWithSecretKey edge cases

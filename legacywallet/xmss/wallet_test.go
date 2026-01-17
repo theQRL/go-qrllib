@@ -2,13 +2,13 @@ package xmss
 
 import (
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/theQRL/go-qrllib/common"
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	xmsscrypto "github.com/theQRL/go-qrllib/crypto/xmss"
 	"github.com/theQRL/go-qrllib/legacywallet"
-	legacywalletcommon "github.com/theQRL/go-qrllib/legacywallet/common"
 )
 
 const (
@@ -241,9 +241,8 @@ func TestXMSSChangeIndexTooHigh(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
-	expectedError := fmt.Errorf(legacywalletcommon.ErrOTSIndexTooHigh, 20, 15).Error()
-	if err.Error() != expectedError {
-		t.Errorf("unexpected error: got %q, want %q", err.Error(), expectedError)
+	if !errors.Is(err, cryptoerrors.ErrOTSIndexTooHigh) {
+		t.Errorf("unexpected error: got %q, want ErrOTSIndexTooHigh", err.Error())
 	}
 }
 
@@ -253,9 +252,8 @@ func TestXMSSChangeIndexHigh(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
-	expectedError := fmt.Errorf(legacywalletcommon.ErrOTSIndexTooHigh, 16, 15).Error()
-	if err.Error() != expectedError {
-		t.Errorf("unexpected error: got %q, want %q", err.Error(), expectedError)
+	if !errors.Is(err, cryptoerrors.ErrOTSIndexTooHigh) {
+		t.Errorf("unexpected error: got %q, want ErrOTSIndexTooHigh", err.Error())
 	}
 }
 

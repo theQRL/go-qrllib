@@ -1,12 +1,8 @@
 package xmss
 
 import (
-	"errors"
-	"fmt"
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
-
-// ErrInvalidBDSParams is returned when BDS traversal parameters are invalid.
-var ErrInvalidBDSParams = errors.New("invalid BDS traversal parameters: H - K must be even, with H > K >= 2")
 
 type XMSS struct {
 	xmssParams   *XMSSParams
@@ -30,7 +26,7 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	n := WOTSParamN
 
 	if k >= height || (height-k)%2 == 1 {
-		return nil, fmt.Errorf("%w: height=%d, k=%d", ErrInvalidBDSParams, height, k)
+		return nil, cryptoerrors.ErrInvalidBDSParams
 	}
 
 	xmssParams := NewXMSSParams(n, height, w, k)
@@ -39,7 +35,7 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	if err := XMSSFastGenKeyPair(hashFunction, xmssParams, pk, sk, bdsState, seed); err != nil {
 		//coverage:ignore
 		//rationale: XMSSFastGenKeyPair only fails for odd heights, but BDS check above ensures heights are even
-		return nil, fmt.Errorf("failed to generate XMSS keypair: %w", err)
+		return nil, cryptoerrors.ErrKeyGeneration
 	}
 	return &XMSS{
 		xmssParams,
@@ -52,7 +48,9 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 }
 
 func (x *XMSS) GetSeed() []uint8 {
-	return x.seed
+	result := make([]uint8, len(x.seed))
+	copy(result, x.seed)
+	return result
 }
 
 func (x *XMSS) GetSK() []uint8 {
@@ -88,7 +86,7 @@ func (x *XMSS) SetIndex(newIndex uint32) error {
 func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	index := x.GetIndex()
 	if err := x.SetIndex(index); err != nil {
-		return nil, fmt.Errorf("XMSS Sign: cannot set index %v err: %v", index, err)
+		return nil, cryptoerrors.ErrSigningFailed
 	}
 
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)
