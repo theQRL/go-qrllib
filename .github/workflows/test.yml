@@ -59,7 +59,7 @@ jobs:
             echo "Fuzzing $pkg..."
             for fuzz in $(go test "$pkg" -list 'Fuzz.*' 2>/dev/null | grep '^Fuzz'); do
               echo "  Running $fuzz..."
-              go test "$pkg" -fuzz="$fuzz" -fuzztime=10s -v 2>&1 | tail -5
+              go test "$pkg" -fuzz="^${fuzz}\$" -fuzztime=10s -v 2>&1 | tail -5
             done
           done
 
