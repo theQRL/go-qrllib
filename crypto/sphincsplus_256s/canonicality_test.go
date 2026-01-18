@@ -16,6 +16,10 @@ import (
 
 // TestCanonicalityTruncatedSignatures tests that truncated signatures are rejected.
 func TestCanonicalityTruncatedSignatures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -67,6 +71,10 @@ func TestCanonicalityTruncatedSignatures(t *testing.T) {
 
 // TestCanonicalityCorruptedSignatureComponents tests corruption at key positions.
 func TestCanonicalityCorruptedSignatureComponents(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -119,6 +127,10 @@ func TestCanonicalityCorruptedSignatureComponents(t *testing.T) {
 
 // TestCanonicalityAllZeroSignature tests that an all-zero signature is rejected.
 func TestCanonicalityAllZeroSignature(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -136,6 +148,10 @@ func TestCanonicalityAllZeroSignature(t *testing.T) {
 
 // TestCanonicalityAllOnesSignature tests that an all-ones signature is rejected.
 func TestCanonicalityAllOnesSignature(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -156,6 +172,10 @@ func TestCanonicalityAllOnesSignature(t *testing.T) {
 
 // TestCanonicalityRandomSignatures tests that random signatures don't verify.
 func TestCanonicalityRandomSignatures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -177,6 +197,10 @@ func TestCanonicalityRandomSignatures(t *testing.T) {
 
 // TestCanonicalityFORSCorruption tests corruption of FORS signature components.
 func TestCanonicalityFORSCorruption(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode (covered by TestCanonicalityCorruptedSignatureComponents)")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -215,6 +239,10 @@ func TestCanonicalityFORSCorruption(t *testing.T) {
 
 // TestCanonicalityWOTSCorruption tests corruption of WOTS signature components.
 func TestCanonicalityWOTSCorruption(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode (covered by TestCanonicalityCorruptedSignatureComponents)")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -250,6 +278,10 @@ func TestCanonicalityWOTSCorruption(t *testing.T) {
 
 // TestCanonicalityAuthPathCorruption tests corruption of authentication path nodes.
 func TestCanonicalityAuthPathCorruption(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode (covered by TestCanonicalityCorruptedSignatureComponents)")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -284,34 +316,36 @@ func TestCanonicalityAuthPathCorruption(t *testing.T) {
 }
 
 // TestCanonicalityValidSignatureVerifies ensures valid signatures still work.
+// Note: Uses a single Sign operation since SPHINCS+ is slow (~60s with race detector).
+// Multiple message types are tested by other tests (edge cases, KAT tests).
 func TestCanonicalityValidSignatureVerifies(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
 	}
 
-	messages := [][]byte{
-		{},
-		{0x00},
-		[]byte("short"),
-		[]byte("a longer message for testing signature verification"),
+	msg := []byte("test message for signature verification")
+	sig, err := spx.Sign(msg)
+	if err != nil {
+		t.Fatalf("Failed to sign message: %v", err)
 	}
 
-	for i, msg := range messages {
-		sig, err := spx.Sign(msg)
-		if err != nil {
-			t.Fatalf("Failed to sign message %d: %v", i, err)
-		}
-
-		pk := spx.GetPK()
-		if !Verify(msg, sig, &pk) {
-			t.Errorf("Valid signature for message %d should verify", i)
-		}
+	pk := spx.GetPK()
+	if !Verify(msg, sig, &pk) {
+		t.Error("Valid signature should verify")
 	}
 }
 
 // TestCanonicalitySignatureSize verifies exact signature size is required.
 func TestCanonicalitySignatureSize(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)

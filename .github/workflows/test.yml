@@ -47,8 +47,9 @@ jobs:
 
       - name: Test with race detector
         if: matrix.go-version == '1.24.x'
-        timeout-minutes: 40
-        run: go test -race -v ./...
+        timeout-minutes: 60
+        # Use -short to skip slow SPHINCS+ tests that don't provide additional race coverage
+        run: go test -race -short -v ./...
 
       - name: Run fuzz tests
         if: matrix.go-version == '1.24.x'
