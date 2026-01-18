@@ -25,6 +25,10 @@ func genOptRandFunc(optRand []byte) error {
 }
 
 func TestCryptoSignKeypair(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	pk := make([]byte, params.SPX_PK_BYTES)
 	sk := make([]byte, params.SPX_SK_BYTES)
 	unSizedSeed, err := hex.DecodeString("816af0680147304a37f2188941b90b04286622dc48381a720f95e3cf043132da2c19c010a7bf8aabbe799509a2413aba3bc0832575cddad6c4e4fa108b5d45121d72a342d764d879ca4bf028064ff0b8f578c41bce0f52ed588dfe615d8d4a5c")

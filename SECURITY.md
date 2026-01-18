@@ -117,15 +117,33 @@ The following operations are implemented in constant-time to prevent timing atta
 
 ### Signature Canonicality
 
-All signature schemes enforce canonical encoding:
+All signature schemes enforce canonical encoding, verified by comprehensive negative tests:
 
 **ML-DSA-87 / Dilithium**:
 - Hint indices stored in strictly increasing order
 - z coefficients bounded by `GAMMA1 - BETA`
 - Zero padding enforced in hint section
+- Cumulative counts must be non-decreasing and ≤ OMEGA
 
 **SPHINCS+ / XMSS**:
 - Hash-based signatures are inherently canonical
+- Fixed signature sizes enforced
+
+#### Canonicality Test Coverage
+
+Non-canonical encodings are rejected by the verification functions. This is verified by:
+
+| Test File | Coverage |
+|-----------|----------|
+| [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
+| [`crypto/dilithium/canonicality_test.go`](crypto/dilithium/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
+| [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
+| [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
+
+Run canonicality tests:
+```bash
+go test -v -run TestCanonicality ./crypto/...
+```
 
 ### Key Zeroization
 
