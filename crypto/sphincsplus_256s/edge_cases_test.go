@@ -94,7 +94,7 @@ func TestEdgeCaseLargeMessage(t *testing.T) {
 	size := 64 * 1024 // 64 KB
 
 	largeMsg := make([]byte, size)
-	if _, err := rand.Read(largeMsg); err != nil {
+	if _, err = rand.Read(largeMsg); err != nil {
 		t.Fatalf("Failed to generate random message: %v", err)
 	}
 
