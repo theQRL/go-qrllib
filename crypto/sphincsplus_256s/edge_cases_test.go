@@ -14,6 +14,10 @@ import (
 
 // TestEdgeCaseZeroLengthMessage tests signing and verifying empty messages
 func TestEdgeCaseZeroLengthMessage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -50,6 +54,10 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 
 // TestEdgeCaseNilMessage tests handling of nil messages
 func TestEdgeCaseNilMessage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -71,41 +79,42 @@ func TestEdgeCaseNilMessage(t *testing.T) {
 }
 
 // TestEdgeCaseLargeMessage tests signing large messages
-// Note: SPHINCS+ is slow, so we use smaller sizes than other algorithms
+// Note: SPHINCS+ is slow (~60s per sign with race detector), so we test a single size
 func TestEdgeCaseLargeMessage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
 	}
 
-	// Test various message sizes (smaller due to SPHINCS+ performance)
-	sizes := []int{
-		1024,      // 1 KB
-		64 * 1024, // 64 KB
+	// Test a single large message size to minimize test duration
+	size := 64 * 1024 // 64 KB
+
+	largeMsg := make([]byte, size)
+	if _, err = rand.Read(largeMsg); err != nil {
+		t.Fatalf("Failed to generate random message: %v", err)
 	}
 
-	for _, size := range sizes {
-		t.Run(string(rune(size)), func(t *testing.T) {
-			largeMsg := make([]byte, size)
-			if _, err := rand.Read(largeMsg); err != nil {
-				t.Fatalf("Failed to generate random message: %v", err)
-			}
+	sig, err := spx.Sign(largeMsg)
+	if err != nil {
+		t.Fatalf("Failed to sign %d byte message: %v", size, err)
+	}
 
-			sig, err := spx.Sign(largeMsg)
-			if err != nil {
-				t.Fatalf("Failed to sign %d byte message: %v", size, err)
-			}
-
-			pk := spx.GetPK()
-			if !Verify(largeMsg, sig, &pk) {
-				t.Errorf("Failed to verify signature on %d byte message", size)
-			}
-		})
+	pk := spx.GetPK()
+	if !Verify(largeMsg, sig, &pk) {
+		t.Errorf("Failed to verify signature on %d byte message", size)
 	}
 }
 
 // TestEdgeCaseInvalidSignature tests various invalid signature scenarios
 func TestEdgeCaseInvalidSignature(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -159,6 +168,10 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 
 // TestEdgeCaseInvalidPublicKey tests verification with invalid public keys
 func TestEdgeCaseInvalidPublicKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -231,6 +244,10 @@ func TestEdgeCaseExtractFunctions(t *testing.T) {
 
 // TestEdgeCaseOpenFunction tests Open function with edge cases
 func TestEdgeCaseOpenFunction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -268,6 +285,10 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 
 // TestEdgeCaseSeedBoundaries tests seed handling edge cases
 func TestEdgeCaseSeedBoundaries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	t.Run("zero_seed", func(t *testing.T) {
 		var zeroSeed [CRYPTO_SEEDBYTES]uint8
 		spx, err := NewSphincsPlus256sFromSeed(zeroSeed)
@@ -312,6 +333,10 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 
 // TestEdgeCaseInvalidSignatureSize tests cryptoSignVerify with wrong signature size
 func TestEdgeCaseInvalidSignatureSize(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -328,6 +353,10 @@ func TestEdgeCaseInvalidSignatureSize(t *testing.T) {
 
 // TestEdgeCaseInvalidSealedMessageSize tests cryptoSignOpen with wrong message size
 func TestEdgeCaseInvalidSealedMessageSize(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -344,6 +373,10 @@ func TestEdgeCaseInvalidSealedMessageSize(t *testing.T) {
 
 // TestEdgeCaseHexSeedParsing tests hex seed parsing edge cases
 func TestEdgeCaseHexSeedParsing(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping slow SPHINCS+ test in short mode")
+	}
+
 	t.Run("empty_hex", func(t *testing.T) {
 		_, err := NewSphincsPlus256sFromHexSeed("")
 		if err == nil {
