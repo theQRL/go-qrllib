@@ -40,7 +40,7 @@ jobs:
   nancy:
     name: nancy
     runs-on: ubuntu-latest
-    if: ${{ vars.ENABLE_NANCY == 'true' }}
+    if: github.event_name == 'push' && vars.ENABLE_NANCY == 'true'
     steps:
       - uses: actions/checkout@v6
       - name: Setup Go
