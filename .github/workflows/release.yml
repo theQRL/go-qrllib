@@ -101,20 +101,20 @@ jobs:
 
       # Attest SBOM files
       - name: Attest SBOM (SPDX)
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v3
         with:
           subject-path: dist/sbom-spdx.json
           sbom-path: dist/sbom-spdx.json
 
       - name: Attest SBOM (CycloneDX)
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v3
         with:
           subject-path: dist/sbom-cyclonedx.json
           sbom-path: dist/sbom-cyclonedx.json
 
       # Attest go.mod and go.sum directly
       - name: Attest module files
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
             go.mod
@@ -162,7 +162,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.compute-subjects.outputs.hashes }}
       upload-assets: true
