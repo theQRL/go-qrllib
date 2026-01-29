@@ -16,6 +16,11 @@ type XMSS struct {
 
 // InitializeTree creates a new XMSS tree with the specified parameters.
 // Returns an error if the height/k parameters are invalid for BDS traversal.
+//
+// XMSS is a stateful scheme: each call to Sign increments an internal index
+// that MUST be persisted to durable storage before the signature is used.
+// Reusing an index completely breaks the security of the scheme. See the
+// package documentation for safe usage patterns and recovery procedures.
 func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, error) {
 	height := uint32(h)
 	sk := make([]uint8, 132)
@@ -83,6 +88,9 @@ func (x *XMSS) SetIndex(newIndex uint32) error {
 	return xmssFastUpdate(x.hashFunction, x.xmssParams, x.sk, x.bdsState, newIndex)
 }
 
+// Sign generates a signature for message and advances the one-time index.
+// The caller MUST persist the updated index (via GetIndex) to durable storage
+// before using the returned signature. See the package documentation for details.
 func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	index := x.GetIndex()
 	if err := x.SetIndex(index); err != nil {

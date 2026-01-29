@@ -472,7 +472,6 @@ func polyZUnpack(r *poly, a []uint8) {
 		r.coeffs[2*i+1] = int32(a[5*i+2] >> 4)
 		r.coeffs[2*i+1] |= int32(uint32(a[5*i+3]) << 4)
 		r.coeffs[2*i+1] |= int32(uint32(a[5*i+4]) << 12)
-		r.coeffs[2*i+0] &= 0xFFFFF // TODO (cyyber): This line has no use, might be removed
 
 		r.coeffs[2*i+0] = GAMMA1 - r.coeffs[2*i+0]
 		r.coeffs[2*i+1] = GAMMA1 - r.coeffs[2*i+1]
