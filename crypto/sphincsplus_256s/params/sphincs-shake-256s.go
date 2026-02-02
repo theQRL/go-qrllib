@@ -1,5 +1,7 @@
 package params
 
+import "strconv"
+
 const (
 	SPX_N              = 32
 	SPX_FULL_HEIGHT    = 64
@@ -59,7 +61,7 @@ type ParamError struct {
 }
 
 func (e *ParamError) Error() string {
-	return e.Param + " must be " + string(rune('0'+e.Expected))
+	return e.Param + " must be " + strconv.Itoa(e.Expected)
 }
 
 func init() {

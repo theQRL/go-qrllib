@@ -20,6 +20,12 @@
 //
 // The wallet layer (wallet/ml_dsa_87) abstracts this by hardcoding the context,
 // providing a consistent Sign(message) API to callers.
+//
+// # Thread Safety
+//
+// An MLDSA87 instance is safe for concurrent reads (GetPK, GetSK, GetSeed),
+// but Sign and Seal should not be called concurrently on the same instance.
+// The package-level Verify and Open functions are safe for concurrent use.
 package ml_dsa_87
 
 import (

@@ -69,9 +69,13 @@ func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
 	return NewSphincsPlus256sFromSeed(seed)
 }
 
-// SetGenerateOptRand This function added to set generate opt rand to some mocked function for test
+// SetGenerateOptRand replaces the randomness generator used during signing.
+// This is intended for testing only. Injecting a weak or constant generator
+// removes fault-attack protection from SPHINCS+ signatures.
+//
+// WARNING: This method is NOT safe for concurrent use with Sign.
+// The caller must ensure no signing operations are in progress.
 func (s *SphincsPlus256s) SetGenerateOptRand(generateOptRand func([]byte) error) {
-	// Set mocked generateOptRand function
 	s.generateOptRand = generateOptRand
 }
 
@@ -155,4 +159,5 @@ func (s *SphincsPlus256s) Zeroize() {
 	for i := range s.seed {
 		s.seed[i] = 0
 	}
+	s.generateOptRand = nil
 }

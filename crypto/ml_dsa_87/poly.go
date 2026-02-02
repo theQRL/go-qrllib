@@ -219,7 +219,7 @@ func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 
 	ctr := rejEta(a.coeffs[:], buf[:])
 	//coverage:ignore
-	//rationale: rejection sampling loop rarely executes; buffer is sized for high success probability
+	//rationale: rejection sampling overflow loop executes ~50% of the time for ETA=2
 	for ctr < N {
 		if _, err := state.Read(buf[:STREAM256_BLOCK_BYTES]); err != nil {
 			//coverage:ignore
@@ -472,7 +472,6 @@ func polyZUnpack(r *poly, a []uint8) {
 		r.coeffs[2*i+1] = int32(a[5*i+2] >> 4)
 		r.coeffs[2*i+1] |= int32(uint32(a[5*i+3]) << 4)
 		r.coeffs[2*i+1] |= int32(uint32(a[5*i+4]) << 12)
-		r.coeffs[2*i+0] &= 0xFFFFF // TODO (cyyber): This line has no use, might be removed
 
 		r.coeffs[2*i+0] = GAMMA1 - r.coeffs[2*i+0]
 		r.coeffs[2*i+1] = GAMMA1 - r.coeffs[2*i+1]
