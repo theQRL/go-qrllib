@@ -59,15 +59,21 @@ func (x *XMSS) GetSeed() []uint8 {
 }
 
 func (x *XMSS) GetSK() []uint8 {
-	return x.sk
+	result := make([]uint8, len(x.sk))
+	copy(result, x.sk)
+	return result
 }
 
 func (x *XMSS) GetPKSeed() []uint8 {
-	return x.sk[offsetPubSeed : offsetPubSeed+32]
+	result := make([]uint8, 32)
+	copy(result, x.sk[offsetPubSeed:offsetPubSeed+32])
+	return result
 }
 
 func (x *XMSS) GetRoot() []uint8 {
-	return x.sk[offsetRoot : offsetRoot+32]
+	result := make([]uint8, 32)
+	copy(result, x.sk[offsetRoot:offsetRoot+32])
+	return result
 }
 
 func (x *XMSS) GetHashFunction() HashFunction {
@@ -109,6 +115,25 @@ func (x *XMSS) Zeroize() {
 	for i := range x.seed {
 		x.seed[i] = 0
 	}
+	if x.bdsState != nil {
+		for i := range x.bdsState.stack {
+			x.bdsState.stack[i] = 0
+		}
+		for i := range x.bdsState.auth {
+			x.bdsState.auth[i] = 0
+		}
+		for i := range x.bdsState.keep {
+			x.bdsState.keep[i] = 0
+		}
+		for i := range x.bdsState.retain {
+			x.bdsState.retain[i] = 0
+		}
+		for _, th := range x.bdsState.treeHash {
+			for i := range th.node {
+				th.node[i] = 0
+			}
+		}
+	}
 }
 
 func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (result bool) {
@@ -116,6 +141,14 @@ func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (
 }
 
 func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []uint8, pk []uint8, wotsParamW uint32) (result bool) {
+	// Validate wotsParamW before calling NewWOTSParams to avoid panic on unsupported values.
+	// Valid WOTS w values are powers of 2 where log2(w) ∈ {2, 4, 8}.
+	switch wotsParamW {
+	case 4, 16, 256:
+		// valid
+	default:
+		return false
+	}
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 

@@ -186,6 +186,15 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 	return w.d.Sign(ctx, message)
 }
 
+// Zeroize clears sensitive key material from memory.
+// This should be called when the Wallet is no longer needed.
+func (w *Wallet) Zeroize() {
+	for i := range w.seed {
+		w.seed[i] = 0
+	}
+	w.d.Zeroize()
+}
+
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	_, err := NewMLDSA87DescriptorFromDescriptorBytes(desc)
 	if err != nil {

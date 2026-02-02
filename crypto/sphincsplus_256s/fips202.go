@@ -4,9 +4,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// SHAKE256Rate is the byte rate for SHAKE256 (168 for 1344-bit capacity)
-const SHAKE256Rate = 136
-
 // Shake256 implements a non-incremental SHAKE256 XOF
 // output: destination buffer to fill (length determines output size)
 // input: input data to absorb

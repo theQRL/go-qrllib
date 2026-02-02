@@ -65,7 +65,7 @@ func MnemonicToBin(mnemonic string) ([]uint8, error) {
 	for _, w := range mnemonicWords {
 		value, found := wordLookup[w]
 		if !found {
-			return nil, fmt.Errorf("invalid word %s in mnemonic", w)
+			return nil, fmt.Errorf("invalid word in mnemonic")
 		}
 
 		buffering += 3

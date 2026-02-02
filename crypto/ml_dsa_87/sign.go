@@ -259,7 +259,13 @@ func cryptoSign(msg []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, ra
 	sm := make([]uint8, CRYPTO_BYTES+len(msg))
 	copy(sm[CRYPTO_BYTES:], msg)
 	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], ctx, sk, randomizedSigning)
-	return sm, err
+	if err != nil {
+		for i := range sm {
+			sm[i] = 0
+		}
+		return nil, err
+	}
+	return sm, nil
 }
 
 func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {

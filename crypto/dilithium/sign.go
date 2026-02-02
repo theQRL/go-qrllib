@@ -272,7 +272,13 @@ func cryptoSign(msg []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigni
 	sm := make([]uint8, CRYPTO_BYTES+len(msg))
 	copy(sm[CRYPTO_BYTES:], msg)
 	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], sk, randomizedSigning)
-	return sm, err
+	if err != nil {
+		for i := range sm {
+			sm[i] = 0
+		}
+		return nil, err
+	}
+	return sm, nil
 }
 
 // cryptoSignVerify verifies a Dilithium signature against a message and public key.

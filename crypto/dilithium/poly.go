@@ -258,7 +258,7 @@ func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	ctr := rejEta(a.coeffs[:], buf[:])
 	for ctr < N {
 		//coverage:ignore
-		//rationale: rejection sampling loop rarely executes; buffer is sized for high success probability
+		//rationale: rejection sampling overflow loop executes ~50% of the time for ETA=2
 		if _, err := state.Read(buf[:STREAM256_BLOCK_BYTES]); err != nil {
 			//coverage:ignore
 			//rationale: sha3.ShakeHash.Read never returns an error for XOF
