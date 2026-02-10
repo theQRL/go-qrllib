@@ -16,7 +16,7 @@ go-qrllib provides post-quantum cryptographic signature schemes for the QRL bloc
 |-----------|------|----------|----------|
 | **ML-DSA-87** | Lattice-based | FIPS 204 | Primary recommended algorithm |
 | **Dilithium** | Lattice-based | Pre-FIPS | Legacy compatibility |
-| **SPHINCS+-256s** | Hash-based | FIPS 205 | Stateless, conservative security |
+| **SPHINCS+-256s** | Hash-based | SPHINCS+ (pre-FIPS) | Stateless, conservative security |
 | **XMSS** | Hash-based | RFC 8391 | Legacy QRL addresses |
 
 ---
@@ -94,7 +94,7 @@ broadcast(sig)  // Index may not be persisted
 go get github.com/theQRL/go-qrllib
 ```
 
-Requires Go 1.21 or later.
+Requires Go 1.24 or later.
 
 ## Quick Start
 
@@ -225,7 +225,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 ## Standards Compliance
 
 - **ML-DSA-87**: FIPS 204 (Module-Lattice-Based Digital Signature Standard)
-- **SPHINCS+-256s**: FIPS 205 (Stateless Hash-Based Digital Signature Standard)
+- **SPHINCS+-256s**: SPHINCS+ submission (pre-FIPS). Migration to SLH-DSA ([FIPS 205](https://csrc.nist.gov/pubs/fips/205/final)) is planned.
 - **XMSS**: RFC 8391 (XMSS: eXtended Merkle Signature Scheme)
 - **Dilithium**: CRYSTALS-Dilithium (pre-FIPS version)
 

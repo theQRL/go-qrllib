@@ -61,7 +61,7 @@ This library assumes:
 
 **Security Level**: NIST Level 5 (equivalent to AES-256)
 
-### SPHINCS+-256s (FIPS 205)
+### SPHINCS+-256s (SPHINCS+ submission, pre-FIPS)
 
 | Property | Status |
 |----------|--------|
