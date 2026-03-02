@@ -93,7 +93,7 @@ jobs:
 
       # Attest checksums with GitHub attestations (Sigstore-backed)
       - name: Attest checksums
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/checksums-sha256.txt
@@ -114,7 +114,7 @@ jobs:
 
       # Attest go.mod and go.sum directly
       - name: Attest module files
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             go.mod
