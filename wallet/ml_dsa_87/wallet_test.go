@@ -408,3 +408,32 @@ func createWalletFromMnemonic(t *testing.T, tc *walletTestCase) *Wallet {
 	}
 	return w
 }
+
+func TestWallet_Zeroize(t *testing.T) {
+	w, err := NewWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Sign a message to confirm the wallet works before zeroizing
+	msg := []byte("pre-zeroize message")
+	_, err = w.Sign(msg)
+	if err != nil {
+		t.Fatalf("Sign before Zeroize failed: %v", err)
+	}
+
+	w.Zeroize()
+
+	// Verify the seed has been zeroed
+	seed := w.GetSeed()
+	allZero := true
+	for _, b := range seed.ToBytes() {
+		if b != 0 {
+			allZero = false
+			break
+		}
+	}
+	if !allZero {
+		t.Error("Seed was not zeroed after Zeroize()")
+	}
+}

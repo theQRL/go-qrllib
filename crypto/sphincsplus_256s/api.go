@@ -2,6 +2,7 @@ package sphincsplus_256s
 
 import (
 	"crypto/rand"
+	"runtime"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
@@ -61,6 +62,14 @@ func cryptoSignSignature(sig []byte, m []byte, sk []byte, generateOptRand func([
 
 	copy(ctx.SkSeed[:], sk[:params.SPX_N])
 	copy(ctx.PubSeed[:], pk[:params.SPX_N])
+
+	// Zeroize the secret seed copy when signing completes.
+	defer func() {
+		for i := range ctx.SkSeed {
+			ctx.SkSeed[i] = 0
+		}
+		runtime.KeepAlive(&ctx.SkSeed)
+	}()
 
 	initializeHashFunction(&ctx)
 

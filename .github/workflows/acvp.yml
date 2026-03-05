@@ -1,0 +1,60 @@
+name: NIST ACVP Test Vectors
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mldsa87-acvp:
+    name: ML-DSA-87 ACVP Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+
+      - name: Clone NIST ACVP-Server (latest)
+        run: |
+          git clone --depth 1 --no-checkout --filter=blob:none \
+            https://github.com/usnistgov/ACVP-Server.git /tmp/acvp-server
+          cd /tmp/acvp-server
+          git sparse-checkout init --cone
+          git sparse-checkout set \
+            gen-val/json-files/ML-DSA-keyGen-FIPS204 \
+            gen-val/json-files/ML-DSA-sigGen-FIPS204
+          git checkout
+          echo "ACVP-Server commit: $(git rev-parse --short HEAD)"
+          echo "ACVP-Server date: $(git log -1 --format=%ci)"
+          ls gen-val/json-files/ML-DSA-keyGen-FIPS204/prompt.json
+
+      - name: Extract and merge test vectors
+        run: |
+          python3 .github/acvp/merge_vectors.py \
+            --keygen-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-keyGen-FIPS204/prompt.json \
+            --keygen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-keyGen-FIPS204/expectedResults.json \
+            --siggen-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/prompt.json \
+            --siggen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/expectedResults.json \
+            --parameter-set ML-DSA-87 \
+            --output-dir /tmp/acvp-vectors
+          echo "=== Generated vector files ==="
+          ls -la /tmp/acvp-vectors/
+          echo ""
+          echo "Keygen vectors:"
+          python3 -c "import json; d=json.load(open('/tmp/acvp-vectors/keygen.json')); print(f'  {len(d)} test cases')"
+          echo "SigGen vectors:"
+          python3 -c "import json; d=json.load(open('/tmp/acvp-vectors/siggen.json')); print(f'  {len(d)} test cases')"
+
+      - name: Run ACVP tests
+        env:
+          ACVP_VECTORS_DIR: /tmp/acvp-vectors
+        run: |
+          go test -v -tags acvp -run TestACVP ./crypto/ml_dsa_87/ -timeout 300s

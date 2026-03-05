@@ -3,10 +3,39 @@ package ml_dsa_87
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"runtime"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
+
+// zeroBytes overwrites b with zeros. runtime.KeepAlive prevents the compiler
+// from eliding the writes as a dead store.
+func zeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+	runtime.KeepAlive(&b)
+}
+
+func zeroPoly(p *poly) {
+	for i := range p.coeffs {
+		p.coeffs[i] = 0
+	}
+	runtime.KeepAlive(p)
+}
+
+func zeroPolyVecL(v *polyVecL) {
+	for i := range v.vec {
+		zeroPoly(&v.vec[i])
+	}
+}
+
+func zeroPolyVecK(v *polyVecK) {
+	for i := range v.vec {
+		zeroPoly(&v.vec[i])
+	}
+}
 
 // Take a random seed, and compute sk/pk pair.
 func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) (*[SEED_BYTES]uint8, error) {
@@ -111,6 +140,17 @@ func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 	var nonce uint16
 
 	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
+
+	// Zeroize secret temporaries when signing completes.
+	// Go's GC may copy values before zeroization, but this still reduces
+	// the window for secrets persisting in freed memory.
+	defer func() {
+		zeroBytes(key[:])
+		zeroBytes(rhoPrime[:])
+		zeroPolyVecL(&s1)
+		zeroPolyVecK(&s2)
+		zeroPolyVecK(&t0)
+	}()
 
 	/* Compute mu = CRH(tr, 0, ctxlen, ctx, msg) */
 	state := getShake256()

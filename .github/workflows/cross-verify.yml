@@ -21,7 +21,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
 
       - name: Clone pq-crystals Dilithium (Round 3)
         run: |
@@ -71,7 +71,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
 
       - name: Clone pq-crystals Dilithium (FIPS 204)
         run: |
@@ -120,7 +120,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
 
       - name: Clone SPHINCS+ reference (consistent-basew branch)
         run: |
@@ -174,7 +174,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
 
       - name: Clone XMSS reference (RFC 8391)
         run: |

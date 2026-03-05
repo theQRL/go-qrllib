@@ -93,7 +93,7 @@ jobs:
 
       # Attest checksums with GitHub attestations (Sigstore-backed)
       - name: Attest checksums
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/checksums-sha256.txt
@@ -101,20 +101,20 @@ jobs:
 
       # Attest SBOM files
       - name: Attest SBOM (SPDX)
-        uses: actions/attest-sbom@v3
+        uses: actions/attest-sbom@v4
         with:
           subject-path: dist/sbom-spdx.json
           sbom-path: dist/sbom-spdx.json
 
       - name: Attest SBOM (CycloneDX)
-        uses: actions/attest-sbom@v3
+        uses: actions/attest-sbom@v4
         with:
           subject-path: dist/sbom-cyclonedx.json
           sbom-path: dist/sbom-cyclonedx.json
 
       # Attest go.mod and go.sum directly
       - name: Attest module files
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             go.mod

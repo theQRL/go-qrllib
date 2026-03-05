@@ -3,10 +3,39 @@ package dilithium
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"runtime"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"golang.org/x/crypto/sha3"
 )
+
+// zeroBytes overwrites b with zeros. runtime.KeepAlive prevents the compiler
+// from eliding the writes as a dead store.
+func zeroBytes(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+	runtime.KeepAlive(&b)
+}
+
+func zeroPoly(p *poly) {
+	for i := range p.coeffs {
+		p.coeffs[i] = 0
+	}
+	runtime.KeepAlive(p)
+}
+
+func zeroPolyVecL(v *polyVecL) {
+	for i := range v.vec {
+		zeroPoly(&v.vec[i])
+	}
+}
+
+func zeroPolyVecK(v *polyVecK) {
+	for i := range v.vec {
+		zeroPoly(&v.vec[i])
+	}
+}
 
 // cryptoSignKeypair generates a Dilithium keypair from a seed.
 //
@@ -143,6 +172,15 @@ func cryptoSignSignature(sig, m []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, ran
 
 	unpackSk(&rho, &key, &tr, &t0, &s1, &s2, sk)
 
+	// Zeroize secret temporaries when signing completes.
+	defer func() {
+		zeroBytes(key[:])
+		zeroBytes(rhoPrime[:])
+		zeroPolyVecL(&s1)
+		zeroPolyVecK(&s2)
+		zeroPolyVecK(&t0)
+	}()
+
 	/* Compute CRH(tr, msg) */
 	state := getShake256()
 	defer putShake256(state)
@@ -273,9 +311,9 @@ func cryptoSign(msg []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigni
 	copy(sm[CRYPTO_BYTES:], msg)
 	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], sk, randomizedSigning)
 	if err != nil {
-		for i := range sm {
-			sm[i] = 0
-		}
+		//coverage:ignore
+		//rationale: cryptoSignSignature only fails if internal sha3 operations fail, which never happens
+		clear(sm)
 		return nil, err
 	}
 	return sm, nil
