@@ -112,7 +112,7 @@ defer signer.Zeroize() // Clear sensitive data when done
 
 // Sign with context (required by FIPS 204)
 ctx := []byte("my-application")
-message := []byte("Hello, quantum-safe world!")
+message := []byte("The sleeper must awaken")
 signature, err := signer.Sign(ctx, message)
 if err != nil {
     log.Fatal(err)
@@ -134,7 +134,7 @@ if err != nil {
 }
 defer signer.Zeroize()
 
-message := []byte("Hello, quantum-safe world!")
+message := []byte("The sleeper must awaken")
 signature, err := signer.Sign(message)
 if err != nil {
     log.Fatal(err)
@@ -159,6 +159,30 @@ if err != nil {
 address := wallet.GetAddress()
 signature, err := wallet.Sign(message)
 ```
+
+### `crypto.Signer` Interface (ML-DSA-87)
+
+ML-DSA-87 implements Go's `crypto.Signer` interface for interoperability with `crypto/tls`, `crypto/x509`, and other standard library consumers:
+
+```go
+import "github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
+
+d, err := ml_dsa_87.New()
+if err != nil {
+    log.Fatal(err)
+}
+defer d.Zeroize()
+
+signer := ml_dsa_87.NewCryptoSigner(d)
+// signer satisfies crypto.Signer
+
+// Sign with FIPS 204 context via SignerOpts
+sig, err := signer.Sign(nil, message, &ml_dsa_87.SignerOpts{
+    Context: []byte("my-application"),
+})
+```
+
+The `opts` parameter must be `*ml_dsa_87.SignerOpts` or `nil` (empty context). Passing other `crypto.SignerOpts` types (e.g., `crypto.SHA256`) returns an error.
 
 ### Address String Format
 
@@ -222,6 +246,14 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 
 ---
 
+## NIST ACVP Verification
+
+ML-DSA-87 key generation and signing are verified against official [NIST ACVP test vectors](https://github.com/usnistgov/ACVP-Server). These tests run automatically in CI and are guarded by a build tag so they don't run during normal `go test ./...`.
+
+To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
+
+---
+
 ## Standards Compliance
 
 - **ML-DSA-87**: FIPS 204 (Module-Lattice-Based Digital Signature Standard)
@@ -237,7 +269,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 2. **Use crypto/rand** - Never use weak random sources for key generation
 3. **Context separation** - Use unique contexts for different applications (ML-DSA-87)
 4. **XMSS state** - See critical warning above
-5. **Side channels** - This library uses constant-time operations where applicable
+5. **Side channels** - Signing and verification use branchless arithmetic and constant-time comparisons; see [SECURITY.md](SECURITY.md) for precise boundaries
 
 See [SECURITY.md](SECURITY.md) for detailed security information and threat model.
 

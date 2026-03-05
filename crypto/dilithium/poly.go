@@ -121,17 +121,17 @@ func polyChkNorm(a *poly, B int32) int {
 		return 1
 	}
 
+	// Branchless: accumulate whether any coefficient violates the bound
+	// without data-dependent branching. The sign extraction is constant-time;
+	// the violation flag avoids an early return that could leak timing info.
+	var violation int32
 	for i := 0; i < N; i++ {
-		// Compute absolute value without branching on sign
 		t = a.coeffs[i] >> 31
 		t = a.coeffs[i] - (t & 2 * a.coeffs[i])
-
-		if t >= B {
-			return 1
-		}
+		violation |= (B - 1 - t) >> 31
 	}
 
-	return 0
+	return int(uint32(violation) >> 31)
 }
 
 // polyUniform samples a polynomial with uniformly random coefficients in [0, Q-1].

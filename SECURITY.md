@@ -38,7 +38,7 @@ This library assumes:
 | Threat | Mitigation |
 |--------|------------|
 | Compromised system/malware | Use hardware security modules |
-| Side-channel attacks on signing | Out of scope for pure Go |
+| Side-channel attacks via Go runtime | GC, compiler optimisations, and goroutine scheduling may introduce timing variation outside this library's control |
 | XMSS index reuse | Caller must manage state correctly |
 | Weak random number generation | Ensure `crypto/rand` works correctly |
 | Memory not being zeroed by GC | Go limitation; use with HSM for high security |
@@ -56,7 +56,7 @@ This library assumes:
 | EUF-CMA secure | Yes |
 | Deterministic signing | Default (randomized signing not exposed in public API) |
 | Stateless | Yes |
-| Side-channel resistant | Constant-time where applicable |
+| Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
 | Signature malleability | No (canonical encoding enforced) |
 
 **Security Level**: NIST Level 5 (equivalent to AES-256)
@@ -97,7 +97,7 @@ This library assumes:
 | EUF-CMA secure | Yes |
 | Deterministic signing | Default |
 | Stateless | Yes |
-| Side-channel resistant | Constant-time where applicable |
+| Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
 | Signature malleability | No (canonical encoding enforced) |
 
 **Note**: Dilithium is the pre-FIPS version. Prefer ML-DSA-87 for new applications.
@@ -108,12 +108,22 @@ This library assumes:
 
 ### Constant-Time Operations
 
-The following operations are implemented in constant-time to prevent timing attacks:
+**Constant-time (no data-dependent branches):**
 
-- **All signature verification** uses `subtle.ConstantTimeCompare` (SPHINCS+, ML-DSA-87, Dilithium)
-- **NTT operations** (fixed loop bounds, no data-dependent branches)
-- **Polynomial rounding** (`MakeHint`, `UseHint` use arithmetic masking)
-- **Coefficient norm checks** (fixed iteration count)
+- **Signature verification**: challenge comparison via `subtle.ConstantTimeCompare` (ML-DSA-87, Dilithium, SPHINCS+)
+- **NTT/inverse NTT**: fixed loop bounds, no data-dependent branches
+- **Polynomial norm checks**: branchless violation-flag accumulator — iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
+- **Field decomposition**: `Power2Round`, `Decompose`, `MakeHint`, `UseHint` all use mask-based conditional selection with no branches on coefficient values (see `crypto/internal/lattice/rounding.go`)
+- **Public key equality**: `CryptoPublicKey.Equal` uses `subtle.ConstantTimeCompare`
+
+**Inherently variable-time (not secret-dependent):**
+
+- **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern — the rejection probability depends on public parameters and random nonces, not on the secret key
+- **SHAKE-256 / SHA-3 operations**: assumed constant-time for a given input length (provided by `golang.org/x/crypto/sha3`)
+
+**Go runtime caveats:**
+
+The above properties describe the library's own code. The Go runtime may introduce timing variation through garbage collection pauses, goroutine scheduling, and compiler optimisations (e.g., bounds-check elimination may alter branch patterns). These are outside this library's control. For environments where hardware-level constant-time guarantees are required, use a hardware security module.
 
 ### Signature Canonicality
 
@@ -159,6 +169,11 @@ func (d *MLDSA87) Zeroize() {
     }
 }
 ```
+
+In addition to instance-level `Zeroize()`, signing functions automatically zeroize secret temporaries via deferred cleanup when they return. This reduces the window for secrets persisting in freed memory between signing operations:
+
+- **ML-DSA-87 / Dilithium**: `key`, `rhoPrime`, `s1`, `s2`, `t0`
+- **SPHINCS+**: `ctx.SkSeed`
 
 **Limitation**: Go's garbage collector may copy memory before zeroization. For highest security, use hardware security modules.
 
@@ -323,14 +338,6 @@ All changes to cryptographic code require:
 | Latest | Yes |
 | Previous minor | Security fixes only |
 | Older | No |
-
----
-
-## Security Audit History
-
-| Date | Auditor | Scope | Findings |
-|------|---------|-------|----------|
-| 2026-01 | Internal | Full codebase | 57 items identified and resolved |
 
 ---
 
