@@ -48,7 +48,7 @@ func ExampleNewWallet() {
 	// Get the QRL address (Q + hex-encoded descriptor + checksum)
 	address := wallet.GetAddressStr()
 	fmt.Println("Address length:", len(address))
-	// Output: Address length: 41
+	// Output: Address length: 97
 }
 
 // ExampleNewWalletFromMnemonic demonstrates wallet recovery from mnemonic.

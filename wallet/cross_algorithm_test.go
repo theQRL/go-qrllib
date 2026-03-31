@@ -354,7 +354,7 @@ func TestAddressFormatConsistency(t *testing.T) {
 		t.Error("SPHINCS+ address should start with 'Q'")
 	}
 
-	// Both should be same length: Q + 40 hex chars = 41
+	// Both should be same length: Q + 96 hex chars = 97
 	expectedLen := 1 + common.AddressSize*2 // Q + hex-encoded address
 	if len(mlAddr) != expectedLen {
 		t.Errorf("ML-DSA address length: got %d, want %d", len(mlAddr), expectedLen)

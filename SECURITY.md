@@ -104,6 +104,22 @@ This library assumes:
 
 ---
 
+## Address Security
+
+### Address Derivation
+
+QRL v2.0 addresses are 48 bytes, derived as:
+
+```
+Address = SHAKE256(Descriptor || PK)[:48]
+```
+
+The 48-byte (384-bit) address provides **NIST Category 5** post-quantum collision resistance. A shorter address (e.g. 20 bytes / 160 bits) would reduce collision resistance below the security level of the underlying signature schemes (ML-DSA-87 and SPHINCS+-256s both target NIST Level 5). The 48-byte size ensures the address does not become the weakest link in the security chain.
+
+String form: `"Q" + hex(address)` = 97 characters.
+
+---
+
 ## Cryptographic Implementation Details
 
 ### Constant-Time Operations
