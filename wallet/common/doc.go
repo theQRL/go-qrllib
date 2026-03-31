@@ -16,7 +16,7 @@
 //     Descriptor + SHA256(PK) + Checksum (39 bytes total)
 //
 //   - ML-DSA-87 and SPHINCS+-256s (byte form):
-//     SHAKE256(Descriptor || PK)[:20] (20 bytes total)
+//     SHAKE256(Descriptor || PK)[:48] (48 bytes total)
 //
 // Addresses are validated using [IsValidAddress]. For address generation:
 //   - Use [GetAddress] for untrusted inputs (validates descriptor and pk length)

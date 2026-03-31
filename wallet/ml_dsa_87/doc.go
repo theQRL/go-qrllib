@@ -34,9 +34,9 @@
 //
 // QRL addresses are generated from the public key with a descriptor prefix using SHAKE256:
 //
-//	Address = "Q" + hex(SHAKE256(Descriptor || PK)[:20])
+//	Address = "Q" + hex(SHAKE256(Descriptor || PK)[:48])
 //
-// This produces a standard 20-byte address (plus 'Q' prefix).
+// This produces a standard 48-byte address (plus 'Q' prefix).
 //
 // # Example Usage
 //
