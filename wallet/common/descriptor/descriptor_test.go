@@ -172,21 +172,53 @@ func TestFromBytes_ValidContent(t *testing.T) {
 }
 
 func TestDescriptor_IsValid_WithMetadata(t *testing.T) {
-	// Valid descriptors should remain valid regardless of metadata bytes
+	// Bytes 1 and 2 have no defined semantics for ML-DSA-87 or
+	// SPHINCS+-256s and must be zero. Only the canonical {type, 0, 0}
+	// descriptor is accepted.
 	tests := []struct {
 		name     string
 		desc     Descriptor
 		expected bool
 	}{
 		{
-			name:     "SPHINCSPLUS_256S with non-zero metadata",
-			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0xFF, 0xFF},
+			name:     "SPHINCSPLUS_256S canonical",
+			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0, 0},
 			expected: true,
 		},
 		{
-			name:     "ML_DSA_87 with non-zero metadata",
-			desc:     Descriptor{byte(wallettype.ML_DSA_87), 0x12, 0x34},
+			name:     "ML_DSA_87 canonical",
+			desc:     Descriptor{byte(wallettype.ML_DSA_87), 0, 0},
 			expected: true,
+		},
+		{
+			name:     "SPHINCSPLUS_256S with non-zero byte 1",
+			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x01, 0x00},
+			expected: false,
+		},
+		{
+			name:     "SPHINCSPLUS_256S with non-zero byte 2",
+			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x00, 0x01},
+			expected: false,
+		},
+		{
+			name:     "SPHINCSPLUS_256S with all metadata bits set",
+			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0xFF, 0xFF},
+			expected: false,
+		},
+		{
+			name:     "ML_DSA_87 with non-zero byte 1",
+			desc:     Descriptor{byte(wallettype.ML_DSA_87), 0x01, 0x00},
+			expected: false,
+		},
+		{
+			name:     "ML_DSA_87 with non-zero byte 2",
+			desc:     Descriptor{byte(wallettype.ML_DSA_87), 0x00, 0x01},
+			expected: false,
+		},
+		{
+			name:     "ML_DSA_87 with arbitrary metadata",
+			desc:     Descriptor{byte(wallettype.ML_DSA_87), 0x12, 0x34},
+			expected: false,
 		},
 	}
 

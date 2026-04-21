@@ -35,12 +35,23 @@ func TestNewExtendedSeed_Valid(t *testing.T) {
 }
 
 func TestNewExtendedSeed_InvalidDescriptor(t *testing.T) {
-	invalidDesc := descriptor.Descriptor{255, 0, 0}
-	var seed Seed
+	tests := []struct {
+		name string
+		desc descriptor.Descriptor
+	}{
+		{"unknown wallet type", descriptor.Descriptor{255, 0, 0}},
+		{"ML_DSA_87 with non-zero metadata byte 1", descriptor.Descriptor{byte(wallettype.ML_DSA_87), 0x01, 0x00}},
+		{"ML_DSA_87 with non-zero metadata byte 2", descriptor.Descriptor{byte(wallettype.ML_DSA_87), 0x00, 0x01}},
+		{"SPHINCSPLUS_256S with non-canonical metadata", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x12, 0x34}},
+	}
 
-	_, err := NewExtendedSeed(invalidDesc, seed)
-	if err == nil {
-		t.Error("expected error for invalid descriptor")
+	var seed Seed
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewExtendedSeed(tt.desc, seed); err == nil {
+				t.Error("expected error for invalid descriptor")
+			}
+		})
 	}
 }
 
@@ -142,7 +153,7 @@ func TestNewExtendedSeedFromHexString_InvalidHex(t *testing.T) {
 }
 
 func TestExtendedSeed_GetDescriptorBytes(t *testing.T) {
-	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x12, 0x34})
+	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 	var seed Seed
 
@@ -223,7 +234,7 @@ func TestExtendedSeed_ToBytes(t *testing.T) {
 
 func TestExtendedSeed_RoundTrip(t *testing.T) {
 	// Create original extended seed
-	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0xAB, 0xCD})
+	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 
 	var seed Seed
