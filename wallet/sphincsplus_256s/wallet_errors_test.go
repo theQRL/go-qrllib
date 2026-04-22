@@ -240,7 +240,7 @@ func TestDescriptor_ToDescriptor(t *testing.T) {
 }
 
 func TestNewSphincsPlus256sDescriptorFromDescriptor_Valid(t *testing.T) {
-	baseDesc := descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x12, 0x34}
+	baseDesc := descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x00, 0x00}
 
 	desc, err := NewSphincsPlus256sDescriptorFromDescriptor(baseDesc)
 	if err != nil {
@@ -259,6 +259,9 @@ func TestNewSphincsPlus256sDescriptorFromDescriptor_Invalid(t *testing.T) {
 	}{
 		{"wrong type ML-DSA-87", descriptor.Descriptor{byte(wallettype.ML_DSA_87), 0, 0}},
 		{"unknown type", descriptor.Descriptor{99, 0, 0}},
+		{"non-zero metadata byte 1", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x01, 0x00}},
+		{"non-zero metadata byte 2", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x00, 0x01}},
+		{"non-canonical metadata", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x12, 0x34}},
 	}
 
 	for _, tt := range tests {

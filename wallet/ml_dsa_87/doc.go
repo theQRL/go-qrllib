@@ -1,27 +1,41 @@
 // Package ml_dsa_87 provides a wallet implementation for ML-DSA-87 signatures
-// on the QRL blockchain.
+// on QRL V2.0.
 //
 // This package wraps the low-level [github.com/theQRL/go-qrllib/crypto/ml_dsa_87]
 // package and provides:
 //
 //   - QRL address generation with proper descriptor formatting
-//   - Hardcoded "ZOND" context for QRL blockchain domain separation
+//   - Domain-separated signing context bound to the wallet descriptor
 //   - Seed management and mnemonic conversion
 //   - Signature verification with address descriptor validation
 //
 // # Context Handling
 //
 // The underlying ML-DSA-87 algorithm requires a context parameter for FIPS 204
-// compliance. This wallet package hardcodes the context as "ZOND" (the QRL
-// blockchain identifier), so callers don't need to specify it:
+// compliance. This wallet package constructs the context from the wallet's
+// descriptor using [github.com/theQRL/go-qrllib/wallet/common.SigningContext]:
 //
-//	// Wallet layer - no context needed
+//	ctx = "ZOND" || SigningContextVersion || descriptor   (fixed 8 bytes)
+//
+// The descriptor (type byte + reserved metadata bytes) is embedded verbatim so
+// the signature commits cryptographically to the signing wallet's descriptor
+// and, by extension, to the address derived from it. A signature produced under
+// descriptor D1 will not verify under any other descriptor D2. The version byte
+// (currently 0x01) reserves room for a future redesign of the context layout;
+// bumping it is a signature-format break and must coincide with a coordinated
+// consensus activation.
+//
+// Callers do not supply the context themselves; it is computed automatically
+// from the wallet's descriptor when signing, and from the descriptor parameter
+// passed to [Verify]:
+//
+//	// Wallet layer - context is derived from the descriptor
 //	wallet, _ := ml_dsa_87.NewWallet()
-//	signature, _ := wallet.Sign(message)  // Uses "ZOND" context internally
+//	signature, _ := wallet.Sign(message)
 //
-//	// Crypto layer - context required
+//	// Crypto layer - context is an explicit parameter
 //	signer, _ := crypto_ml_dsa_87.New()
-//	signature, _ := signer.Sign([]byte("ZOND"), message)
+//	signature, _ := signer.Sign(common.SigningContext(desc), message)
 //
 // # Seed Derivation
 //
@@ -40,27 +54,25 @@
 //
 // # Example Usage
 //
-//	// Create a new wallet
-//	wallet, err := ml_dsa_87.NewWallet()
+//	// Create a fresh wallet, or restore from a mnemonic / extended seed.
+//	w, err := ml_dsa_87.NewWallet()
+//	// w, err := ml_dsa_87.NewWalletFromMnemonic(phrase)
+//	// w, err := ml_dsa_87.NewWalletFromHexExtendedSeed(hexSeed)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer w.Zeroize()
+//
+//	address := w.GetAddressStr()              // "Q" + hex(48 bytes)
+//	pk      := w.GetPK()
+//	desc    := w.GetDescriptor().ToDescriptor()
+//
+//	sig, err := w.Sign(message)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //
-//	// Get the QRL address
-//	address := wallet.GetAddress()
-//	fmt.Println("Address:", address)
-//
-//	// Sign a message
-//	message := []byte("transaction data")
-//	signature, err := wallet.Sign(message)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//
-//	// Verify a signature
-//	pk := wallet.GetPK()
-//	desc := wallet.GetDescriptorBytes()
-//	valid := ml_dsa_87.Verify(message, signature[:], &pk, desc)
+//	ok := ml_dsa_87.Verify(message, sig[:], &pk, desc)
 //
 // # Thread Safety
 //

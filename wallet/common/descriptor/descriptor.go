@@ -46,10 +46,22 @@ func (d Descriptor) Type() byte {
 	return d[0]
 }
 
+// IsValid reports whether the descriptor is well-formed.
+//
+// For ML_DSA_87 and SPHINCSPLUS_256S, bytes 1 and 2 carry no defined
+// semantics and must be zero. The 3-byte shape is preserved for
+// backward compatibility with the legacy XMSS address format and is
+// reserved for a future metadata schema, which must be introduced via
+// a coordinated consensus/library change.
+//
+// Rejecting non-zero metadata bytes collapses the set of valid
+// descriptors to one canonical value per wallet type, so a single
+// keypair cannot be used to derive sibling addresses through the
+// public API.
 func (d Descriptor) IsValid() bool {
 	switch wallettype.WalletType(d[0]) {
 	case wallettype.SPHINCSPLUS_256S, wallettype.ML_DSA_87:
-		return true
+		return d[1] == 0 && d[2] == 0
 	default:
 		return false
 	}

@@ -72,7 +72,7 @@ func ExampleMLDSA87_Sign() {
 
 	// FIPS 204 requires a context parameter for domain separation
 	// Use empty context if not needed, but consider using application-specific context
-	ctx := []byte("ZOND") // QRL blockchain uses "ZOND" as context
+	ctx := []byte("my-application") // application-specific context for domain separation
 	message := []byte("transaction data")
 
 	signature, err := m.Sign(ctx, message)

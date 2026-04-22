@@ -183,8 +183,22 @@ func (w *Wallet) GetAddressStr() string {
 	return fmt.Sprintf("Q%x", addr[:])
 }
 
+// domainSeparatedMessage prepends the fixed-length signing context to the
+// message, so SPHINCS+ (which has no native ctx parameter) still commits
+// to the descriptor in its signed bytes. The prefix is a compile-time
+// constant length (common.SigningContextSize), so concatenation is
+// canonically parseable and cannot collide with a shifted-boundary
+// forgery.
+func domainSeparatedMessage(desc descriptor.Descriptor, message []uint8) []uint8 {
+	ctx := common.SigningContext(desc)
+	out := make([]uint8, 0, len(ctx)+len(message))
+	out = append(out, ctx...)
+	out = append(out, message...)
+	return out
+}
+
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
-	return w.s.Sign(message)
+	return w.s.Sign(domainSeparatedMessage(w.desc.ToDescriptor(), message))
 }
 
 // Zeroize clears sensitive key material from memory.
@@ -197,7 +211,7 @@ func (w *Wallet) Zeroize() {
 }
 
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
-	_, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(desc)
+	d, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(desc)
 	if err != nil {
 		return false
 	}
@@ -213,5 +227,5 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var pk2 [PKSize]uint8
 	copy(pk2[:], pk[:])
 
-	return sphincsplus_256s.Verify(message, sig, &pk2)
+	return sphincsplus_256s.Verify(domainSeparatedMessage(d.ToDescriptor(), message), sig, &pk2)
 }

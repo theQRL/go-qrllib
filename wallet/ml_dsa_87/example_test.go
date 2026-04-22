@@ -19,7 +19,7 @@ func Example() {
 	address := wallet.GetAddressStr()
 	fmt.Println("Address starts with Q:", address[0] == 'Q')
 
-	// Sign a message (uses hardcoded "ZOND" context)
+	// Sign a message (context is derived from the wallet's descriptor)
 	message := []byte("transaction data")
 	signature, err := wallet.Sign(message)
 	if err != nil {
@@ -45,7 +45,7 @@ func ExampleNewWallet() {
 		return
 	}
 
-	// Get the QRL address (Q + hex-encoded descriptor + checksum)
+	// Get the QRL address ("Q" prefix + hex-encoded 48-byte address)
 	address := wallet.GetAddressStr()
 	fmt.Println("Address length:", len(address))
 	// Output: Address length: 97

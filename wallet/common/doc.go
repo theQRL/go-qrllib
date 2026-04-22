@@ -4,7 +4,21 @@
 //
 //   - Address validation and generation utilities
 //   - Common seed handling for different wallet types
+//   - Domain-separated signing-context construction ([SigningContext])
 //   - Shared error messages and constants
+//
+// # Signing Context
+//
+// [SigningContext] returns the fixed-length byte string
+//
+//	"ZOND" || SigningContextVersion || descriptor   (8 bytes)
+//
+// used by wallet packages to bind a signature cryptographically to its
+// descriptor. ML-DSA-87 uses it as the FIPS 204 ctx parameter; SPHINCS+-256s
+// prepends it to the message. Wallet-type-specific packages call this helper
+// internally and callers should not usually need to construct it themselves.
+// Bumping SigningContextVersion breaks signature compatibility and requires a
+// coordinated consensus activation.
 //
 // # Address Format
 //
