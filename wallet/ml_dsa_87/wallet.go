@@ -13,8 +13,6 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
-var ctx = []uint8{'Z', 'O', 'N', 'D'}
-
 type Wallet struct {
 	desc Descriptor
 	d    *ml_dsa_87.MLDSA87
@@ -183,7 +181,7 @@ func (w *Wallet) GetAddressStr() string {
 }
 
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
-	return w.d.Sign(ctx, message)
+	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
 // Zeroize clears sensitive key material from memory.
@@ -196,7 +194,7 @@ func (w *Wallet) Zeroize() {
 }
 
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
-	_, err := NewMLDSA87DescriptorFromDescriptorBytes(desc)
+	d, err := NewMLDSA87DescriptorFromDescriptorBytes(desc)
 	if err != nil {
 		return false
 	}
@@ -212,5 +210,5 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var pk2 [ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8
 	copy(pk2[:], pk[:])
 
-	return ml_dsa_87.Verify(ctx, message, sig, &pk2)
+	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, &pk2)
 }

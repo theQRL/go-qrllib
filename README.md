@@ -144,21 +144,35 @@ pk := signer.GetPK()
 valid := sphincsplus_256s.Verify(message, signature, &pk)
 ```
 
-### Wallet Layer (QRL Blockchain)
+### Wallet Layer (QRL V2.0)
 
-For QRL blockchain applications, use the wallet packages which handle address generation and descriptor formatting:
+The wallet packages wrap the crypto primitives with QRL-specific address derivation, a canonical descriptor, and a domain-separated signing context that cryptographically binds every signature to its wallet descriptor (see package docs for details).
 
 ```go
 import "github.com/theQRL/go-qrllib/wallet/ml_dsa_87"
 
-wallet, err := ml_dsa_87.NewWallet()
+// Create a fresh wallet, or restore from a mnemonic / extended seed.
+w, err := ml_dsa_87.NewWallet()
+// w, err := ml_dsa_87.NewWalletFromMnemonic(phrase)
+// w, err := ml_dsa_87.NewWalletFromHexExtendedSeed(hexSeed)
+if err != nil {
+    log.Fatal(err)
+}
+defer w.Zeroize()
+
+address := w.GetAddressStr()              // "Q" + hex(48 bytes)
+pk      := w.GetPK()
+desc    := w.GetDescriptor().ToDescriptor()
+
+sig, err := w.Sign(message)
 if err != nil {
     log.Fatal(err)
 }
 
-address := wallet.GetAddress()
-signature, err := wallet.Sign(message)
+ok := ml_dsa_87.Verify(message, sig[:], &pk, desc)
 ```
+
+The same API shape is available at `github.com/theQRL/go-qrllib/wallet/sphincsplus_256s`.
 
 ### `crypto.Signer` Interface (ML-DSA-87)
 
