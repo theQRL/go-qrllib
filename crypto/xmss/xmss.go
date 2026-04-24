@@ -15,13 +15,25 @@ type XMSS struct {
 }
 
 // InitializeTree creates a new XMSS tree with the specified parameters.
-// Returns an error if the height/k parameters are invalid for BDS traversal.
+// Returns an error if the height is outside the valid range (even values
+// between 2 and MaxHeight) or if the height/k parameters are invalid for
+// BDS traversal.
 //
 // XMSS is a stateful scheme: each call to Sign increments an internal index
 // that MUST be persisted to durable storage before the signature is used.
 // Reusing an index completely breaks the security of the scheme. See the
 // package documentation for safe usage patterns and recovery procedures.
 func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, error) {
+	// Validate the caller's Height at the API boundary. A caller may
+	// construct an out-of-range Height via a raw cast (e.g. xmss.Height(32))
+	// which bypasses the ToHeight/UInt32ToHeight validators; catching it
+	// here ensures we never attempt to derive a key from an invalid height
+	// and surfaces a deterministic error instead of silently producing a
+	// zero-rooted XMSS at signing time. (TOB-QRLLIB-2)
+	if !h.IsValid() {
+		return nil, cryptoerrors.ErrInvalidHeight
+	}
+
 	height := uint32(h)
 	sk := make([]uint8, 132)
 	pk := make([]uint8, 64)
@@ -30,6 +42,12 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	w := WOTSParamW
 	n := WOTSParamN
 
+	// BDS traversal requires height > k. Height.IsValid() accepts h=2 in line
+	// with the documented even-heights-in-[2,MaxHeight] contract, but the
+	// current WOTS parameters (k=2) mean h=2 cannot form a valid BDS state.
+	// The (height-k)%2 branch is unreachable under IsValid (even h minus
+	// even k is always even) but is retained as defense-in-depth against a
+	// future WOTS-parameter change.
 	if k >= height || (height-k)%2 == 1 {
 		return nil, cryptoerrors.ErrInvalidBDSParams
 	}

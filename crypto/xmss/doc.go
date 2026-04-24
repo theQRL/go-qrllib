@@ -47,7 +47,17 @@
 //
 // # Safe Usage Pattern
 //
-//	tree, err := xmss.InitializeTree(10, xmss.SHAKE_256, seed)
+// Always construct Height via xmss.ToHeight (or xmss.UInt32ToHeight) rather
+// than a raw cast such as xmss.Height(10). The helpers validate the value
+// against the allowed range (even integers in [2, MaxHeight]) and return a
+// typed error for invalid input; a raw cast bypasses that validation and
+// will be rejected at InitializeTree with ErrInvalidHeight.
+//
+//	height, err := xmss.ToHeight(10)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	tree, err := xmss.InitializeTree(height, xmss.SHAKE_256, seed)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}

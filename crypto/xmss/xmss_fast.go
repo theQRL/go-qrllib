@@ -8,9 +8,13 @@ import (
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
 
-	if xmssParams.h&1 == 1 {
-		//coverage:ignore
-		//rationale: InitializeTree validates height with BDS check which ensures even heights before calling this
+	// Defense-in-depth height validation (TOB-QRLLIB-2). InitializeTree
+	// validates Height at the public API boundary, but this function is
+	// also exported. Reject any height outside the valid even range
+	// [2, MaxHeight] so direct callers cannot reach treeHashSetup with
+	// an out-of-bounds height that would wrap on uint32 arithmetic and
+	// leave the Merkle root zero-initialised.
+	if xmssParams.h < 2 || xmssParams.h > uint32(MaxHeight) || xmssParams.h&1 == 1 {
 		return cryptoerrors.ErrInvalidHeight
 	}
 
@@ -113,6 +117,18 @@ func treeHashSetup(hashFunction HashFunction, node []uint8, index uint32, bdsSta
 	n := xmssParams.n
 	h := xmssParams.h
 	k := xmssParams.k
+
+	// Defense-in-depth (TOB-QRLLIB-2): both public constructors
+	// (InitializeTree, XMSSFastGenKeyPair) now validate h ∈ [2, MaxHeight]
+	// before reaching here. This guard exists as a tripwire against any
+	// future regression that removes one of those upstream checks, since
+	// h >= 32 would overflow (1 << h) below and silently produce a
+	// zero-rooted tree rather than a controlled failure.
+	if h < 2 || h > uint32(MaxHeight) || h&1 == 1 {
+		//coverage:ignore
+		//rationale: upstream constructors enforce this; tripwire only.
+		panic("xmss: treeHashSetup reached with invalid height; upstream validation was bypassed")
+	}
 
 	var otsAddr [8]uint32
 	var lTreeAddr [8]uint32
