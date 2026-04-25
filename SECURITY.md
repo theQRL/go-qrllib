@@ -89,6 +89,28 @@ This library assumes:
 
 **CRITICAL**: XMSS security is COMPLETELY BROKEN if the same index is used twice.
 
+#### Parameter-set provenance
+
+QRL's XMSS implementation predates the standardisation of XMSS in RFC 8391
+and the later parameter-set formalisation in NIST SP 800-208. The library
+exposes three hash-function options:
+
+| HashFunction | Status                                                      |
+|--------------|-------------------------------------------------------------|
+| `SHA2_256`   | RFC 8391 / SP 800-208 standard (XMSS-SHA2_*_256 family).    |
+| `SHAKE_256`  | RFC 8391 / SP 800-208 standard (XMSS-SHAKE_*_256 family).   |
+| `SHAKE_128`  | **QRL-specific extension, retained for legacy compatibility from QRL's pre-standardisation XMSS implementation.** Not part of NIST SP 800-208. With a 32-byte output it offers approximately 64-bit quantum security under a Grover-style attack — theoretically reduced relative to SHAKE_256 / SHA2_256 (~128-bit quantum), although the gap remains difficult to exploit in practice today. **Not recommended for new wallets.** Existing v1 mainnet addresses minted under SHAKE_128 must continue to be parseable, verifiable and signable, which is the only reason this option survives. |
+
+Signatures produced by go-qrllib for the **XMSS-SHA2_10_256** parameter
+set are RFC 8391 compliant and verify under the reference implementation
+(see `.github/cross-verify/README.md`). The seed-to-keypair derivation
+is QRL-specific (48-byte seed expanded via SHAKE-256 to the 96 bytes the
+reference takes directly), which is a key-derivation convention rather
+than a signature-format incompatibility.
+
+New signature issuance on QRL is moving to ML-DSA-87 (FIPS 204), which
+sidesteps these XMSS provenance concerns entirely.
+
 ### Dilithium (Pre-FIPS)
 
 | Property | Status |

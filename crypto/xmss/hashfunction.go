@@ -6,11 +6,35 @@ import (
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
+// HashFunction selects the underlying hash primitive used by the XMSS
+// construction. The supported values reflect QRL's pre-standardisation
+// XMSS implementation rather than the parameter sets formalised later
+// in NIST SP 800-208 — see the SHAKE_128 note below for the specific
+// non-standard case that is retained for legacy compatibility.
 type HashFunction uint8
 
 const (
+	// SHA2_256 — XMSS-SHA2_*_256 family per RFC 8391 / NIST SP 800-208.
 	SHA2_256 HashFunction = iota
+
+	// SHAKE_128 is a QRL-specific extension retained for legacy address
+	// compatibility from QRL's pre-standardisation XMSS implementation.
+	// It is NOT one of the parameter sets approved by NIST SP 800-208
+	// (which standardises only SHA2 and SHAKE_256 for XMSS) and is NOT
+	// recommended for new wallets: with a 32-byte output, SHAKE_128
+	// offers approximately 64-bit quantum security under a Grover-style
+	// attack, which is theoretically reduced relative to SHAKE_256 /
+	// SHA2_256 (~128-bit quantum), although the gap remains difficult
+	// to exploit in practice today.
+	//
+	// New issuance on QRL is moving to ML-DSA-87 (FIPS 204), which is
+	// unaffected by this consideration. Existing v1 mainnet addresses
+	// minted under SHAKE_128 must continue to be parseable, verifiable
+	// and signable; that is the only reason this enum entry survives.
+	// See SECURITY.md for the parameter-set provenance summary.
 	SHAKE_128
+
+	// SHAKE_256 — XMSS-SHAKE_*_256 family per RFC 8391 / NIST SP 800-208.
 	SHAKE_256
 )
 

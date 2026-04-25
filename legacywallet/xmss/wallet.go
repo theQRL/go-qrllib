@@ -18,6 +18,16 @@ type XMSSWallet struct {
 	xmss *xmss.XMSS
 }
 
+// NewWalletFromSeed constructs a legacy XMSS wallet from a raw seed,
+// height, hash function, and address format. Used both for fresh wallet
+// creation and for re-deriving an existing v1 address from its seed.
+//
+// hashFunction must be one of [xmss.SHA2_256], [xmss.SHAKE_128], or
+// [xmss.SHAKE_256]. SHAKE_128 is retained for QRL v1 legacy address
+// compatibility from the pre-standardisation XMSS implementation and is
+// not recommended for new wallets — see the package documentation and
+// [xmss.SHAKE_128] for the rationale. Existing SHAKE_128 addresses
+// remain fully recoverable and signable through this constructor.
 func NewWalletFromSeed(seed [SeedSize]uint8, height xmss.Height, hashFunction xmss.HashFunction, addrFormatType common.AddrFormatType) (*XMSSWallet, error) {
 	signatureType := legacywallet.WalletTypeXMSS // Signature Type hard coded for now
 	if height > xmss.MaxHeight {
@@ -58,6 +68,14 @@ func NewWalletFromExtendedSeed(extendedSeed [ExtendedSeedSize]uint8) (*XMSSWalle
 	}, nil
 }
 
+// NewWalletFromHeight generates a fresh XMSS wallet of the given height
+// using the supplied hashFunction and a system-random 48-byte seed.
+//
+// Same SHAKE_128 caveat as NewWalletFromSeed: SHAKE_128 is a QRL-specific
+// extension retained for legacy compatibility and is not recommended for
+// new wallets. Prefer SHAKE_256 (or SHA2_256) for any newly-created
+// XMSS wallet, and prefer ML-DSA-87 (FIPS 204) over XMSS for any new
+// signing identity that does not need to inherit a v1 address.
 func NewWalletFromHeight(height xmss.Height, hashFunction xmss.HashFunction) (*XMSSWallet, error) {
 	var seed [SeedSize]uint8
 	_, err := rand.Read(seed[:])
