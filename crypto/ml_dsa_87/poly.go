@@ -94,10 +94,18 @@ func polyChkNorm(a *poly, B int32) int {
 	// Branchless: accumulate whether any coefficient violates the bound
 	// without data-dependent branching. The sign extraction is constant-time;
 	// the violation flag avoids an early return that could leak timing info.
+	//
+	// Operator-precedence note (TOB-QRLLIB-9): in the FIPS 204 / Dilithium
+	// C reference the inner expression is written as `t & 2 * a->coeffs[i]`
+	// and relies on C's binding `*` tighter than `&`, evaluating as
+	// `t & (2 * a.coeffs[i])`. In Go, `*` and `&` share a precedence
+	// class, so the same source text would evaluate as `(t & 2) * a.coeffs[i]`
+	// — a different operation in general. The parentheses below pin the
+	// intended C grouping explicitly; do NOT remove them.
 	var violation int32
 	for i := 0; i < N; i++ {
 		t = a.coeffs[i] >> 31
-		t = a.coeffs[i] - (t & 2 * a.coeffs[i])
+		t = a.coeffs[i] - (t & (2 * a.coeffs[i]))
 		violation |= (B - 1 - t) >> 31
 	}
 
