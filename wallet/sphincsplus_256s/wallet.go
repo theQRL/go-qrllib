@@ -13,6 +13,55 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
+// experimental controls whether the SPHINCS+ wallet path is enabled.
+//
+// SPHINCSPLUS_256S is reserved in the QRL descriptor format as a forward
+// placeholder for QRL's eventual SLH-DSA (FIPS 205) adoption (see
+// [github.com/theQRL/go-qrllib/wallet/common/wallettype.WalletType.IsIssuable]).
+// Until SLH-DSA activation, public wallet constructors return
+// [common.ErrWalletTypeNotIssuable] and Verify returns false, regardless
+// of the underlying primitive being functional.
+//
+// Tests in this package (and other QRL test code that needs to exercise
+// the SPHINCS+ implementation end-to-end) enable the path via
+// EnableExperimentalForTesting in a TestMain shim so the implementation
+// stays continuously exercised. Activation in production is a one-line
+// change to the IsIssuable / IsVerifiable switches in the wallettype
+// package; toggling this variable is not the supported activation path.
+var experimental = false
+
+// EnableExperimentalForTesting flips the package-internal experimental
+// flag and returns the previous value, allowing test code to opt in to
+// SPHINCS+ wallet construction and verification while the type is gated
+// in production. Returns the previous value so callers can restore it.
+//
+// Production code MUST NOT call this. The supported activation path for
+// SLH-DSA (FIPS 205) goes through the IsIssuable / IsVerifiable switches
+// in [github.com/theQRL/go-qrllib/wallet/common/wallettype], not through
+// this helper. Ignoring this warning and calling this in a non-test context
+// will result in wallets and signatures that are not part of QRL's supported
+// production surface and may not be compatible with future activation
+// (which may carry parameter-set or layout differences).
+func EnableExperimentalForTesting(enabled bool) bool {
+	prev := experimental
+	experimental = enabled
+	return prev
+}
+
+// issuable reports whether wallet construction should proceed for
+// SPHINCSPLUS_256S today, combining the static type-level switch with
+// the in-package experimental flag.
+func issuable() bool {
+	return experimental || wallettype.SPHINCSPLUS_256S.IsIssuable()
+}
+
+// verifiable reports whether Verify should accept signatures under a
+// SPHINCSPLUS_256S descriptor today. Mirrors issuable for the
+// verification side.
+func verifiable() bool {
+	return experimental || wallettype.SPHINCSPLUS_256S.IsVerifiable()
+}
+
 type Wallet struct {
 	desc Descriptor
 	s    *sphincsplus_256s.SphincsPlus256s
@@ -37,6 +86,9 @@ func toSphincsPlus256sSeed(seed []byte) [sphincsplus_256s.CRYPTO_SEEDBYTES]uint8
 }
 
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
+	if !issuable() {
+		return nil, fmt.Errorf("%w: %s", common.ErrWalletTypeNotIssuable, wallettype.SPHINCSPLUS_256S)
+	}
 	desc, err := NewSphincsPlus256sDescriptor()
 	if err != nil {
 		//coverage:ignore
@@ -74,6 +126,9 @@ func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 }
 
 func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error) {
+	if !issuable() {
+		return nil, fmt.Errorf("%w: %s", common.ErrWalletTypeNotIssuable, wallettype.SPHINCSPLUS_256S)
+	}
 	desc, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDescriptorFromExtendedSeed, wallettype.SPHINCSPLUS_256S, err)
@@ -211,6 +266,9 @@ func (w *Wallet) Zeroize() {
 }
 
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
+	if !verifiable() {
+		return false
+	}
 	d, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(desc)
 	if err != nil {
 		return false

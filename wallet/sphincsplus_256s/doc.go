@@ -1,6 +1,29 @@
 // Package sphincsplus_256s provides a wallet implementation for SPHINCS+-256s
 // signatures on QRL V2.0.
 //
+// # Status: forward placeholder, not currently active
+//
+// SPHINCSPLUS_256S is reserved in the QRL descriptor format as a forward
+// placeholder for QRL's eventual adoption of the stateless hash-based
+// signature family — now standardised by NIST as SLH-DSA in FIPS 205. QRL
+// is awaiting the finalisation of the specific NIST-approved parameter set
+// it intends to adopt before enabling the wallet type for issuance.
+//
+// Until that activation:
+//
+//   - All public wallet constructors (NewWallet, NewWalletFromSeed, etc.)
+//     return [github.com/theQRL/go-qrllib/wallet/common.ErrWalletTypeNotIssuable].
+//   - [Verify] returns false regardless of signature material.
+//   - Descriptors with type SPHINCSPLUS_256S still parse via
+//     [github.com/theQRL/go-qrllib/wallet/common/descriptor.Descriptor.IsValid]
+//     so the on-wire layout does not need to change at activation time.
+//
+// The implementation below is otherwise complete and is exercised end-to-end
+// by the package test suite via an internal opt-in, so SLH-DSA activation
+// is a one-line change to the IsIssuable / IsVerifiable switches in the
+// wallettype package. See
+// [github.com/theQRL/go-qrllib/wallet/common/wallettype.WalletType.IsIssuable].
+//
 // This package wraps the low-level [github.com/theQRL/go-qrllib/crypto/sphincsplus_256s]
 // package and provides:
 //
