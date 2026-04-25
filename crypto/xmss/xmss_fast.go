@@ -68,7 +68,7 @@ func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uin
 	R := make([]uint8, n)
 	var otsAddr [8]uint32
 
-	prf(hashFunction, R, idxBytes32[:], skPRF, n)
+	prf(hashFunction, R, &idxBytes32, skPRF, n)
 	copy(hashKey[:n], R)
 	copy(hashKey[n:n+n], sk[4+3*n:4+3*n+n])
 	misc.ToByteBigEndian(hashKey[2*n:2*n+n], idx, n) // RFC 8391 requires big-endian encoding
@@ -220,7 +220,7 @@ func getSeed(hashFunction HashFunction, seed, skSeed []uint8, n uint32, addr *[8
 
 	// Generate pseudorandom value
 	misc.AddrToByte(&bytes, addr)
-	prf(hashFunction, seed, bytes[:], skSeed, n)
+	prf(hashFunction, seed, &bytes, skSeed, n)
 }
 
 func wOTSPKGen(hashFunction HashFunction, pk, sk []uint8, wOTSParams *WOTSParams, pubSeed []uint8, addr *[8]uint32) {
@@ -243,7 +243,7 @@ func expandSeed(hashFunction HashFunction, outSeeds, inSeeds []uint8, n, len uin
 	var ctr [32]uint8
 	for i := uint32(0); i < len; i++ {
 		misc.ToByteBigEndian(ctr[:], i, 32) // RFC 8391 requires big-endian encoding
-		prf(hashFunction, outSeeds[i*n:i*n+n], ctr[:], inSeeds, n)
+		prf(hashFunction, outSeeds[i*n:i*n+n], &ctr, inSeeds, n)
 	}
 }
 
@@ -266,11 +266,11 @@ func hashF(hashFunction HashFunction, out, in, pubSeed []uint8, addr *[8]uint32,
 
 	misc.SetKeyAndMask(addr, 0)
 	misc.AddrToByte(&byteAddr, addr)
-	prf(hashFunction, key, byteAddr[:], pubSeed, n)
+	prf(hashFunction, key, &byteAddr, pubSeed, n)
 
 	misc.SetKeyAndMask(addr, 1)
 	misc.AddrToByte(&byteAddr, addr)
-	prf(hashFunction, bitMask, byteAddr[:], pubSeed, n)
+	prf(hashFunction, bitMask, &byteAddr, pubSeed, n)
 
 	for i := uint32(0); i < n; i++ {
 		buf[i] = in[i] ^ bitMask[i]
