@@ -88,10 +88,21 @@ func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
 	}
+	// The decoded seed is secret material; wipe the heap-allocated
+	// intermediate buffer once we no longer need it. The fixed-size
+	// stack array `seed` is also wiped after key derivation completes —
+	// NewMLDSA87FromSeed copies it into the returned struct, so the
+	// local copy is no longer needed after that call. Best-effort under
+	// Go's memory model (see SECURITY.md and MLDSA87.Zeroize).
+	// (TOB-QRLLIB-10)
+	defer zeroBytes(unsizedSeed)
+
 	if len(unsizedSeed) != SEED_BYTES {
 		return nil, cryptoerrors.ErrInvalidSeed
 	}
 	var seed [SEED_BYTES]uint8
+	defer zeroBytes(seed[:])
+
 	copy(seed[:], unsizedSeed)
 	return NewMLDSA87FromSeed(seed)
 }
@@ -166,13 +177,34 @@ func ExtractSignature(signatureMessage []uint8) []uint8 {
 	return signatureMessage[:CRYPTO_BYTES]
 }
 
-// Zeroize clears sensitive key material from memory.
-// This should be called when the MLDSA87 instance is no longer needed.
+// Zeroize clears the secret-key and seed fields of the MLDSA87 instance.
+// Call this when the instance is no longer needed.
+//
+// # Guarantee boundary (best-effort under Go's memory model)
+//
+// Zeroisation in this library is **best-effort**, not absolute. Go's
+// runtime is free to copy values during garbage collection, escape
+// analysis, slice growth, or interface boxing; any such copy that
+// occurred before Zeroize executes is outside the library's control
+// and remains in memory until that copy is itself overwritten or
+// reclaimed. The package's [zeroBytes] helper uses [runtime.KeepAlive]
+// to defeat dead-store elimination for the explicit overwrite, which
+// addresses compiler-side erasure but not runtime-side duplication.
+//
+// What this means in practice:
+//
+//   - Calling Zeroize closes the obvious window where d.sk and d.seed
+//     sit in process memory after the keypair has finished being used.
+//     This is a useful defence-in-depth measure for short-lived signers
+//     and against memory-disclosure bugs in the host process.
+//   - It does NOT guarantee that no copy of the secret survives anywhere
+//     in the address space. Workloads with adversaries that have
+//     physical or kernel-level memory access (cold-boot, /proc/<pid>/mem,
+//     hibernation images, swap files) need a hardware security module
+//     for hard guarantees.
+//
+// See SECURITY.md ("Key Zeroization") for the full discussion.
 func (d *MLDSA87) Zeroize() {
-	for i := range d.sk {
-		d.sk[i] = 0
-	}
-	for i := range d.seed {
-		d.seed[i] = 0
-	}
+	zeroBytes(d.sk[:])
+	zeroBytes(d.seed[:])
 }

@@ -195,25 +195,58 @@ go test -v -run TestCanonicality ./crypto/...
 
 ### Key Zeroization
 
-All crypto types implement `Zeroize()` to clear sensitive material:
+All crypto types implement `Zeroize()` to clear the secret-key and seed
+fields of the instance. Internally these route through the package's
+shared `zeroBytes` helper so the wipe behaviour is defined in one place:
 
 ```go
 func (d *MLDSA87) Zeroize() {
-    for i := range d.sk {
-        d.sk[i] = 0
-    }
-    for i := range d.seed {
-        d.seed[i] = 0
-    }
+    zeroBytes(d.sk[:])
+    zeroBytes(d.seed[:])
 }
 ```
 
-In addition to instance-level `Zeroize()`, signing functions automatically zeroize secret temporaries via deferred cleanup when they return. This reduces the window for secrets persisting in freed memory between signing operations:
+`zeroBytes` overwrites the slice in place and uses `runtime.KeepAlive`
+to prevent the compiler from eliding the writes as a dead store.
 
-- **ML-DSA-87 / Dilithium**: `key`, `rhoPrime`, `s1`, `s2`, `t0`
+In addition to instance-level `Zeroize()`, both **signing AND key-generation** paths
+automatically zeroise their secret temporaries via deferred cleanup
+when they return. This reduces the window for secret intermediates
+persisting in freed memory:
+
+- **ML-DSA-87 / Dilithium signing** (`cryptoSignSignatureInternal`): `key`, `rhoPrime`, `s1`, `s2`, `t0`
+- **ML-DSA-87 key generation** (`cryptoSignKeypair`): `key`, `rhoPrime`, `s1`, `s1hat`, `s2`, `t0`
+- **ML-DSA-87 hex-seed parsing** (`NewMLDSA87FromHexSeed`): the heap-allocated `unsizedSeed` byte slice and the temporary fixed-size seed array
 - **SPHINCS+**: `ctx.SkSeed`
 
-**Limitation**: Go's garbage collector may copy memory before zeroization. For highest security, use hardware security modules.
+#### Guarantee boundary (best-effort under Go's memory model)
+
+Zeroisation in this library is **best-effort**, not absolute. Go's
+runtime may copy values during garbage collection, escape analysis,
+slice growth, or interface boxing; any such copy that occurred
+*before* the zeroisation executes is outside the library's control
+and remains in memory until that copy is itself overwritten or
+reclaimed. The `runtime.KeepAlive` calls in `zeroBytes` and the
+`zeroPoly` family defeat **dead-store elimination by the compiler**
+for the explicit overwrite, but they do **not** address
+**runtime-side duplication** of the underlying data.
+
+What this means in practice:
+
+- Calling `Zeroize` (or letting a signing-path defer fire) closes the
+  obvious window where secret material sits in process memory after
+  it has finished being used. This is a useful defence-in-depth
+  measure for short-lived signers and against memory-disclosure bugs
+  in the host process.
+- It does **NOT** guarantee that no copy of the secret survives
+  anywhere in the address space. Workloads with adversaries that
+  have physical or kernel-level memory access (cold-boot attacks,
+  `/proc/<pid>/mem`, hibernation images, swap files) need a
+  hardware security module for hard guarantees.
+
+For highest security, combine in-library zeroisation with HSM-backed
+key storage, locked memory pages (`mlock`/`VirtualLock`), and
+swap-disabled hosts.
 
 ---
 
