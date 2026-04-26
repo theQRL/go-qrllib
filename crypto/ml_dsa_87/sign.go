@@ -423,6 +423,12 @@ func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, p
 }
 
 func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11). The public Verify/Open
+	// wrappers also check, but this internal entry point is reachable
+	// from crypto.Signer (via cryptoSign etc.) and any future caller.
+	if pk == nil {
+		return false, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(ctx) > 255 {
 		return false, cryptoerrors.ErrInvalidContext
 	}
@@ -436,6 +442,10 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYP
 }
 
 func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11); see cryptoSignVerify.
+	if pk == nil {
+		return nil, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(sm) < CRYPTO_BYTES {
 		return nil, nil
 	}

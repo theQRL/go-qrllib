@@ -284,6 +284,29 @@ For production XMSS usage:
 
 ---
 
+## API Precondition Guarantees
+
+Every public verification and "open" function in the library treats malformed inputs as a refusal, **never as a panic**. The following preconditions are checked at the API boundary:
+
+| Function | Nil public key | Wrong-size signature | Oversized context |
+|----------|----------------|----------------------|-------------------|
+| `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` |
+| `crypto/ml_dsa_87.Open` | returns `nil` | returns `nil` | returns `nil` |
+| `crypto/dilithium.Verify` | returns `false` | returns `false` | n/a |
+| `crypto/dilithium.Open` | returns `nil` | returns `nil` | n/a |
+| `crypto/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a |
+| `crypto/sphincsplus_256s.Open` | returns `nil` | returns `nil` | n/a |
+| `crypto/xmss.Verify` | n/a (slice; len-checked) | returns `false` | n/a |
+| `legacywallet/xmss.Verify` | n/a (value type) | returns `false` | n/a |
+| `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a |
+| `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a |
+
+Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same nil-PK guard as defense-in-depth and surface it as `cryptoerrors.ErrPublicKeyNil` for callers that need to distinguish "signature invalid" from "wallet type not currently supported" or "public key not provided".
+
+This contract was tightened during the TOB-QRLLIB-11 remediation; regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk path with a recover-and-fail-on-panic harness so a future edit that removes the guard fails CI immediately.
+
+---
+
 ## Dependency Security
 
 ### Direct Dependencies

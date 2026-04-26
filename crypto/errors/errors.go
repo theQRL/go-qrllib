@@ -16,6 +16,7 @@ var (
 var (
 	ErrInvalidPublicKey  = errors.New("invalid public key")
 	ErrInvalidSecretKey  = errors.New("invalid secret key")
+	ErrPublicKeyNil      = errors.New("public key is nil")
 	ErrSecretKeyNil      = errors.New("secret key is nil")
 	ErrSecretKeyZeroized = errors.New("secret key is zeroized")
 	ErrKeyGeneration     = errors.New("key generation failed")

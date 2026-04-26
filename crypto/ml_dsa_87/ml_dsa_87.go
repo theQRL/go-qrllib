@@ -143,15 +143,22 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 }
 
 // Open the sealed message m. Returns the original message sealed with signature.
-// In case the signature is invalid, nil is returned.
+// Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
 func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
+	if pk == nil {
+		return nil
+	}
 	msg, _ := cryptoSignOpen(signatureMessage, ctx, pk)
 	return msg
 }
 
 // Verify checks the signature against the message and public key with the given context.
 // The ctx parameter must match the context used during signing (FIPS 204 requirement).
+// Returns false if pk is nil rather than panicking. (TOB-QRLLIB-11)
 func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
+	if pk == nil {
+		return false
+	}
 	result, err := cryptoSignVerify(signature, message, ctx, pk)
 	if err != nil {
 		return false

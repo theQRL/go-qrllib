@@ -265,8 +265,14 @@ func (w *Wallet) Zeroize() {
 	w.s.Zeroize()
 }
 
+// Verify reports whether the signature is a valid SPHINCS+-256s signature
+// over message under pk and the descriptor-bound signing context.
+// Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if !verifiable() {
+		return false
+	}
+	if pk == nil {
 		return false
 	}
 	d, err := NewSphincsPlus256sDescriptorFromDescriptorBytes(desc)

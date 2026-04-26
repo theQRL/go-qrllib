@@ -332,6 +332,14 @@ func cryptoSign(msg []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigni
 // Returns (true, nil) if signature is valid, (false, nil) if invalid,
 // or (false, error) if verification encountered an error.
 func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11). The public Verify/Open
+	// wrappers also check, but this internal entry point is reachable
+	// from any future caller; refusing nil here prevents a panic in
+	// unpackPk below.
+	if pk == nil {
+		return false, cryptoerrors.ErrPublicKeyNil
+	}
+
 	var buf [K * POLY_W1_PACKED_BYTES]uint8
 	var rho, c, c2 [SEED_BYTES]uint8
 	var mu [CRH_BYTES]uint8
@@ -427,6 +435,10 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, pk *[CRYPTO_PUBLIC_KEY
 // The signed message format is signature || message (attached signature).
 // Returns the original message if valid, or nil if verification fails.
 func cryptoSignOpen(sm []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11); see cryptoSignVerify.
+	if pk == nil {
+		return nil, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(sm) < CRYPTO_BYTES {
 		return nil, nil
 	}
