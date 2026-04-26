@@ -241,7 +241,7 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			}
 
 			// Seal
-			sealed, err := mldsa.Seal(ctx, msg)
+			sealed, err := mldsa.SignAttached(ctx, msg)
 			if err != nil {
 				t.Fatalf("Failed to seal: %v", err)
 			}

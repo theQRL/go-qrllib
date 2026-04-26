@@ -38,7 +38,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	}
 
 	// Seal/Open empty message
-	sealed, err := spx.Seal(emptyMsg)
+	sealed, err := spx.SignAttached(emptyMsg)
 	if err != nil {
 		t.Fatalf("Failed to seal empty message: %v", err)
 	}

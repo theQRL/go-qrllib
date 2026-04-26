@@ -153,7 +153,7 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 	sealedMsgs := make([][]byte, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
 		msg := []byte("message " + string(rune(i)))
-		sealed, err := mldsa.Seal(ctx, msg)
+		sealed, err := mldsa.SignAttached(ctx, msg)
 		if err != nil {
 			t.Fatalf("Failed to seal: %v", err)
 		}
@@ -165,7 +165,7 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			msg := []byte("concurrent message")
-			_, err := mldsa.Seal(ctx, msg)
+			_, err := mldsa.SignAttached(ctx, msg)
 			if err != nil {
 				t.Errorf("Concurrent seal failed: %v", err)
 			}
@@ -195,7 +195,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 
 	msg := []byte("test message")
 	ctx := []byte{}
-	sealed, err := mldsa.Seal(ctx, msg)
+	sealed, err := mldsa.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatalf("Failed to seal: %v", err)
 	}

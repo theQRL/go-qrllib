@@ -150,7 +150,7 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 	sealedMsgs := make([][]byte, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
 		msg := []byte("message " + string(rune(i)))
-		sealed, err := dil.Seal(msg)
+		sealed, err := dil.SignAttached(msg)
 		if err != nil {
 			t.Fatalf("Failed to seal: %v", err)
 		}
@@ -162,7 +162,7 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			msg := []byte("concurrent message")
-			_, err := dil.Seal(msg)
+			_, err := dil.SignAttached(msg)
 			if err != nil {
 				t.Errorf("Concurrent seal failed: %v", err)
 			}
@@ -191,7 +191,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 	}
 
 	msg := []byte("test message")
-	sealed, err := dil.Seal(msg)
+	sealed, err := dil.SignAttached(msg)
 	if err != nil {
 		t.Fatalf("Failed to seal: %v", err)
 	}

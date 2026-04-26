@@ -236,7 +236,7 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			}
 
 			// Seal
-			sealed, err := spx.Seal(msg)
+			sealed, err := spx.SignAttached(msg)
 			if err != nil {
 				t.Fatalf("Failed to seal: %v", err)
 			}

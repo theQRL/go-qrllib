@@ -205,7 +205,7 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			}
 
 			// Seal
-			sealed, err := dil.Seal(msg)
+			sealed, err := dil.SignAttached(msg)
 			if err != nil {
 				t.Fatalf("Failed to seal: %v", err)
 			}

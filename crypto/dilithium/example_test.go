@@ -64,44 +64,47 @@ func ExampleNewDilithiumFromSeed() {
 	// Output: Public key generated: true
 }
 
-// ExampleDilithium_Seal demonstrates the Seal operation (sign + prepend).
-func ExampleDilithium_Seal() {
+// ExampleDilithium_SignAttached demonstrates the attached-signature
+// variant: the returned byte string is `signature || message`. There is
+// no confidentiality — the message bytes are embedded in the result in
+// the clear.
+func ExampleDilithium_SignAttached() {
 	d, _ := dilithium.New()
 	defer d.Zeroize()
 
-	message := []byte("confidential data")
+	message := []byte("example transaction payload")
 
-	// Seal prepends the signature to the message
-	sealed, err := d.Seal(message)
+	// SignAttached returns signature || message in a single buffer.
+	signed, err := d.SignAttached(message)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	// Sealed message is signature || message
-	fmt.Printf("Sealed length: %d (signature: %d + message: %d)\n",
-		len(sealed), dilithium.CRYPTO_BYTES, len(message))
-	// Output: Sealed length: 4612 (signature: 4595 + message: 17)
+	fmt.Printf("Signed length: %d (signature: %d + message: %d)\n",
+		len(signed), dilithium.CRYPTO_BYTES, len(message))
+	// Output: Signed length: 4622 (signature: 4595 + message: 27)
 }
 
-// ExampleOpen demonstrates verifying and extracting a sealed message.
+// ExampleOpen demonstrates verifying an attached-signature byte string
+// and recovering the plaintext message.
 func ExampleOpen() {
 	d, _ := dilithium.New()
 	defer d.Zeroize()
 
-	original := []byte("secret message")
-	sealed, _ := d.Seal(original)
+	original := []byte("example transaction payload")
+	signed, _ := d.SignAttached(original)
 
-	// Open verifies and extracts the message
+	// Open verifies and returns the recovered message
 	pk := d.GetPK()
-	message := dilithium.Open(sealed, &pk)
+	message := dilithium.Open(signed, &pk)
 	if message == nil {
 		fmt.Println("Verification failed")
 		return
 	}
 
 	fmt.Println("Recovered:", string(message))
-	// Output: Recovered: secret message
+	// Output: Recovered: example transaction payload
 }
 
 // ExampleVerify demonstrates signature verification.

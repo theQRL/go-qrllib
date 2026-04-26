@@ -110,7 +110,7 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 
 	// Pre-create one sealed message (SPHINCS+ seal is very slow ~7s)
 	msg := []byte("test message for seal/open")
-	sealed, err := spx.Seal(msg)
+	sealed, err := spx.SignAttached(msg)
 	if err != nil {
 		t.Fatalf("Failed to seal: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 	}
 
 	msg := []byte("test message")
-	sealed, err := spx.Seal(msg)
+	sealed, err := spx.SignAttached(msg)
 	if err != nil {
 		t.Fatalf("Failed to seal: %v", err)
 	}

@@ -87,8 +87,16 @@ func (d *Dilithium) GetHexSeed() string {
 	return "0x" + hex.EncodeToString(seed[:])
 }
 
-// Seal the message, returns signature attached with message.
-func (d *Dilithium) Seal(message []uint8) ([]uint8, error) {
+// SignAttached signs message and returns `signature || message` as a
+// single attached-signature byte string.
+//
+// Use [Dilithium.Sign] (and [Verify]) for the *detached* form;
+// SignAttached (and [Open]) is the attached-signature variant.
+//
+// SignAttached has no confidentiality property; the message bytes are
+// embedded in the result in the clear. Renamed from Seal in
+// TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
+func (d *Dilithium) SignAttached(message []uint8) ([]uint8, error) {
 	return cryptoSign(message, &d.sk, d.randomizedSigning)
 }
 
@@ -104,7 +112,14 @@ func (d *Dilithium) Sign(message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	return signature, err
 }
 
-// Open the sealed message m. Returns the original message sealed with signature.
+// Open verifies an attached-signature byte string produced by
+// [Dilithium.SignAttached] (i.e. `signature || message`) under pk and
+// returns the recovered plaintext message on success.
+//
+// The returned message is the same bytes that were originally signed —
+// it is *not* decrypted; this scheme has no confidentiality property,
+// the message bytes were already in plaintext inside signatureMessage.
+//
 // Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
 func Open(signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
 	if pk == nil {

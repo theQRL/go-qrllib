@@ -167,12 +167,12 @@ func TestMLDSA87_GetHexSeed(t *testing.T) {
 	}
 }
 
-func TestMLDSA87_Seal(t *testing.T) {
+func TestMLDSA87_SignAttached(t *testing.T) {
 	ctx := []uint8("randomContext")
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
 	d := newMLDSA87FromSeed(t, HexSeed)
-	signatureMessage, err := d.Seal(ctx, msg)
+	signatureMessage, err := d.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal", err.Error())
 	}
@@ -190,7 +190,7 @@ func TestMLDSA87_Open(t *testing.T) {
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
 	d := newMLDSA87FromSeed(t, HexSeed)
-	signatureMessage, err := d.Seal(ctx, msg)
+	signatureMessage, err := d.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal", err.Error())
 	}
@@ -254,7 +254,7 @@ func TestExtractMessage(t *testing.T) {
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 	d := newMLDSA87FromSeed(t, HexSeed)
 
-	signatureMessage, err := d.Seal(ctx, msg)
+	signatureMessage, err := d.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal message: ", err.Error())
 	}
@@ -270,7 +270,7 @@ func TestExtractSignature(t *testing.T) {
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 	d := newMLDSA87FromSeed(t, HexSeed)
 
-	signatureMessage, err := d.Seal(ctx, msg)
+	signatureMessage, err := d.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatal("failed to seal message: ", err.Error())
 	}

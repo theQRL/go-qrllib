@@ -21,7 +21,7 @@ func fixtureSign(t *testing.T) (msg []byte, sig [params.SPX_BYTES]uint8, sealed 
 	if err != nil {
 		t.Fatalf("setup: Sign failed: %v", err)
 	}
-	sealed, err = s.Seal(msg)
+	sealed, err = s.SignAttached(msg)
 	if err != nil {
 		t.Fatalf("setup: Seal failed: %v", err)
 	}

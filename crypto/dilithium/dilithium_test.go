@@ -219,7 +219,7 @@ func TestDilithium_GetHexSeed(t *testing.T) {
 	}
 }
 
-func TestDilithium_Seal(t *testing.T) {
+func TestDilithium_SignAttached(t *testing.T) {
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
 	binUnsizeSeed, err := hex.DecodeString(HexSeed)
@@ -233,7 +233,7 @@ func TestDilithium_Seal(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
@@ -252,7 +252,7 @@ func TestDilithium_Seal(t *testing.T) {
 
 	// Verify determinism - same seed, same message should produce same sealed result
 	d2, _ := NewDilithiumFromSeed(binSeed)
-	signatureMessage2, _ := d2.Seal(msg)
+	signatureMessage2, _ := d2.SignAttached(msg)
 	if hex.EncodeToString(signatureMessage) != hex.EncodeToString(signatureMessage2) {
 		t.Error("seal operation is not deterministic")
 	}
@@ -272,7 +272,7 @@ func TestDilithium_Open(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
@@ -382,7 +382,7 @@ func TestExtractMessage(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
@@ -413,7 +413,7 @@ func TestExtractSignature(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}

@@ -33,7 +33,7 @@ func fixtureSign(t *testing.T) (msg []byte, ctx []byte, sig [CRYPTO_BYTES]uint8,
 	if err != nil {
 		t.Fatalf("setup: Sign failed: %v", err)
 	}
-	sealed, err = mldsa.Seal(ctx, msg)
+	sealed, err = mldsa.SignAttached(ctx, msg)
 	if err != nil {
 		t.Fatalf("setup: Seal failed: %v", err)
 	}

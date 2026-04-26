@@ -56,7 +56,7 @@ func BenchmarkVerify(b *testing.B) {
 }
 
 // Benchmark seal (sign + attach message)
-func BenchmarkSeal(b *testing.B) {
+func BenchmarkSignAttached(b *testing.B) {
 	dil, err := New()
 	if err != nil {
 		b.Fatal(err)
@@ -66,7 +66,7 @@ func BenchmarkSeal(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := dil.Seal(msg)
+		_, err := dil.SignAttached(msg)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func BenchmarkOpen(b *testing.B) {
 	}
 
 	msg := []byte("benchmark message for opening")
-	sealed, err := dil.Seal(msg)
+	sealed, err := dil.SignAttached(msg)
 	if err != nil {
 		b.Fatal(err)
 	}

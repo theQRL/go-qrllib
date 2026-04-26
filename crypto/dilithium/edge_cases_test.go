@@ -31,7 +31,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	}
 
 	// Seal/Open empty message
-	sealed, err := dil.Seal(emptyMsg)
+	sealed, err := dil.SignAttached(emptyMsg)
 	if err != nil {
 		t.Fatalf("Failed to seal empty message: %v", err)
 	}

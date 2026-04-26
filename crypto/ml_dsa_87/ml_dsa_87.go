@@ -124,8 +124,19 @@ func (d *MLDSA87) GetHexSeed() string {
 	return "0x" + hex.EncodeToString(seed[:])
 }
 
-// Seal the message, returns signature attached with message.
-func (d *MLDSA87) Seal(ctx, message []uint8) ([]uint8, error) {
+// SignAttached signs message with the FIPS 204 context ctx and returns
+// `signature || message` as a single attached-signature byte string.
+//
+// Use [MLDSA87.Sign] (and [Verify]) for the *detached* form, where the
+// signature and message are kept as separate values; use SignAttached
+// (and [Open]) when a single self-contained byte string is convenient
+// — for example when storing or transmitting a signed message over a
+// channel that does not have a place for a side-channel signature.
+//
+// SignAttached has no confidentiality property; the message bytes are
+// embedded in the result in the clear. Renamed from Seal in
+// TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
+func (d *MLDSA87) SignAttached(ctx, message []uint8) ([]uint8, error) {
 	return cryptoSign(message, ctx, &d.sk, d.randomizedSigning)
 }
 
@@ -142,7 +153,15 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	return signature, err
 }
 
-// Open the sealed message m. Returns the original message sealed with signature.
+// Open verifies an attached-signature byte string produced by
+// [MLDSA87.SignAttached] (i.e. `signature || message`) under pk and the
+// FIPS 204 context ctx, and returns the recovered plaintext message on
+// success.
+//
+// The returned message is the same bytes that were originally signed —
+// it is *not* decrypted; this scheme has no confidentiality property,
+// the message bytes were already in plaintext inside signatureMessage.
+//
 // Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
 func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
 	if pk == nil {

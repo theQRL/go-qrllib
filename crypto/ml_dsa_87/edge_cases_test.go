@@ -33,7 +33,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	}
 
 	// Seal/Open empty message
-	sealed, err := mldsa.Seal(ctx, emptyMsg)
+	sealed, err := mldsa.SignAttached(ctx, emptyMsg)
 	if err != nil {
 		t.Fatalf("Failed to seal empty message: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 			t.Error("Sign should fail with context > 255 bytes")
 		}
 
-		_, err = mldsa.Seal(longCtx, msg)
+		_, err = mldsa.SignAttached(longCtx, msg)
 		if err == nil {
 			t.Error("Seal should fail with context > 255 bytes")
 		}
