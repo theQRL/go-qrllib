@@ -58,5 +58,17 @@ func coreHash(hashFunction HashFunction, out []uint8, typeValue uint32, key []ui
 		misc.SHAKE256(out, buf)
 	case SHA2_256:
 		misc.SHA256(out, buf)
+	default:
+		//coverage:ignore
+		//rationale: tripwire only. Every public XMSS constructor
+		//(InitializeTree, legacywallet/xmss.NewWalletFromSeed,
+		//NewWalletFromExtendedSeed) validates HashFunction.IsValid() at
+		//entry, so an invalid value cannot reach here through any
+		//supported call path. The audit (TOB-QRLLIB-13) flagged this
+		//switch as the silent-zero-output dispatch site; if a future
+		//edit removes one of the upstream guards, this panic surfaces
+		//immediately rather than producing a degenerate zero-rooted
+		//XMSS that would cross-verify with other invalid keys.
+		panic("xmss: coreHash dispatched on invalid HashFunction; upstream validation was bypassed")
 	}
 }

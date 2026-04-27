@@ -15,15 +15,28 @@ type XMSS struct {
 }
 
 // InitializeTree creates a new XMSS tree with the specified parameters.
-// Returns an error if the height is outside the valid range (even values
-// between 2 and MaxHeight) or if the height/k parameters are invalid for
-// BDS traversal.
+// Returns an error if the hashFunction is not one of the recognised
+// values, if the height is outside the valid range (even values between
+// 2 and MaxHeight), or if the height/k parameters are invalid for BDS
+// traversal.
 //
 // XMSS is a stateful scheme: each call to Sign increments an internal index
 // that MUST be persisted to durable storage before the signature is used.
 // Reusing an index completely breaks the security of the scheme. See the
 // package documentation for safe usage patterns and recovery procedures.
 func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, error) {
+	// Validate the caller's HashFunction at the API boundary. A caller
+	// may construct an out-of-range HashFunction via a raw cast (e.g.
+	// xmss.HashFunction(99)) which bypasses ToHashFunction's validation;
+	// without this guard the coreHash switch falls through and leaves
+	// the output buffer zero-initialised, producing a degenerate
+	// zero-rooted XMSS whose signatures would cross-verify with any
+	// other invalid-hash-function key derived from a different seed.
+	// This is the primary fix for TOB-QRLLIB-13.
+	if !hashFunction.IsValid() {
+		return nil, cryptoerrors.ErrInvalidHashFunction
+	}
+
 	// Validate the caller's Height at the API boundary. A caller may
 	// construct an out-of-range Height via a raw cast (e.g. xmss.Height(32))
 	// which bypasses the ToHeight/UInt32ToHeight validators; catching it
@@ -60,6 +73,31 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 		//rationale: XMSSFastGenKeyPair only fails for odd heights, but BDS check above ensures heights are even
 		return nil, cryptoerrors.ErrKeyGeneration
 	}
+
+	// Post-construction invariant (TOB-QRLLIB-13): the Merkle root must
+	// be non-zero for any well-formed key. A zero root is the signature
+	// of the degenerate state described in the audit (invalid hash
+	// dispatch left buffers zeroed). The hashFunction.IsValid() guard
+	// above already prevents that path, but this defence-in-depth check
+	// catches any *other* future regression in the key-derivation
+	// pipeline that produces an unconstructed root.
+	rootStart := offsetRoot
+	rootEnd := rootStart + 32
+	allZero := true
+	for i := rootStart; i < rootEnd; i++ {
+		if sk[i] != 0 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		//coverage:ignore
+		//rationale: tripwire only — upstream HashFunction.IsValid() and Height.IsValid()
+		//guards prevent the degenerate-root path; this would only fire if a future
+		//edit silently re-introduced the bug.
+		return nil, cryptoerrors.ErrKeyGeneration
+	}
+
 	return &XMSS{
 		xmssParams,
 		hashFunction,

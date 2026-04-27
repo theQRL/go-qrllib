@@ -288,6 +288,15 @@ For production XMSS usage:
 
 Every public verification and "open" function in the library treats malformed inputs as a refusal, **never as a panic**. The following preconditions are checked at the API boundary:
 
+### Panic policy
+
+The library distinguishes two failure classes:
+
+* **Malformed user input** — nil pointers, wrong-size buffers, unsupported parameter values supplied through the public API. Always surfaces as a typed error or a `false` / `nil` return; **never panics**. The tables below enumerate the specific cases.
+* **Invariant violations** — internal preconditions that should never fail if the rest of the library is correct (e.g. an unrecognised `HashFunction` reaching the dispatch switch *after* the public constructor's validation guard, or `xmss/params.go`'s `logW` switch reaching its impossible default). These **panic with a clear message**; they exist as crash-early tripwires so that any future regression which bypasses an upstream guard fails loudly in tests rather than silently corrupting key material in production.
+
+Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter values), `crypto/xmss/hash.go:coreHash` (HashFunction dispatch), `crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), and several SHAKE I/O sites in `crypto/sphincsplus_256s/hash_shake.go` (cryptographic-primitive errors that the SHA-3 contract guarantees do not occur). All carry comments explaining what upstream invariant is being enforced.
+
 | Function | Nil public key | Wrong-size signature | Oversized context |
 |----------|----------------|----------------------|-------------------|
 | `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` |
@@ -303,7 +312,26 @@ Every public verification and "open" function in the library treats malformed in
 
 Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same nil-PK guard as defense-in-depth and surface it as `cryptoerrors.ErrPublicKeyNil` for callers that need to distinguish "signature invalid" from "wallet type not currently supported" or "public key not provided".
 
-This contract was tightened during the TOB-QRLLIB-11 remediation; regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk path with a recover-and-fail-on-panic harness so a future edit that removes the guard fails CI immediately.
+Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk path with a recover-and-fail-on-panic harness so a future edit that removes the guard fails CI immediately.
+
+### Constructor preconditions (XMSS parameter validation)
+
+XMSS constructors additionally validate parameter-set identifiers at the API boundary. The contract is: every exported XMSS constructor MUST call `HashFunction.IsValid()` and `Height.IsValid()` on its caller-supplied values *before* deriving any key material; an invalid value MUST surface as a typed error (`cryptoerrors.ErrInvalidHashFunction` or `cryptoerrors.ErrInvalidHeight`) rather than producing a degenerate zero-rooted XMSS at signing time.
+
+| Constructor | HashFunction validated | Height validated |
+|-------------|------------------------|------------------|
+| `crypto/xmss.InitializeTree` | yes | yes |
+| `crypto/xmss.XMSSFastGenKeyPair` | yes (via internal dispatch tripwire — see below) | yes |
+| `legacywallet/xmss.NewWalletFromSeed` | yes (defence-in-depth) | yes (existing `height > MaxHeight` check) |
+| `legacywallet/xmss.NewWalletFromExtendedSeed` | yes (via descriptor parser → `xmss.ToHashFunction`) | yes (same path) |
+| `legacywallet/xmss.NewWalletFromHeight` | yes (delegates to `NewWalletFromSeed`) | yes (same) |
+
+Two internal defence-in-depth tripwires back the contract:
+
+1. **`crypto/xmss.coreHash`** — its dispatch `switch` carries a `default:` panic that fires immediately if any future regression lets an invalid `HashFunction` reach the hash function with no upstream guard. Without this default case the buffer would be left zero-initialised (the original audit defect).
+2. **`crypto/xmss.InitializeTree`** post-construction non-zero-root check — asserts the constructed Merkle root is not all-zero before returning the XMSS. Catches any *other* future regression in the key-derivation pipeline that produces an unconstructed root.
+
+Regression tests live in `crypto/xmss/hash_function_validation_test.go` and `legacywallet/xmss/hash_function_validation_test.go`; together they cover every invalid `uint8` value cast to `HashFunction`, the `coreHash` tripwire, and a positive cross-seed-distinct-roots invariant for each valid hash function.
 
 ---
 

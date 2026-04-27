@@ -8,6 +8,7 @@ import (
 	misc2 "github.com/theQRL/go-qrllib/wallet/misc"
 
 	"github.com/theQRL/go-qrllib/common"
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/xmss"
 	"github.com/theQRL/go-qrllib/legacywallet"
 )
@@ -29,6 +30,15 @@ type XMSSWallet struct {
 // [xmss.SHAKE_128] for the rationale. Existing SHAKE_128 addresses
 // remain fully recoverable and signable through this constructor.
 func NewWalletFromSeed(seed [SeedSize]uint8, height xmss.Height, hashFunction xmss.HashFunction, addrFormatType common.AddrFormatType) (*XMSSWallet, error) {
+	// Defense-in-depth (TOB-QRLLIB-13): refuse an invalid HashFunction
+	// before constructing the descriptor. crypto/xmss.InitializeTree
+	// also gates this, but rejecting at the wallet boundary surfaces a
+	// wallet-typed error to the caller and avoids constructing a
+	// QRLDescriptor that would never produce a usable key.
+	if !hashFunction.IsValid() {
+		return nil, fmt.Errorf("invalid hash function: %w", cryptoerrors.ErrInvalidHashFunction)
+	}
+
 	signatureType := legacywallet.WalletTypeXMSS // Signature Type hard coded for now
 	if height > xmss.MaxHeight {
 		return nil, fmt.Errorf("height %d exceeds maximum %d", height, xmss.MaxHeight)
