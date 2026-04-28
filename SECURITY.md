@@ -297,22 +297,32 @@ The library distinguishes two failure classes:
 
 Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter values), `crypto/xmss/hash.go:coreHash` (HashFunction dispatch), `crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), and several SHAKE I/O sites in `crypto/sphincsplus_256s/hash_shake.go` (cryptographic-primitive errors that the SHA-3 contract guarantees do not occur). All carry comments explaining what upstream invariant is being enforced.
 
-| Function | Nil public key | Wrong-size signature | Oversized context |
-|----------|----------------|----------------------|-------------------|
-| `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` |
-| `crypto/ml_dsa_87.Open` | returns `nil` | returns `nil` | returns `nil` |
-| `crypto/dilithium.Verify` | returns `false` | returns `false` | n/a |
-| `crypto/dilithium.Open` | returns `nil` | returns `nil` | n/a |
-| `crypto/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a |
-| `crypto/sphincsplus_256s.Open` | returns `nil` | returns `nil` | n/a |
-| `crypto/xmss.Verify` | n/a (slice; len-checked) | returns `false` | n/a |
-| `legacywallet/xmss.Verify` | n/a (value type) | returns `false` | n/a |
-| `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a |
-| `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a |
+| Function | Nil public key | Wrong-size signature | Oversized context | Verification failure |
+|----------|----------------|----------------------|-------------------|----------------------|
+| `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` | returns `false` |
+| `crypto/ml_dsa_87.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | `(nil, ErrInvalidContext)` | `(nil, ErrInvalidSignature)` |
+| `crypto/dilithium.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/dilithium.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
+| `crypto/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/sphincsplus_256s.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
+| `crypto/xmss.Verify` | n/a (slice; len-checked) | returns `false` | n/a | returns `false` |
+| `legacywallet/xmss.Verify` | n/a (value type) | returns `false` | n/a | returns `false` |
+| `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 
-Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same nil-PK guard as defense-in-depth and surface it as `cryptoerrors.ErrPublicKeyNil` for callers that need to distinguish "signature invalid" from "wallet type not currently supported" or "public key not provided".
+The crypto-level `Open` functions return `([]byte, error)`. Each failure mode surfaces a distinct typed sentinel from `cryptoerrors`, so callers that need to log or route on specific failure types can use `errors.Is(err, cryptoerrors.ErrPublicKeyNil)` etc. Callers that don't care which failure occurred can write `msg, _ := Open(...)` and treat `msg == nil` as "did not verify".
+
+Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same nil-PK guard as defense-in-depth and surface the same typed sentinels.
 
 Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk path with a recover-and-fail-on-panic harness so a future edit that removes the guard fails CI immediately.
+
+#### Information-leakage considerations
+
+The typed errors returned by `Open` describe (a) the caller's own input shape — nil pointer, oversized context, undersized signature buffer — or (b) the boolean verification outcome. **None is computed from secret material**, so no error path constitutes a verification oracle that could help an attacker forge signatures: the underlying ML-DSA / Dilithium / SPHINCS+ schemes are EUF-CMA secure, and an attacker with unlimited Verify queries learns nothing useful from a "valid input shape, invalid signature" error that they would not learn from `Verify` returning `false`.
+
+The fast-fail vs slow-fail timing distinction (early input-shape errors vs full verification then `ErrInvalidSignature`) reveals only input-shape information that the attacker supplied themselves. Within the slow-fail path the constant-time-comparison properties documented above ensure no further timing leak based on secret state.
+
+Callers forwarding these errors to untrusted clients should follow standard Go server-side practice of mapping internal errors to coarser external messages.
 
 ### Constructor preconditions (XMSS parameter validation)
 

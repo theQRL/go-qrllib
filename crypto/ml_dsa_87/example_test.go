@@ -145,9 +145,9 @@ func ExampleOpen() {
 
 	// Open verifies and returns the recovered message
 	pk := m.GetPK()
-	message := ml_dsa_87.Open(ctx, signed, &pk)
-	if message == nil {
-		fmt.Println("Verification failed")
+	message, err := ml_dsa_87.Open(ctx, signed, &pk)
+	if err != nil {
+		fmt.Println("Verification failed:", err)
 		return
 	}
 

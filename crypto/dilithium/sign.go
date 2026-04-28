@@ -440,7 +440,7 @@ func cryptoSignOpen(sm []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, er
 		return nil, cryptoerrors.ErrPublicKeyNil
 	}
 	if len(sm) < CRYPTO_BYTES {
-		return nil, nil
+		return nil, cryptoerrors.ErrInvalidSignatureSize
 	}
 
 	var sig [CRYPTO_BYTES]uint8
@@ -449,8 +449,16 @@ func cryptoSignOpen(sm []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, er
 	copy(sig[:], sm)
 	copy(msg, sm[CRYPTO_BYTES:])
 
-	if result, err := cryptoSignVerify(sig, msg, pk); err != nil || !result {
+	result, err := cryptoSignVerify(sig, msg, pk)
+	if err != nil {
+		//coverage:ignore
+		//rationale: cryptoSignVerify only returns errors via its own nil-pk
+		//guard, which is unreachable here because we already returned for
+		//pk == nil at function entry. Retained as defence-in-depth.
 		return nil, err
+	}
+	if !result {
+		return nil, cryptoerrors.ErrInvalidSignature
 	}
 
 	return msg, nil

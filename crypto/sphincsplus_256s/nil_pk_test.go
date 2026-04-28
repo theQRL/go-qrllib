@@ -51,7 +51,11 @@ func TestOpen_NilPublicKey_ReturnsNilNoPanic(t *testing.T) {
 		}
 	}()
 
-	if got := Open(sealed, nil); got != nil {
+	got, err := Open(sealed, nil)
+	if got != nil {
 		t.Fatalf("Open(nil pk) returned %v; want nil", got)
+	}
+	if err == nil {
+		t.Errorf("Open(nil pk) returned no error; want a typed error")
 	}
 }

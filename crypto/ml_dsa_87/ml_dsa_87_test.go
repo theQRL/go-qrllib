@@ -202,7 +202,11 @@ func TestMLDSA87_Open(t *testing.T) {
 	}
 
 	pk = d.GetPK()
-	if !bytes.Equal(Open(ctx, signatureMessage, &pk), msg) {
+	opened, err := Open(ctx, signatureMessage, &pk)
+	if err != nil {
+		t.Errorf("Open returned error: %v", err)
+	}
+	if !bytes.Equal(opened, msg) {
 		t.Error("SignatureMessage Verification failed")
 	}
 }

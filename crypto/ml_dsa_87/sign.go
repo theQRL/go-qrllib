@@ -447,7 +447,7 @@ func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8)
 		return nil, cryptoerrors.ErrPublicKeyNil
 	}
 	if len(sm) < CRYPTO_BYTES {
-		return nil, nil
+		return nil, cryptoerrors.ErrInvalidSignatureSize
 	}
 
 	var sig [CRYPTO_BYTES]uint8
@@ -456,8 +456,12 @@ func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8)
 	copy(sig[:], sm)
 	copy(msg, sm[CRYPTO_BYTES:])
 
-	if result, err := cryptoSignVerify(sig, msg, ctx, pk); err != nil || !result {
+	result, err := cryptoSignVerify(sig, msg, ctx, pk)
+	if err != nil {
 		return nil, err
+	}
+	if !result {
+		return nil, cryptoerrors.ErrInvalidSignature
 	}
 
 	return msg, nil

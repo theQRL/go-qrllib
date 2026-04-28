@@ -217,7 +217,10 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 
 			// Open
 			pk := dil.GetPK()
-			opened := Open(sealed, &pk)
+			opened, err := Open(sealed, &pk)
+			if err != nil {
+				t.Fatalf("Open returned error: %v", err)
+			}
 			if opened == nil {
 				t.Fatal("Open returned nil")
 			}

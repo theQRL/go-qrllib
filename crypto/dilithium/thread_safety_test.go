@@ -173,9 +173,12 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			opened := Open(sealedMsgs[idx], &pk)
+			opened, err := Open(sealedMsgs[idx], &pk)
+			if err != nil {
+				t.Errorf("Concurrent open failed: %v", err)
+			}
 			if opened == nil {
-				t.Error("Concurrent open failed")
+				t.Error("Concurrent open returned nil message")
 			}
 		}(i)
 	}

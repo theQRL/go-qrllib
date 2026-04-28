@@ -253,7 +253,10 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 
 			// Open
 			pk := mldsa.GetPK()
-			opened := Open(ctx, sealed, &pk)
+			opened, err := Open(ctx, sealed, &pk)
+			if err != nil {
+				t.Fatalf("Open returned error: %v", err)
+			}
 			if opened == nil {
 				t.Fatal("Open returned nil")
 			}

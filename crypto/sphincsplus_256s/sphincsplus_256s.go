@@ -129,21 +129,25 @@ func (s *SphincsPlus256s) Sign(message []uint8) ([params.SPX_BYTES]uint8, error)
 // it is *not* decrypted; this scheme has no confidentiality property,
 // the message bytes were already in plaintext inside signatureMessage.
 //
-// Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
-func Open(signatureMessage []uint8, pk *[params.SPX_PK_BYTES]uint8) []uint8 {
+// Returns a typed error distinguishing each failure mode (TOB-QRLLIB-14):
+//
+//   - [cryptoerrors.ErrPublicKeyNil] if pk is nil
+//   - [cryptoerrors.ErrInvalidSignatureSize] if signatureMessage is shorter than params.SPX_BYTES
+//   - [cryptoerrors.ErrInvalidSignature] if the signature does not verify under pk
+//
+// On any error the returned message slice is nil.
+func Open(signatureMessage []uint8, pk *[params.SPX_PK_BYTES]uint8) ([]uint8, error) {
 	if pk == nil {
-		return nil
+		return nil, cryptoerrors.ErrPublicKeyNil
 	}
-	// Check for undersized input
 	if len(signatureMessage) < params.SPX_BYTES {
-		return nil
+		return nil, cryptoerrors.ErrInvalidSignatureSize
 	}
 	m := make([]uint8, len(signatureMessage)-params.SPX_BYTES)
-	result := cryptoSignOpen(m, signatureMessage, pk[:])
-	if !result {
-		return nil
+	if !cryptoSignOpen(m, signatureMessage, pk[:]) {
+		return nil, cryptoerrors.ErrInvalidSignature
 	}
-	return m
+	return m, nil
 }
 
 // Verify reports whether signature is a valid SPHINCS+ signature over

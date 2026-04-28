@@ -97,9 +97,9 @@ func ExampleOpen() {
 
 	// Open verifies and returns the recovered message
 	pk := d.GetPK()
-	message := dilithium.Open(signed, &pk)
-	if message == nil {
-		fmt.Println("Verification failed")
+	message, err := dilithium.Open(signed, &pk)
+	if err != nil {
+		fmt.Println("Verification failed:", err)
 		return
 	}
 

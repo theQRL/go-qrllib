@@ -112,9 +112,9 @@ func BenchmarkOpen(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		opened := Open(ctx, sealed, &pk)
-		if opened == nil {
-			b.Fatal("open failed")
+		opened, err := Open(ctx, sealed, &pk)
+		if err != nil || opened == nil {
+			b.Fatalf("open failed: %v", err)
 		}
 	}
 }

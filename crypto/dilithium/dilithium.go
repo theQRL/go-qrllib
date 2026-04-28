@@ -120,13 +120,18 @@ func (d *Dilithium) Sign(message []uint8) ([CRYPTO_BYTES]uint8, error) {
 // it is *not* decrypted; this scheme has no confidentiality property,
 // the message bytes were already in plaintext inside signatureMessage.
 //
-// Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
-func Open(signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
+// Returns a typed error distinguishing each failure mode (TOB-QRLLIB-14):
+//
+//   - [cryptoerrors.ErrPublicKeyNil] if pk is nil
+//   - [cryptoerrors.ErrInvalidSignatureSize] if signatureMessage is shorter than CRYPTO_BYTES
+//   - [cryptoerrors.ErrInvalidSignature] if the signature does not verify under pk
+//
+// On any error the returned message slice is nil.
+func Open(signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
 	if pk == nil {
-		return nil
+		return nil, cryptoerrors.ErrPublicKeyNil
 	}
-	msg, _ := cryptoSignOpen(signatureMessage, pk)
-	return msg
+	return cryptoSignOpen(signatureMessage, pk)
 }
 
 // Verify reports whether signature is a valid Dilithium signature over

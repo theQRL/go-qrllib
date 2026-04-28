@@ -162,13 +162,21 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 // it is *not* decrypted; this scheme has no confidentiality property,
 // the message bytes were already in plaintext inside signatureMessage.
 //
-// Returns nil if the signature is invalid OR if pk is nil. (TOB-QRLLIB-11)
-func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
+// Returns a typed error distinguishing each failure mode (TOB-QRLLIB-14):
+//
+//   - [cryptoerrors.ErrPublicKeyNil] if pk is nil
+//   - [cryptoerrors.ErrInvalidContext] if len(ctx) > 255
+//   - [cryptoerrors.ErrInvalidSignatureSize] if signatureMessage is shorter than CRYPTO_BYTES
+//   - [cryptoerrors.ErrInvalidSignature] if the signature does not verify under pk
+//
+// On any error the returned message slice is nil. Callers that don't
+// need to distinguish failure modes can use `msg, _ := Open(...)` and
+// check `msg != nil`.
+func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
 	if pk == nil {
-		return nil
+		return nil, cryptoerrors.ErrPublicKeyNil
 	}
-	msg, _ := cryptoSignOpen(signatureMessage, ctx, pk)
-	return msg
+	return cryptoSignOpen(signatureMessage, ctx, pk)
 }
 
 // Verify checks the signature against the message and public key with the given context.
