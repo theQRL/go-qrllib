@@ -14,11 +14,22 @@ type XMSS struct {
 	bdsState *BDSState
 }
 
-// InitializeTree creates a new XMSS tree with the specified parameters.
+// InitializeTree creates a new XMSS tree with the specified parameters,
+// using QRL's pre-standardisation seed-derivation convention: the
+// 48-byte caller-supplied seed is expanded via SHAKE256 into the 96
+// bytes of randomness (SK_SEED || SK_PRF || PUB_SEED) the construction
+// requires. This is the only path that produces QRL v1-mainnet
+// addresses.
+//
 // Returns an error if the hashFunction is not one of the recognised
 // values, if the height is outside the valid range (even values between
 // 2 and MaxHeight), or if the height/k parameters are invalid for BDS
 // traversal.
+//
+// Callers that need RFC 8391 reference-implementation interop —
+// where the 96 bytes are supplied directly without QRL's SHAKE256
+// expansion step — should use [InitializeTreeFromExpandedSeed] or the
+// [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package.
 //
 // XMSS is a stateful scheme: each call to Sign increments an internal index
 // that MUST be persisted to durable storage before the signature is used.
@@ -103,6 +114,92 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 		hashFunction,
 		uint8(height),
 		seed,
+		sk,
+		bdsState,
+	}, nil
+}
+
+// InitializeTreeFromExpandedSeed creates a new XMSS tree from 96 bytes
+// of pre-expanded seed material, in the layout RFC 8391's reference
+// implementation consumes directly: SK_SEED || SK_PRF || PUB_SEED.
+//
+// This is the entry point used by the
+// [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package to
+// achieve bit-for-bit cross-implementation interop with the reference
+// XMSS implementation. It bypasses the QRL-specific 48-byte
+// SHAKE256-expansion step that [InitializeTree] performs; everything
+// downstream (Merkle tree construction, signing, verification) is
+// identical between the two paths.
+//
+// For QRL wallet code, use [InitializeTree] instead — the QRL
+// SHAKE256 expansion is the only path that produces v1-mainnet
+// addresses, so any wallet recovery code MUST use that.
+//
+// Validation and post-construction invariants mirror [InitializeTree]
+// exactly (HashFunction.IsValid, Height.IsValid, BDS-params check,
+// non-zero-root invariant).
+func InitializeTreeFromExpandedSeed(h Height, hashFunction HashFunction, expandedSeed *[96]uint8) (*XMSS, error) {
+	if expandedSeed == nil {
+		return nil, cryptoerrors.ErrInvalidSeed
+	}
+	if !hashFunction.IsValid() {
+		return nil, cryptoerrors.ErrInvalidHashFunction
+	}
+	if !h.IsValid() {
+		return nil, cryptoerrors.ErrInvalidHeight
+	}
+
+	height := uint32(h)
+	sk := make([]uint8, 132)
+	pk := make([]uint8, 64)
+
+	k := WOTSParamK
+	w := WOTSParamW
+	n := WOTSParamN
+
+	if k >= height || (height-k)%2 == 1 {
+		return nil, cryptoerrors.ErrInvalidBDSParams
+	}
+
+	xmssParams := NewXMSSParams(n, height, w, k)
+	bdsState := NewBDSState(height, n, k)
+
+	if err := XMSSFastGenKeyPairFromExpandedSeed(hashFunction, xmssParams, pk, sk, bdsState, expandedSeed); err != nil {
+		//coverage:ignore
+		//rationale: validation above already covers every error path the
+		//inner function returns; this would only fire if a future edit
+		//introduced a new error case.
+		return nil, cryptoerrors.ErrKeyGeneration
+	}
+
+	rootStart := offsetRoot
+	rootEnd := rootStart + 32
+	allZero := true
+	for i := rootStart; i < rootEnd; i++ {
+		if sk[i] != 0 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		//coverage:ignore
+		//rationale: same tripwire as InitializeTree's; upstream guards
+		//prevent the degenerate-root path.
+		return nil, cryptoerrors.ErrKeyGeneration
+	}
+
+	// We retain the 96 bytes the caller passed in so that GetSeed()
+	// returns something meaningful for diagnostic / logging use. The
+	// value is not used as input to any subsequent crypto operation
+	// (the relevant material has already been packed into sk).
+	storedSeed := make([]uint8, 96)
+	copy(storedSeed, expandedSeed[:])
+
+	return &XMSS{
+		xmssParams,
+		hashFunction,
+		uint8(height),
+		storedSeed,
 		sk,
 		bdsState,
 	}, nil

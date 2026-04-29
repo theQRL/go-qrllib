@@ -205,11 +205,27 @@ jobs:
             params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
             xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 
-      - name: Verify go-qrllib signature with reference
+      - name: Verify go-qrllib signature with reference (forward direction)
         run: |
-          echo "=== Verifying go-qrllib XMSS signature with RFC 8391 reference ==="
+          echo "=== Forward: go-qrllib signs, reference verifies ==="
           /tmp/verify_xmss
           echo "✓ go-qrllib → reference: PASSED"
+
+      - name: Compile reference signer (reverse direction)
+        run: |
+          cd /tmp/xmss-ref
+          gcc -o /tmp/sign_xmss_ref -Wall -O2 -I. \
+            "$GITHUB_WORKSPACE/.github/cross-verify/xmss_sign_ref.c" \
+            params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
+            xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
+
+      - name: Generate reference XMSS signature with seeded keypair
+        run: /tmp/sign_xmss_ref
+
+      - name: Verify reference signature with go-qrllib (reverse direction)
+        run: |
+          echo "=== Reverse: reference signs, go-qrllib verifies via rfc8391 sub-package ==="
+          go run .github/cross-verify/xmss_verify.go
+          echo "✓ reference → go-qrllib: PASSED"
           echo ""
-          echo "Note: Only one-directional verification is performed."
-          echo "See .github/cross-verify/README.md for details."
+          echo "Both directions verified. See .github/cross-verify/README.md for details."

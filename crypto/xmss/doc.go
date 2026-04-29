@@ -34,9 +34,37 @@
 //   - Height 16: 2^16 = 65,536 signatures
 //   - Height 20: 2^20 = 1,048,576 signatures
 //
+// # Supported parameter sets
+//
+// This implementation only supports the parameter set family that QRL
+// has actually deployed. The exported [XMSSFastGenKeyPair] entry point
+// rejects any other tuple with [github.com/theQRL/go-qrllib/crypto/errors.ErrUnsupportedParameterSet].
+// The supported family is:
+//
+//   - n = 32 (output length)
+//   - w = 16 (Winternitz parameter)
+//   - k = 2 (BDS traversal parameter)
+//   - h ∈ {2, 4, 6, …, [MaxHeight]} (even tree heights)
+//
+// Combined with the supported [HashFunction] values, this gives the
+// following concrete parameter sets:
+//
+//   - XMSS-SHA2_h_256 — RFC 8391 / NIST SP 800-208 standard
+//   - XMSS-SHAKE_256_h_256 — RFC 8391 / NIST SP 800-208 standard
+//   - XMSS-SHAKE_128_h_256 — QRL pre-standardisation extension, retained
+//     for legacy v1 address compatibility (see [SHAKE_128]). Not
+//     recommended for new wallets.
+//
+// Wider RFC 8391 coverage (`n=64` parameter sets, e.g. XMSS-SHA2_h_512)
+// is not implemented and is not on the roadmap; new XMSS-style issuance
+// on QRL is moving to ML-DSA-87 (FIPS 204), which sidesteps this
+// concern entirely. Bidirectional reference-implementation interop for
+// the supported sets is available via the [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391]
+// sub-package.
+//
 // Supported hash functions:
 //   - SHA2_256: SHA-256 based
-//   - SHAKE_128: SHAKE128 based
+//   - SHAKE_128: SHAKE128 based (legacy QRL extension)
 //   - SHAKE_256: SHAKE256 based
 //
 // # Thread Safety

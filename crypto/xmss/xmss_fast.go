@@ -5,19 +5,74 @@ import (
 	"github.com/theQRL/go-qrllib/misc"
 )
 
+// XMSSFastGenKeyPair generates an XMSS keypair from a 48-byte
+// caller-supplied seed, expanding it via SHAKE256 into the 3*n bytes
+// of randomness (SK_SEED || SK_PRF || PUB_SEED) the construction
+// requires. This is the QRL pre-standardisation seed-derivation
+// convention and is what every QRL wallet path uses.
+//
+// Callers that need to bypass the SHAKE256 expansion — typically for
+// RFC 8391 reference-implementation interop where the 96 bytes are
+// supplied directly — should use [XMSSFastGenKeyPairFromExpandedSeed]
+// or the [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package.
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
+	if err := validateXMSSFastParams(xmssParams); err != nil {
+		return err
+	}
 
-	// Defense-in-depth height validation (TOB-QRLLIB-2). InitializeTree
-	// validates Height at the public API boundary, but this function is
-	// also exported. Reject any height outside the valid even range
-	// [2, MaxHeight] so direct callers cannot reach treeHashSetup with
-	// an out-of-bounds height that would wrap on uint32 arithmetic and
-	// leave the Merkle root zero-initialised.
+	// Expand the 48-byte caller-supplied seed into 3*n bytes of
+	// randomness (SK_SEED || SK_PRF || PUB_SEED). For the supported
+	// n=32 parameter set this is 96 bytes; the parameter-set guard
+	// above ensures this layout is always correct.
+	var expanded [96]uint8
+	misc.SHAKE256(expanded[:], seed)
+
+	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, &expanded)
+}
+
+// XMSSFastGenKeyPairFromExpandedSeed generates an XMSS keypair from
+// 96 bytes of already-expanded seed material (SK_SEED || SK_PRF ||
+// PUB_SEED). This matches the layout the RFC 8391 reference
+// implementation consumes directly and is what the
+// [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package builds
+// on for bidirectional cross-implementation interop.
+//
+// QRL wallet code should use [XMSSFastGenKeyPair] instead — it
+// expands a 48-byte seed via SHAKE256, which is the QRL-specific
+// derivation convention and the only path that produces v1-mainnet
+// addresses.
+func XMSSFastGenKeyPairFromExpandedSeed(hashFunction HashFunction, xmssParams *XMSSParams,
+	pk, sk []uint8, bdsState *BDSState, expandedSeed *[96]uint8) error {
+	if err := validateXMSSFastParams(xmssParams); err != nil {
+		return err
+	}
+	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, expandedSeed)
+}
+
+// validateXMSSFastParams checks the parameter-set tuple against the
+// supported family (n=32, w=16, k=2, h ∈ even [2, MaxHeight]). The
+// buffer arithmetic in xmssFastGenKeyPairCore (`rnd=96`, `pks=32`,
+// the `4+2*n` / `4+3*n` offsets) is correct only for n=32; calling
+// it with any other value would silently produce malformed keys.
+// (TOB-QRLLIB-1 + TOB-QRLLIB-2.)
+func validateXMSSFastParams(xmssParams *XMSSParams) error {
+	if xmssParams.n != WOTSParamN || xmssParams.wotsParams.w != WOTSParamW || xmssParams.k != WOTSParamK {
+		return cryptoerrors.ErrUnsupportedParameterSet
+	}
 	if xmssParams.h < 2 || xmssParams.h > uint32(MaxHeight) || xmssParams.h&1 == 1 {
 		return cryptoerrors.ErrInvalidHeight
 	}
+	return nil
+}
 
+// xmssFastGenKeyPairCore performs the actual key derivation given
+// already-expanded seed material. Both [XMSSFastGenKeyPair] (which
+// performs the QRL SHAKE256 expansion) and
+// [XMSSFastGenKeyPairFromExpandedSeed] (which takes the bytes
+// directly) call into here after parameter validation.
+func xmssFastGenKeyPairCore(hashFunction HashFunction, xmssParams *XMSSParams,
+	pk, sk []uint8, bdsState *BDSState, expandedSeed *[96]uint8) error {
 	n := xmssParams.n
 
 	// Set idx = 0
@@ -26,15 +81,11 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	sk[2] = 0
 	sk[3] = 0
 
-	// Copy PUB_SEED to public key
-	randombits := make([]uint8, 3*n)
-
-	misc.SHAKE256(randombits, seed)
-	//shake256(randombits, 3 * n, seed, 48);  // FIXME: seed size has been hardcoded to 48
-
-	rnd := 96
-	pks := uint32(32)
-	copy(sk[4:], randombits[:rnd])
+	const (
+		rnd = 96 // 3 * n for n=32
+		pks = 32 // n
+	)
+	copy(sk[4:], expandedSeed[:rnd])
 	copy(pk[n:], sk[4+2*n:4+2*n+pks])
 
 	addr := make([]uint32, 8)
