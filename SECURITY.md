@@ -89,11 +89,18 @@ This library assumes:
 
 **CRITICAL**: XMSS security is COMPLETELY BROKEN if the same index is used twice.
 
+#### Scope: XMSS in this library is a v1 → v2 migration vehicle
+
+The XMSS implementation in `go-qrllib` exists for one purpose: to
+keep QRL v1 mainnet addresses parseable, verifiable, and (for their
+owners) signable during the ongoing migration to **ML-DSA-87
+(FIPS 204)**. New signature issuance on QRL uses ML-DSA-87. XMSS in
+this library is not intended as a standards-tracking implementation
+and is not recommended for new wallets.
+
 #### Parameter-set provenance
 
-QRL's XMSS implementation predates the standardisation of XMSS in RFC 8391
-and the later parameter-set formalisation in NIST SP 800-208. The library
-exposes three hash-function options:
+The library exposes three hash-function options:
 
 | HashFunction | Status                                                      |
 |--------------|-------------------------------------------------------------|
@@ -108,8 +115,18 @@ is QRL-specific (48-byte seed expanded via SHAKE-256 to the 96 bytes the
 reference takes directly), which is a key-derivation convention rather
 than a signature-format incompatibility.
 
-New signature issuance on QRL is moving to ML-DSA-87 (FIPS 204), which
-sidesteps these XMSS provenance concerns entirely.
+#### Standards alignment
+
+The implementation predates RFC 8391 (August 2018) and follows the
+original RFC 8391 `expand_seed` construction. It does not track later
+refinements such as NIST SP 800-208 (October 2020), which adjusted
+`expand_seed` to take additional inputs — applying that refinement
+would alter the keypair derived from any given v1 seed and is
+therefore not appropriate here. The cross-implementation verification
+CI in `.github/cross-verify/` pins `xmss-reference` to commit
+`7793c40` (the last revision on the original spec) so the
+bidirectional cross-verify aligns with the construction this library
+targets.
 
 ### Dilithium (Pre-FIPS)
 

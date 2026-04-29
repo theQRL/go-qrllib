@@ -188,10 +188,19 @@ jobs:
         with:
           go-version: '1.25.x'
 
-      - name: Clone XMSS reference (RFC 8391)
+      - name: Clone XMSS reference (pinned to original RFC 8391 spec)
         run: |
-          git clone --depth 1 https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
+          # QRL's XMSS implementation predates RFC 8391 and is retained
+          # as a v1 → v2 migration shim. Pinning to commit 7793c40
+          # (2020-04-14) — the last revision on the original RFC 8391
+          # expand_seed construction, before SP 800-208's later
+          # refinement landed in commit 3e28db2 — keeps cross-verify
+          # aligned with the construction QRL actually targets.
+          # See ../cross-verify/README.md "XMSS" section and SECURITY.md
+          # "Parameter-set provenance" for the full rationale.
+          git clone https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
           cd /tmp/xmss-ref
+          git checkout 7793c40
           echo "Reference commit: $(git rev-parse --short HEAD)"
 
       - name: Generate go-qrllib XMSS signature
@@ -214,9 +223,15 @@ jobs:
       - name: Compile reference signer (reverse direction)
         run: |
           cd /tmp/xmss-ref
+          # NOTE: randombytes.c is intentionally omitted here.
+          # xmss_sign_ref.c provides its own deterministic randombytes()
+          # so the reference's xmssmt_core_keypair (which has no public
+          # seeded-keypair API at this commit pin) consumes a fixed
+          # 96-byte buffer. Linking randombytes.c too would duplicate
+          # the symbol.
           gcc -o /tmp/sign_xmss_ref -Wall -O2 -I. \
             "$GITHUB_WORKSPACE/.github/cross-verify/xmss_sign_ref.c" \
-            params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
+            params.c hash.c fips202.c hash_address.c wots.c \
             xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 
       - name: Generate reference XMSS signature with seeded keypair

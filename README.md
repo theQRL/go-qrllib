@@ -17,7 +17,7 @@ go-qrllib provides post-quantum cryptographic signature schemes for the QRL bloc
 | **ML-DSA-87** | Lattice-based | FIPS 204 | Primary recommended algorithm |
 | **Dilithium** | Lattice-based | Pre-FIPS | Legacy compatibility |
 | **SPHINCS+-256s** | Hash-based | SPHINCS+ (pre-FIPS) | Stateless, conservative security |
-| **XMSS** | Hash-based | RFC 8391 | Legacy QRL addresses |
+| **XMSS** | Hash-based | Pre-standardisation; see XMSS notes | QRL v1 → v2 migration |
 
 ---
 
@@ -272,7 +272,26 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
 
 - **ML-DSA-87**: FIPS 204 (Module-Lattice-Based Digital Signature Standard)
 - **SPHINCS+-256s**: SPHINCS+ submission (pre-FIPS). Migration to SLH-DSA ([FIPS 205](https://csrc.nist.gov/pubs/fips/205/final)) is planned.
-- **XMSS**: RFC 8391 (XMSS: eXtended Merkle Signature Scheme)
+- **XMSS**: This library's XMSS implementation **predates RFC 8391**
+  (published August 2018) and was built to support the QRL v1 blockchain at
+  launch. It is **not intended as a general RFC-compliant XMSS implementation**;
+  its role here is to keep v1 mainnet addresses parseable, verifiable, and
+  signable during the v1 → v2 migration. Where parameter-set choices happen to
+  overlap with RFC 8391 (XMSS-SHA2_10_256 and XMSS-SHAKE_256_10_256), signatures
+  produced by go-qrllib verify under the RFC 8391 reference implementation, and
+  reference signatures verify under go-qrllib via the
+  [`crypto/xmss/rfc8391`](crypto/xmss/rfc8391/) sub-package. This is exercised
+  bidirectionally in CI by [`.github/cross-verify/`](.github/cross-verify/README.md),
+  pinned to the original RFC 8391 reference. The library does not track later
+  standards updates such as NIST SP 800-208 (October 2020), which refined
+  `expand_seed` to take additional inputs — adopting that refinement would
+  change the keypair derived from any given seed and break compatibility with
+  existing v1 mainnet addresses, so it is intentionally not applied here. New
+  signature issuance on QRL uses **ML-DSA-87 (FIPS 204)**.
+  **`SHAKE_128`** is a pre-standardisation QRL-specific hash variant, retained
+  for v1 mainnet address compatibility only. See
+  [SECURITY.md](SECURITY.md#parameter-set-provenance) for the full provenance
+  discussion.
 - **Dilithium**: CRYSTALS-Dilithium (pre-FIPS version)
 
 ---

@@ -26,13 +26,26 @@ These tests verify that go-qrllib's signature implementations are interoperable 
 - Note: Uses `consistent-basew` branch which has the corrected FORS index decoding (see [NIST PQC Forum discussion](https://groups.google.com/a/list.nist.gov/g/pqc-forum/c/88tuvtb7nN4/m/DA1QCoJWBAAJ))
 
 ### XMSS (SHA2_10_256) - Bidirectional via the rfc8391 sub-package
-- Reference: https://github.com/XMSS/xmss-reference (RFC 8391)
+- Reference: https://github.com/XMSS/xmss-reference @ commit `7793c40`
 - Parameters: XMSS-SHA2_10_256 (OID 0x00000001), height=10, n=32, w=16
 - Tests **bidirectional** verification using the
   [`crypto/xmss/rfc8391`](../../crypto/xmss/rfc8391/) sub-package on the
   go-qrllib side.
 - Key sizes: PK=64 (root||pub_seed) or 68 (RFC layout with OID),
   SK=132, Seed=48 (QRL convention) or 96 (RFC convention), Sig=2500 bytes
+- **Pin rationale**: QRL's XMSS implementation predates RFC 8391
+  (the spec was published in August 2018, after QRL v1 launched) and
+  is retained here primarily as a v1 → v2 migration shim — not as a
+  standards-tracking XMSS implementation. Commit `7793c40` (2020-04-14)
+  is the last `xmss-reference` revision that uses the original
+  RFC 8391 `expand_seed` construction `sk_i = PRF(SK_SEED,
+  toByte(i, 32))`. NIST commit `3e28db2` (2020-04-28) "Improved key
+  generation" later refined this to `sk_i = PRF_keygen(SK_SEED,
+  PUB_SEED || ADRS)` for SP 800-208. QRL keeps the original
+  construction because changing it would alter every v1 mainnet
+  keypair; pinning the cross-verify reference here matches the
+  construction QRL targets. See SECURITY.md "Parameter-set
+  provenance" for the full provenance discussion.
 
 #### Why a sub-package was needed for the reverse direction
 
@@ -58,10 +71,19 @@ between go-qrllib's internal representation and the RFC byte layout.
 
 #### Reverse direction: reference → go-qrllib (new)
 
-* `xmss_sign_ref.c` (C) — calls the reference's
-  `xmss_core_seed_keypair()` with a fixed 96-byte expanded seed,
-  signs, writes pk (in both QRL and RFC layouts) + sig + msg +
-  expanded seed to `/tmp/`.
+* `xmss_sign_ref.c` (C) — at the pinned commit `7793c40` the
+  reference does not yet expose a public seeded-keypair API
+  (`xmssmt_core_seed_keypair` was added in a later commit). To get a
+  deterministic keypair from a fixed 96-byte expanded seed, this file
+  provides its own `randombytes()` that consumes the seed buffer in
+  order, then calls the public `xmss_keypair()` API. The reference's
+  internal `xmssmt_core_keypair` makes two calls
+  (`randombytes(sk + index_bytes, 64)` for SK_SEED || SK_PRF, then
+  `randombytes(sk + index_bytes + 96, 32)` for PUB_SEED), which
+  reproduces the 96-byte expanded-seed convention QRL's
+  `rfc8391.NewKeyPair` uses. The link command therefore *omits* the
+  upstream `randombytes.c`. Output: pk (in both QRL and RFC layouts)
+  + sig + msg + expanded seed under `/tmp/`.
 * `xmss_verify.go` (Go) — reads the same 96-byte expanded seed,
   reconstructs the keypair via `rfc8391.NewKeyPair`, asserts the
   resulting root || pub_seed matches the reference's pk byte-for-byte,
@@ -129,8 +151,9 @@ gcc -DPARAMS=sphincs-shake-256s -DTHASH=robust -I. -O2 -o /tmp/verify \
     fors.c sign.c hash_shake.c thash_shake_robust.c fips202.c randombytes.c
 /tmp/verify
 
-# XMSS (SHA2_10_256) - bidirectional
+# XMSS (SHA2_10_256) - bidirectional, pinned to pre-SP-800-208 RFC 8391
 git clone https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
+cd /tmp/xmss-ref && git checkout 7793c40   # see "Pin rationale" above
 
 # Forward direction: go-qrllib signs, reference verifies.
 cd /path/to/go-qrllib
@@ -142,11 +165,15 @@ gcc -Wall -O2 -I. -o /tmp/verify \
     xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 /tmp/verify
 
-# Reverse direction: reference signs, go-qrllib (via rfc8391) verifies.
+# Reverse direction: reference signs (with deterministic seed), go-qrllib
+# (via rfc8391) verifies. Note: randombytes.c is OMITTED from the link —
+# xmss_sign_ref.c provides its own deterministic randombytes() to seed
+# the reference's xmssmt_core_keypair, which has no public seeded-keypair
+# API at this commit pin.
 cd /tmp/xmss-ref
 gcc -Wall -O2 -I. -o /tmp/sign_ref \
     /path/to/go-qrllib/.github/cross-verify/xmss_sign_ref.c \
-    params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
+    params.c hash.c fips202.c hash_address.c wots.c \
     xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 /tmp/sign_ref
 cd /path/to/go-qrllib
