@@ -94,7 +94,7 @@ broadcast(sig)  // Index may not be persisted
 go get github.com/theQRL/go-qrllib
 ```
 
-Requires Go 1.24 or later.
+Requires Go 1.25 or later.
 
 ## Quick Start
 
