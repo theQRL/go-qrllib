@@ -35,7 +35,7 @@ These tests verify that go-qrllib's signature implementations are interoperable 
   SK=132, Seed=48 (QRL convention) or 96 (RFC convention), Sig=2500 bytes
 - **Pin rationale**: QRL's XMSS implementation predates RFC 8391
   (the spec was published in August 2018, after QRL v1 launched) and
-  is retained here primarily as a v1 → v2 migration shim — not as a
+  is retained here primarily as a v1 → v2 migration shim, not as a
   standards-tracking XMSS implementation. Commit `7793c40` (2020-04-14)
   is the last `xmss-reference` revision that uses the original
   RFC 8391 `expand_seed` construction `sk_i = PRF(SK_SEED,
@@ -49,7 +49,7 @@ These tests verify that go-qrllib's signature implementations are interoperable 
 
 #### Why a sub-package was needed for the reverse direction
 
-go-qrllib's primary `xmss.InitializeTree` entry point produces **RFC 8391 compliant signatures** (the forward direction `xmss_sign.go → xmss_verify_ref.c` has always worked), but a 48-byte seed handed to it does NOT produce the same keypair the reference would derive from a literal 96-byte seed. Two QRL-specific conventions caused this:
+go-qrllib's primary `xmss.InitializeTree` entry point produces signatures whose **wire format matches RFC 8391** (the forward direction `xmss_sign.go → xmss_verify_ref.c` has always worked), but a 48-byte seed handed to it does NOT produce the same keypair the reference would derive from a literal 96-byte seed. Two QRL-specific conventions caused this:
 
 1. **Seed expansion**: `xmss.InitializeTree` SHAKE256-expands a 48-byte seed into the 96 bytes (SK_SEED || SK_PRF || PUB_SEED) the construction needs. The RFC 8391 reference implementation takes those 96 bytes directly with no expansion step.
 
@@ -63,15 +63,15 @@ between go-qrllib's internal representation and the RFC byte layout.
 
 #### Forward direction: go-qrllib → reference
 
-* `xmss_sign.go` (Go) — generates a keypair via the QRL `xmss.InitializeTree`
+* `xmss_sign.go` (Go) generates a keypair via the QRL `xmss.InitializeTree`
   entry point, signs, writes pk + sig + msg to `/tmp/`.
-* `xmss_verify_ref.c` (C) — reads the artefacts, prepends an RFC 8391
+* `xmss_verify_ref.c` (C) reads the artefacts, prepends an RFC 8391
   OID to the pk, calls `xmss_sign_open()`. **Already worked before this
   PR; signature byte layout matches at the wire level.**
 
 #### Reverse direction: reference → go-qrllib (new)
 
-* `xmss_sign_ref.c` (C) — at the pinned commit `7793c40` the
+- `xmss_sign_ref.c` (C) at the pinned commit `7793c40` the
   reference does not yet expose a public seeded-keypair API
   (`xmssmt_core_seed_keypair` was added in a later commit). To get a
   deterministic keypair from a fixed 96-byte expanded seed, this file
@@ -82,16 +82,16 @@ between go-qrllib's internal representation and the RFC byte layout.
   `randombytes(sk + index_bytes + 96, 32)` for PUB_SEED), which
   reproduces the 96-byte expanded-seed convention QRL's
   `rfc8391.NewKeyPair` uses. The link command therefore *omits* the
-  upstream `randombytes.c`. Output: pk (in both QRL and RFC layouts)
-  + sig + msg + expanded seed under `/tmp/`.
-* `xmss_verify.go` (Go) — reads the same 96-byte expanded seed,
+  upstream `randombytes.c`. Output: pk (in both QRL and RFC layouts) +
+  sig + msg + expanded seed under `/tmp/`.
+- `xmss_verify.go` (Go) reads the same 96-byte expanded seed,
   reconstructs the keypair via `rfc8391.NewKeyPair`, asserts the
   resulting root || pub_seed matches the reference's pk byte-for-byte,
   then verifies the signature via `rfc8391.Verify`. The pk-bytes-match
   check is the actual bidirectional-equivalence proof; signature
   verification is then a straightforward consequence.
 
-**Note**: XMSS is a legacy algorithm in go-qrllib, maintained for QRL v1 address compatibility. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205, formerly SPHINCS+) is reserved for future use in the QRL descriptor format but is not currently issuable.
+**Note**: XMSS in this library is a legacy algorithm: QRL's XMSS implementation predates RFC 8391 (Aug 2018), and the package is maintained as a v1 → v2 migration shim so QRL v1 mainnet addresses remain parseable, verifiable, and signable. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205, formerly SPHINCS+) is reserved as a wallet type in the QRL descriptor format but is not currently issuable. The implementation here remains the pre-FIPS-205 SPHINCS+ submission, and finalized parameter set under FIPS 205 remains to be determined.  Committing to a specific SLH-DSA parameter set under FIPS 205, and so activating the wallet path now, would commit users to a parameter set that may change.
 
 ## Files
 
@@ -166,7 +166,7 @@ gcc -Wall -O2 -I. -o /tmp/verify \
 /tmp/verify
 
 # Reverse direction: reference signs (with deterministic seed), go-qrllib
-# (via rfc8391) verifies. Note: randombytes.c is OMITTED from the link —
+# (via rfc8391) verifies. Note: randombytes.c is OMITTED from the link:
 # xmss_sign_ref.c provides its own deterministic randombytes() to seed
 # the reference's xmssmt_core_keypair, which has no public seeded-keypair
 # API at this commit pin.

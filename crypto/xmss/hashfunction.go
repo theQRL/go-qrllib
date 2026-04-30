@@ -14,7 +14,9 @@ import (
 type HashFunction uint8
 
 const (
-	// SHA2_256 — XMSS-SHA2_*_256 family per RFC 8391 / NIST SP 800-208.
+	// SHA2_256 — XMSS-SHA2_*_256 family. Signature format matches
+	// RFC 8391 (Aug 2018); see the package doc and SECURITY.md
+	// "Standards alignment" for the relationship to NIST SP 800-208.
 	SHA2_256 HashFunction = iota
 
 	// SHAKE_128 is a QRL-specific extension retained for legacy address
@@ -34,7 +36,9 @@ const (
 	// See SECURITY.md for the parameter-set provenance summary.
 	SHAKE_128
 
-	// SHAKE_256 — XMSS-SHAKE_*_256 family per RFC 8391 / NIST SP 800-208.
+	// SHAKE_256 — XMSS-SHAKE_*_256 family. Signature format matches
+	// RFC 8391 (Aug 2018); see the package doc and SECURITY.md
+	// "Standards alignment" for the relationship to NIST SP 800-208.
 	SHAKE_256
 )
 

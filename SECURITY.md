@@ -74,7 +74,7 @@ This library assumes:
 
 **Security Level**: NIST Level 5
 
-### XMSS (RFC 8391)
+### XMSS (legacy, v1 → v2 migration)
 
 | Property | Status |
 |----------|--------|
@@ -104,23 +104,46 @@ The library exposes three hash-function options:
 
 | HashFunction | Status                                                      |
 |--------------|-------------------------------------------------------------|
-| `SHA2_256`   | RFC 8391 / SP 800-208 standard (XMSS-SHA2_*_256 family).    |
-| `SHAKE_256`  | RFC 8391 / SP 800-208 standard (XMSS-SHAKE_*_256 family).   |
-| `SHAKE_128`  | **QRL-specific extension, retained for legacy compatibility from QRL's pre-standardisation XMSS implementation.** Not part of NIST SP 800-208. With a 32-byte output it offers approximately 64-bit quantum security under a Grover-style attack — theoretically reduced relative to SHAKE_256 / SHA2_256 (~128-bit quantum), although the gap remains difficult to exploit in practice today. **Not recommended for new wallets.** Existing v1 mainnet addresses minted under SHAKE_128 must continue to be parseable, verifiable and signable, which is the only reason this option survives. |
+| `SHA2_256`   | XMSS-SHA2_*_256 family — RFC 8391 (Aug 2018) signature format. See "Standards alignment" below for the relationship to SP 800-208. |
+| `SHAKE_256`  | XMSS-SHAKE_*_256 family — RFC 8391 (Aug 2018) signature format. See "Standards alignment" below for the relationship to SP 800-208. |
+| `SHAKE_128`  | **QRL-specific extension, retained for legacy compatibility from QRL's pre-standardisation XMSS implementation.** Not part of NIST SP 800-208. With a 32-byte output it offers approximately 64-bit quantum security under a Grover-style attack — theoretically reduced relative to SHAKE_256 / SHA2_256 (~128-bit quantum). **Not recommended for new wallets.** Existing v1 mainnet addresses minted under SHAKE_128 must continue to be parseable, verifiable and signable, which is the only reason this option survives. |
 
 Signatures produced by go-qrllib for the **XMSS-SHA2_10_256** parameter
-set are RFC 8391 compliant and verify under the reference implementation
-(see `.github/cross-verify/README.md`). The seed-to-keypair derivation
-is QRL-specific (48-byte seed expanded via SHAKE-256 to the 96 bytes the
-reference takes directly), which is a key-derivation convention rather
-than a signature-format incompatibility.
+set match the RFC 8391 (August 2018) signature format and verify under
+the reference implementation (see `.github/cross-verify/README.md`).
+The keypair-derivation surface diverges from the reference in two
+distinct ways:
+
+1. **Layout conventions**: the 48-byte QRL seed is SHAKE-256-expanded
+   into the 96 bytes (SK_SEED || SK_PRF || PUB_SEED) the reference
+   takes directly, and the QRL public key is prefixed with a 3-byte
+   QRL descriptor rather than a 4-byte RFC 8391 OID. The
+   [`crypto/xmss/rfc8391`](../crypto/xmss/rfc8391/) sub-package
+   exposes a 96-byte direct-seed entry point and OID-form public-key
+   marshalling that bridge both conventions, and is what the
+   bidirectional cross-verify CI uses on the go-qrllib side.
+
+2. **`expand_seed` construction**: the WOTS+ secret-key derivation
+   follows the original RFC 8391 (Aug 2018), not the NIST SP 800-208
+   (Oct 2020) refinement. This is because QRL's XMSS implementation
+   predates both standards and the v1 mainnet keypair derivation
+   depends on the original construction; adopting the SP 800-208
+   refinement would alter the keypair derived from any given v1 seed
+   and is therefore not appropriate for a deployed scheme. This is
+   an algorithmic difference and is *not* something the `rfc8391`
+   sub-package can bridge and the sub-package addresses layout
+   conventions only. The cross-verify CI accommodates the difference
+   by pinning `xmss-reference` to commit `7793c40` (the last revision
+   on the original construction) so the bidirectional check aligns
+   with the construction this library targets. See "Standards
+   alignment" below for the deeper discussion.
 
 #### Standards alignment
 
 The implementation predates RFC 8391 (August 2018) and follows the
 original RFC 8391 `expand_seed` construction. It does not track later
 refinements such as NIST SP 800-208 (October 2020), which adjusted
-`expand_seed` to take additional inputs — applying that refinement
+`expand_seed` to take additional inputs. Applying that refinement
 would alter the keypair derived from any given v1 seed and is
 therefore not appropriate here. The cross-implementation verification
 CI in `.github/cross-verify/` pins `xmss-reference` to commit
@@ -167,13 +190,13 @@ String form: `"Q" + hex(address)` = 97 characters.
 
 - **Signature verification**: challenge comparison via `subtle.ConstantTimeCompare` (ML-DSA-87, Dilithium, SPHINCS+)
 - **NTT/inverse NTT**: fixed loop bounds, no data-dependent branches
-- **Polynomial norm checks**: branchless violation-flag accumulator — iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
+- **Polynomial norm checks**: branchless violation-flag accumulator: iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
 - **Field decomposition**: `Power2Round`, `Decompose`, `MakeHint`, `UseHint` all use mask-based conditional selection with no branches on coefficient values (see `crypto/internal/lattice/rounding.go`)
 - **Public key equality**: `CryptoPublicKey.Equal` uses `subtle.ConstantTimeCompare`
 
 **Inherently variable-time (not secret-dependent):**
 
-- **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern — the rejection probability depends on public parameters and random nonces, not on the secret key
+- **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern: the rejection probability depends on public parameters and random nonces, not on the secret key
 - **SHAKE-256 / SHA-3 operations**: assumed constant-time for a given input length (provided by `golang.org/x/crypto/sha3`)
 
 **Go runtime caveats:**
@@ -309,8 +332,8 @@ Every public verification and "open" function in the library treats malformed in
 
 The library distinguishes two failure classes:
 
-* **Malformed user input** — nil pointers, wrong-size buffers, unsupported parameter values supplied through the public API. Always surfaces as a typed error or a `false` / `nil` return; **never panics**. The tables below enumerate the specific cases.
-* **Invariant violations** — internal preconditions that should never fail if the rest of the library is correct (e.g. an unrecognised `HashFunction` reaching the dispatch switch *after* the public constructor's validation guard, or `xmss/params.go`'s `logW` switch reaching its impossible default). These **panic with a clear message**; they exist as crash-early tripwires so that any future regression which bypasses an upstream guard fails loudly in tests rather than silently corrupting key material in production.
+- **Malformed user input**: nil pointers, wrong-size buffers, unsupported parameter values supplied through the public API. Always surfaces as a typed error or a `false` / `nil` return; **never panics**. The tables below enumerate the specific cases.
+- **Invariant violations**: internal preconditions that should never fail if the rest of the library is correct (e.g. an unrecognised `HashFunction` reaching the dispatch switch *after* the public constructor's validation guard, or `xmss/params.go`'s `logW` switch reaching its impossible default). These **panic with a clear message**; they exist as crash-early tripwires so that any future regression which bypasses an upstream guard fails loudly in tests rather than silently corrupting key material in production.
 
 Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter values), `crypto/xmss/hash.go:coreHash` (HashFunction dispatch), `crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), and several SHAKE I/O sites in `crypto/sphincsplus_256s/hash_shake.go` (cryptographic-primitive errors that the SHA-3 contract guarantees do not occur). All carry comments explaining what upstream invariant is being enforced.
 
@@ -348,15 +371,15 @@ XMSS constructors additionally validate parameter-set identifiers at the API bou
 | Constructor | HashFunction validated | Height validated |
 |-------------|------------------------|------------------|
 | `crypto/xmss.InitializeTree` | yes | yes |
-| `crypto/xmss.XMSSFastGenKeyPair` | yes (via internal dispatch tripwire — see below) | yes |
+| `crypto/xmss.XMSSFastGenKeyPair` | yes (via internal dispatch tripwire, see below) | yes |
 | `legacywallet/xmss.NewWalletFromSeed` | yes (defence-in-depth) | yes (existing `height > MaxHeight` check) |
 | `legacywallet/xmss.NewWalletFromExtendedSeed` | yes (via descriptor parser → `xmss.ToHashFunction`) | yes (same path) |
 | `legacywallet/xmss.NewWalletFromHeight` | yes (delegates to `NewWalletFromSeed`) | yes (same) |
 
 Two internal defence-in-depth tripwires back the contract:
 
-1. **`crypto/xmss.coreHash`** — its dispatch `switch` carries a `default:` panic that fires immediately if any future regression lets an invalid `HashFunction` reach the hash function with no upstream guard. Without this default case the buffer would be left zero-initialised (the original audit defect).
-2. **`crypto/xmss.InitializeTree`** post-construction non-zero-root check — asserts the constructed Merkle root is not all-zero before returning the XMSS. Catches any *other* future regression in the key-derivation pipeline that produces an unconstructed root.
+1. **`crypto/xmss.coreHash`** dispatch `switch` carries a `default:` panic that fires immediately if any future regression lets an invalid `HashFunction` reach the hash function with no upstream guard. Without this default case the buffer would be left zero-initialised (the original audit defect).
+2. **`crypto/xmss.InitializeTree`** post-construction non-zero-root check, which asserts the constructed Merkle root is not all-zero before returning the XMSS. Catches any *other* future regression in the key-derivation pipeline that produces an unconstructed root.
 
 Regression tests live in `crypto/xmss/hash_function_validation_test.go` and `legacywallet/xmss/hash_function_validation_test.go`; together they cover every invalid `uint8` value cast to `HashFunction`, the `coreHash` tripwire, and a positive cross-seed-distinct-roots invariant for each valid hash function.
 
