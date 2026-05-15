@@ -36,7 +36,7 @@ func FuzzMLDSA87Open(f *testing.F) {
 		copy(pk[:], pkBytes)
 
 		// This should never panic
-		_ = Open(ctx, signatureMessage, &pk)
+		_, _ = Open(ctx, signatureMessage, &pk)
 	})
 }
 

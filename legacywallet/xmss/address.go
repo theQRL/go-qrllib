@@ -12,7 +12,7 @@ import (
 var ErrUnsupportedAddressFormat = errors.New("unsupported address format type")
 
 func GetXMSSAddressFromPK(ePK [ExtendedPKSize]uint8) ([AddressSize]uint8, error) {
-	desc, err := LegacyQRLDescriptorFromExtendedPK(&ePK)
+	desc, err := NewQRLDescriptorFromExtendedPK(&ePK)
 	if err != nil {
 		return [AddressSize]uint8{}, err
 	}

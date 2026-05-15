@@ -219,7 +219,7 @@ func TestDilithium_GetHexSeed(t *testing.T) {
 	}
 }
 
-func TestDilithium_Seal(t *testing.T) {
+func TestDilithium_SignAttached(t *testing.T) {
 	msg := []uint8{0, 1, 2, 4, 6, 9, 1}
 
 	binUnsizeSeed, err := hex.DecodeString(HexSeed)
@@ -233,7 +233,7 @@ func TestDilithium_Seal(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
@@ -245,14 +245,17 @@ func TestDilithium_Seal(t *testing.T) {
 
 	// Verify the sealed message can be opened with the correct public key
 	pk := d.GetPK()
-	opened := Open(signatureMessage, &pk)
+	opened, err := Open(signatureMessage, &pk)
+	if err != nil {
+		t.Errorf("Open returned error: %v", err)
+	}
 	if !reflect.DeepEqual(opened, msg) {
 		t.Error("failed to open sealed message")
 	}
 
 	// Verify determinism - same seed, same message should produce same sealed result
 	d2, _ := NewDilithiumFromSeed(binSeed)
-	signatureMessage2, _ := d2.Seal(msg)
+	signatureMessage2, _ := d2.SignAttached(msg)
 	if hex.EncodeToString(signatureMessage) != hex.EncodeToString(signatureMessage2) {
 		t.Error("seal operation is not deterministic")
 	}
@@ -272,21 +275,25 @@ func TestDilithium_Open(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
 
 	// Verify Open recovers the original message
 	pk := d.GetPK()
-	if !reflect.DeepEqual(Open(signatureMessage, &pk), msg) {
+	recovered, err := Open(signatureMessage, &pk)
+	if err != nil {
+		t.Errorf("Open returned error: %v", err)
+	}
+	if !reflect.DeepEqual(recovered, msg) {
 		t.Error("SignatureMessage Verification failed")
 	}
 
 	// Verify Open fails with wrong public key
 	wrongDil, _ := New()
 	wrongPK := wrongDil.GetPK()
-	if Open(signatureMessage, &wrongPK) != nil {
+	if rec, _ := Open(signatureMessage, &wrongPK); rec != nil {
 		t.Error("Open should fail with wrong public key")
 	}
 }
@@ -382,7 +389,7 @@ func TestExtractMessage(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}
@@ -413,7 +420,7 @@ func TestExtractSignature(t *testing.T) {
 		t.Error("failed to generate new dilithium from seed ", err.Error())
 	}
 
-	signatureMessage, err := d.Seal(msg)
+	signatureMessage, err := d.SignAttached(msg)
 	if err != nil {
 		t.Error("failed to seal ", err.Error())
 	}

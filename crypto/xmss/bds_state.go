@@ -19,7 +19,22 @@ type BDSState struct {
 	nextLeaf    uint32
 }
 
+// NewBDSState constructs the BDS traversal state for an XMSS tree of the
+// given height.
+//
+// Returns nil if height <= k. The callers inside this package already
+// validate height before reaching here (see InitializeTree and
+// XMSSFastGenKeyPair, both of which reject heights outside [2, MaxHeight]
+// for WOTSParamK=2). This nil-guard is defense-in-depth for any direct
+// caller of the exported constructor: without it, the treeHash allocation
+// loop below underflows uint32 when height < k and attempts to allocate
+// roughly 4 billion TreeHashInst values, which in practice hangs the
+// process. Noted and fixed while remediating TOB-QRLLIB-2.
 func NewBDSState(height, n, k uint32) *BDSState {
+	if height <= k {
+		return nil
+	}
+
 	stackOffset := uint32(0)
 	stack := make([]uint8, (height+1)*n)
 	stackLevels := make([]uint8, height+1)

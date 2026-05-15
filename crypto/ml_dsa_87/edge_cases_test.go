@@ -33,12 +33,15 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	}
 
 	// Seal/Open empty message
-	sealed, err := mldsa.Seal(ctx, emptyMsg)
+	sealed, err := mldsa.SignAttached(ctx, emptyMsg)
 	if err != nil {
 		t.Fatalf("Failed to seal empty message: %v", err)
 	}
 
-	opened := Open(ctx, sealed, &pk)
+	opened, err := Open(ctx, sealed, &pk)
+	if err != nil {
+		t.Errorf("Open returned error: %v", err)
+	}
 	if opened == nil {
 		t.Error("Failed to open sealed empty message")
 	}
@@ -297,7 +300,7 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 			t.Error("Sign should fail with context > 255 bytes")
 		}
 
-		_, err = mldsa.Seal(longCtx, msg)
+		_, err = mldsa.SignAttached(longCtx, msg)
 		if err == nil {
 			t.Error("Seal should fail with context > 255 bytes")
 		}
@@ -357,20 +360,20 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	ctx := []byte{}
 
 	t.Run("nil_input", func(t *testing.T) {
-		if Open(ctx, nil, &pk) != nil {
+		if msg, _ := Open(ctx, nil, &pk); msg != nil {
 			t.Error("Open(nil) should return nil")
 		}
 	})
 
 	t.Run("empty_input", func(t *testing.T) {
-		if Open(ctx, []byte{}, &pk) != nil {
+		if msg, _ := Open(ctx, []byte{}, &pk); msg != nil {
 			t.Error("Open([]) should return nil")
 		}
 	})
 
 	t.Run("too_short_input", func(t *testing.T) {
 		short := make([]byte, CRYPTO_BYTES-1)
-		if Open(ctx, short, &pk) != nil {
+		if msg, _ := Open(ctx, short, &pk); msg != nil {
 			t.Error("Open(short) should return nil")
 		}
 	})
@@ -379,7 +382,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 		// Create a sealed message with invalid signature
 		invalidSealed := make([]byte, CRYPTO_BYTES+10)
 		_, _ = rand.Read(invalidSealed)
-		if Open(ctx, invalidSealed, &pk) != nil {
+		if msg, _ := Open(ctx, invalidSealed, &pk); msg != nil {
 			t.Error("Open with invalid signature should return nil")
 		}
 	})

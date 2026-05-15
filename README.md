@@ -16,8 +16,8 @@ go-qrllib provides post-quantum cryptographic signature schemes for the QRL bloc
 |-----------|------|----------|----------|
 | **ML-DSA-87** | Lattice-based | FIPS 204 | Primary recommended algorithm |
 | **Dilithium** | Lattice-based | Pre-FIPS | Legacy compatibility |
-| **SPHINCS+-256s** | Hash-based | SPHINCS+ (pre-FIPS) | Stateless, conservative security |
-| **XMSS** | Hash-based | RFC 8391 | Legacy QRL addresses |
+| **SPHINCS+-256s** | Hash-based | SPHINCS+ submission (pre-FIPS 205) — see SPHINCS+ notes | Stateless primitive; wallet path gated pending QRL's SLH-DSA parameter-set choice |
+| **XMSS** | Hash-based | Pre-standardisation; see XMSS notes | QRL v1 → v2 migration |
 
 ---
 
@@ -84,7 +84,9 @@ _ = persistState(wallet)  // Ignoring error!
 broadcast(sig)  // Index may not be persisted
 ```
 
-**For new applications, prefer ML-DSA-87 or SPHINCS+ which are stateless.**
+**For new applications, prefer the stateless ML-DSA-87.** SPHINCS+-256s remains available
+as a primitive but the QRL wallet path for SPHINCS+/SLH-DSA is intentionally gated until
+NIST and QRL settle on a final SLH-DSA parameter set; see the SPHINCS+ notes below.
 
 ---
 
@@ -94,7 +96,7 @@ broadcast(sig)  // Index may not be persisted
 go get github.com/theQRL/go-qrllib
 ```
 
-Requires Go 1.24 or later.
+Requires Go 1.25 or later.
 
 ## Quick Start
 
@@ -123,7 +125,14 @@ pk := signer.GetPK()
 valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
 ```
 
-### SPHINCS+-256s (Stateless, Conservative)
+### SPHINCS+-256s (primitive; wallet path gated)
+
+The example below uses the raw SPHINCS+-256s primitive directly. The QRL
+wallet layer for SPHINCS+/SLH-DSA is intentionally not currently issuable:
+the implementation here is the SPHINCS+ submission (pre-FIPS 205), and QRL
+has not yet committed to a specific SLH-DSA parameter set under FIPS 205,
+so activating the wallet path now would commit users to a parameter set
+that may change. See the SPHINCS+ notes in [Standards Compliance](#standards-compliance).
 
 ```go
 import "github.com/theQRL/go-qrllib/crypto/sphincsplus_256s"
@@ -172,7 +181,12 @@ if err != nil {
 ok := ml_dsa_87.Verify(message, sig[:], &pk, desc)
 ```
 
-The same API shape is available at `github.com/theQRL/go-qrllib/wallet/sphincsplus_256s`.
+The same API shape is available at `github.com/theQRL/go-qrllib/wallet/sphincsplus_256s`,
+but note that the QRL wallet layer currently treats SPHINCS+/SLH-DSA as **non-issuable**
+(it remains verifiable, so existing addresses keep working): wallet creation under that
+type is gated until the QRL-adopted SLH-DSA parameter set is finalised. See the SPHINCS+
+notes below and `wallet/common/wallettype/type.go` for the `IsIssuable` / `IsVerifiable`
+split.
 
 ### `crypto.Signer` Interface (ML-DSA-87)
 
@@ -244,7 +258,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | Requirement | Recommended Algorithm |
 |-------------|----------------------|
 | General purpose, best performance | ML-DSA-87 |
-| Maximum security, don't trust lattice assumptions | SPHINCS+-256s |
+| Maximum security, don't trust lattice assumptions | SPHINCS+-256s primitive (wallet path gated, see notes) |
 | QRL blockchain transactions | ML-DSA-87 (via wallet layer) |
 | Legacy QRL address compatibility | XMSS (with extreme care) |
 | Signatures must be deterministic | ML-DSA-87 (default), Dilithium |
@@ -271,8 +285,37 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
 ## Standards Compliance
 
 - **ML-DSA-87**: FIPS 204 (Module-Lattice-Based Digital Signature Standard)
-- **SPHINCS+-256s**: SPHINCS+ submission (pre-FIPS). Migration to SLH-DSA ([FIPS 205](https://csrc.nist.gov/pubs/fips/205/final)) is planned.
-- **XMSS**: RFC 8391 (XMSS: eXtended Merkle Signature Scheme)
+- **SPHINCS+-256s** (notes): The implementation in this library is the **SPHINCS+
+  submission** (pre-FIPS 205), specifically `SHAKE-256s-robust`. NIST published
+  [SLH-DSA (FIPS 205)](https://csrc.nist.gov/pubs/fips/205/final) in August 2024 as
+  the standardised successor; FIPS 205 differs from the SPHINCS+ submission in
+  parameter-set details. The QRL wallet layer **does not currently issue new
+  SPHINCS+/SLH-DSA wallets**: the wallet type is reserved in the descriptor format
+  but `IsIssuable()` returns `false` until QRL settles on a specific SLH-DSA
+  parameter set and the implementation is updated to match it. Existing
+  SPHINCS+-256s primitive use (the `crypto/sphincsplus_256s` package, outside the
+  wallet layer) remains supported with the caveat that the parameter set may
+  change once SLH-DSA finalises for QRL. **For new wallets, use ML-DSA-87.**
+- **XMSS**: This library's XMSS implementation **predates RFC 8391**
+  (published August 2018) and was built to support the QRL v1 blockchain at
+  launch. It is **not intended as a general RFC-compliant XMSS implementation**;
+  its role here is to keep v1 mainnet addresses parseable, verifiable, and
+  signable during the v1 → v2 migration. Where parameter-set choices happen to
+  overlap with RFC 8391 (XMSS-SHA2_10_256 and XMSS-SHAKE_256_10_256), signatures
+  produced by go-qrllib verify under the RFC 8391 reference implementation, and
+  reference signatures verify under go-qrllib via the
+  [`crypto/xmss/rfc8391`](crypto/xmss/rfc8391/) sub-package. This is exercised
+  bidirectionally in CI by [`.github/cross-verify/`](.github/cross-verify/README.md),
+  pinned to the original RFC 8391 reference. The library does not track later
+  standards updates such as NIST SP 800-208 (October 2020), which refined
+  `expand_seed` to take additional inputs. Adopting that refinement would
+  change the keypair derived from any given seed and break compatibility with
+  existing v1 mainnet addresses, so it is intentionally not applied here. New
+  signature issuance on QRL uses **ML-DSA-87 (FIPS 204)**.
+  **`SHAKE_128`** is a pre-standardisation QRL-specific hash variant, retained
+  for v1 mainnet address compatibility only. See
+  [SECURITY.md](SECURITY.md#parameter-set-provenance) for the full provenance
+  discussion.
 - **Dilithium**: CRYSTALS-Dilithium (pre-FIPS version)
 
 ---

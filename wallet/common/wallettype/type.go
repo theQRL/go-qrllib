@@ -36,9 +36,54 @@ func ToWalletTypeOf(val uint8, walletType WalletType) (WalletType, error) {
 	return w, nil
 }
 
+// IsValid reports whether the wallet type is recognised by the descriptor
+// format. It does NOT report whether the library will currently issue new
+// wallets of that type or accept signatures under it; for those see
+// IsIssuable and IsVerifiable.
+//
+// IsValid is the right check for descriptor parsing and address derivation,
+// where every type that has ever been (or will be) on the network must
+// remain recognisable.
 func (w WalletType) IsValid() bool {
 	switch w {
 	case SPHINCSPLUS_256S, ML_DSA_87:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsIssuable reports whether the library will construct *new* wallets of
+// this type. Use this in wallet constructors before deriving key material,
+// returning [github.com/theQRL/go-qrllib/wallet/common.ErrWalletTypeNotIssuable]
+// on a false result.
+//
+// SPHINCSPLUS_256S is reserved as a forward placeholder for QRL's eventual
+// adoption of the SLH-DSA family (FIPS 205) and is not currently issuable.
+// The placeholder is retained in the descriptor format so the on-wire
+// layout does not need to change when SLH-DSA activation lands.
+func (w WalletType) IsIssuable() bool {
+	switch w {
+	case ML_DSA_87:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsVerifiable reports whether the library has an active verification path
+// for signatures produced under this wallet type. Use this in wallet-level
+// Verify before dispatching to the underlying primitive, returning false
+// (or [github.com/theQRL/go-qrllib/wallet/common.ErrWalletTypeNotVerifiable]
+// where the API surface allows it) on a false result.
+//
+// SPHINCSPLUS_256S is reserved as a forward placeholder (see IsIssuable).
+// No signatures will ever have been produced under it on QRL networks
+// until SLH-DSA activation, so refusing verification today is consistent
+// with the on-chain reality.
+func (w WalletType) IsVerifiable() bool {
+	switch w {
+	case ML_DSA_87:
 		return true
 	default:
 		return false

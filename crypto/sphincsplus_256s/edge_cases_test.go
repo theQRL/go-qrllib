@@ -38,12 +38,15 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 	}
 
 	// Seal/Open empty message
-	sealed, err := spx.Seal(emptyMsg)
+	sealed, err := spx.SignAttached(emptyMsg)
 	if err != nil {
 		t.Fatalf("Failed to seal empty message: %v", err)
 	}
 
-	opened := Open(sealed, &pk)
+	opened, err := Open(sealed, &pk)
+	if err != nil {
+		t.Errorf("Open returned error: %v", err)
+	}
 	if opened == nil {
 		t.Error("Failed to open sealed empty message")
 	}
@@ -255,20 +258,20 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	pk := spx.GetPK()
 
 	t.Run("nil_input", func(t *testing.T) {
-		if Open(nil, &pk) != nil {
+		if msg, _ := Open(nil, &pk); msg != nil {
 			t.Error("Open(nil) should return nil")
 		}
 	})
 
 	t.Run("empty_input", func(t *testing.T) {
-		if Open([]byte{}, &pk) != nil {
+		if msg, _ := Open([]byte{}, &pk); msg != nil {
 			t.Error("Open([]) should return nil")
 		}
 	})
 
 	t.Run("too_short_input", func(t *testing.T) {
 		short := make([]byte, params.SPX_BYTES-1)
-		if Open(short, &pk) != nil {
+		if msg, _ := Open(short, &pk); msg != nil {
 			t.Error("Open(short) should return nil")
 		}
 	})
@@ -277,7 +280,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 		// Create a sealed message with invalid signature
 		invalidSealed := make([]byte, params.SPX_BYTES+10)
 		_, _ = rand.Read(invalidSealed)
-		if Open(invalidSealed, &pk) != nil {
+		if msg, _ := Open(invalidSealed, &pk); msg != nil {
 			t.Error("Open with invalid signature should return nil")
 		}
 	})

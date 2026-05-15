@@ -240,6 +240,9 @@ func TestWallet_AddressStr(t *testing.T) {
 }
 
 func TestWallet_SignWithOptrand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow SPHINCS+-256s sign test in -short mode")
+	}
 	for creatorName, creator := range walletCreators {
 		for _, tc := range walletTestCases {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
@@ -286,6 +289,9 @@ func TestVerify(t *testing.T) {
 }
 
 func TestWallet_SignAndVerify(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow SPHINCS+-256s sign test in -short mode")
+	}
 	tests := []struct {
 		name        string
 		message     []uint8
@@ -360,6 +366,9 @@ func TestWallet_SignAndVerify(t *testing.T) {
 }
 
 func TestWallet_SignMultiple(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow SPHINCS+-256s sign test in -short mode")
+	}
 	wallet, err := NewWallet()
 	if err != nil {
 		t.Fatalf("Failed to create wallet: %v", err)
@@ -436,6 +445,9 @@ func createWalletFromMnemonic(t *testing.T, tc *walletTestCase) *Wallet {
 }
 
 func TestWallet_Zeroize(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow SPHINCS+-256s sign test in -short mode")
+	}
 	w, err := NewWallet()
 	if err != nil {
 		t.Fatal(err)

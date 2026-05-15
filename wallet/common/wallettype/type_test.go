@@ -103,6 +103,77 @@ func TestToWalletTypeOf(t *testing.T) {
 	}
 }
 
+// TestWalletType_IsIssuable pins the per-type issuability matrix added
+// while remediating TOB-QRLLIB-4. SPHINCSPLUS_256S is recognised in the
+// descriptor format (IsValid=true) but is not currently issuable; it is
+// reserved as a forward placeholder for SLH-DSA (FIPS 205) adoption.
+// ML_DSA_87 is the only currently-issuable wallet type. When SLH-DSA is
+// activated this test will need updating to flip SPHINCSPLUS_256S to
+// true; that update is the intended single point of change.
+func TestWalletType_IsIssuable(t *testing.T) {
+	tests := []struct {
+		name string
+		wt   WalletType
+		want bool
+	}{
+		{"SPHINCSPLUS_256S not currently issuable", SPHINCSPLUS_256S, false},
+		{"ML_DSA_87 issuable", ML_DSA_87, true},
+		{"InvalidWalletType not issuable", InvalidWalletType, false},
+		{"Unknown type 100 not issuable", WalletType(100), false},
+		{"Unknown type 2 not issuable", WalletType(2), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.wt.IsIssuable(); got != tt.want {
+				t.Errorf("WalletType(%d).IsIssuable() = %v, want %v", tt.wt, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWalletType_IsVerifiable pins the per-type verifiability matrix.
+// Mirrors IsIssuable today; will need updating in lockstep with SLH-DSA
+// activation.
+func TestWalletType_IsVerifiable(t *testing.T) {
+	tests := []struct {
+		name string
+		wt   WalletType
+		want bool
+	}{
+		{"SPHINCSPLUS_256S not currently verifiable", SPHINCSPLUS_256S, false},
+		{"ML_DSA_87 verifiable", ML_DSA_87, true},
+		{"InvalidWalletType not verifiable", InvalidWalletType, false},
+		{"Unknown type 100 not verifiable", WalletType(100), false},
+		{"Unknown type 2 not verifiable", WalletType(2), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.wt.IsVerifiable(); got != tt.want {
+				t.Errorf("WalletType(%d).IsVerifiable() = %v, want %v", tt.wt, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWalletType_IsValidVsIssuableContract documents the contract
+// relationship between IsValid (parseable) and IsIssuable (constructable):
+// every issuable type must also be valid; the converse is not required.
+// This invariant prevents a future edit from making something issuable
+// without making it parseable, which would be self-contradictory.
+func TestWalletType_IsValidVsIssuableContract(t *testing.T) {
+	for v := 0; v <= 255; v++ {
+		w := WalletType(v)
+		if w.IsIssuable() && !w.IsValid() {
+			t.Errorf("WalletType(%d) is issuable but not valid; this violates the descriptor contract", v)
+		}
+		if w.IsVerifiable() && !w.IsValid() {
+			t.Errorf("WalletType(%d) is verifiable but not valid; this violates the descriptor contract", v)
+		}
+	}
+}
+
 func TestInvalidWalletTypeConstant(t *testing.T) {
 	// Verify InvalidWalletType has expected value
 	if InvalidWalletType != 255 {

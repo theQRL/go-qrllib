@@ -171,6 +171,54 @@ func TestFromBytes_ValidContent(t *testing.T) {
 	}
 }
 
+// TestDescriptor_IsIssuable / TestDescriptor_IsVerifiable verify that the
+// per-type issuability/verifiability switches added on wallettype are
+// proxied correctly through the Descriptor methods, and additionally
+// require the descriptor itself to be canonical (metadata bytes zero).
+// A descriptor that is not IsValid must never be IsIssuable / IsVerifiable.
+// Added while remediating TOB-QRLLIB-4.
+func TestDescriptor_IsIssuable(t *testing.T) {
+	tests := []struct {
+		name string
+		desc Descriptor
+		want bool
+	}{
+		{"ML_DSA_87 canonical is issuable", Descriptor{byte(wallettype.ML_DSA_87), 0, 0}, true},
+		{"SPHINCSPLUS_256S canonical not currently issuable", Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0, 0}, false},
+		{"ML_DSA_87 with non-zero metadata not issuable (IsValid fails)", Descriptor{byte(wallettype.ML_DSA_87), 0x01, 0}, false},
+		{"unknown type not issuable", Descriptor{99, 0, 0}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.desc.IsIssuable(); got != tt.want {
+				t.Errorf("Descriptor.IsIssuable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDescriptor_IsVerifiable(t *testing.T) {
+	tests := []struct {
+		name string
+		desc Descriptor
+		want bool
+	}{
+		{"ML_DSA_87 canonical is verifiable", Descriptor{byte(wallettype.ML_DSA_87), 0, 0}, true},
+		{"SPHINCSPLUS_256S canonical not currently verifiable", Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0, 0}, false},
+		{"ML_DSA_87 with non-zero metadata not verifiable (IsValid fails)", Descriptor{byte(wallettype.ML_DSA_87), 0, 0x01}, false},
+		{"unknown type not verifiable", Descriptor{99, 0, 0}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.desc.IsVerifiable(); got != tt.want {
+				t.Errorf("Descriptor.IsVerifiable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDescriptor_IsValid_WithMetadata(t *testing.T) {
 	// Bytes 1 and 2 have no defined semantics for ML-DSA-87 or
 	// SPHINCS+-256s and must be zero. Only the canonical {type, 0, 0}

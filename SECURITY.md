@@ -74,7 +74,7 @@ This library assumes:
 
 **Security Level**: NIST Level 5
 
-### XMSS (RFC 8391)
+### XMSS (legacy, v1 → v2 migration)
 
 | Property | Status |
 |----------|--------|
@@ -88,6 +88,68 @@ This library assumes:
 **Security Level**: Configurable based on parameters
 
 **CRITICAL**: XMSS security is COMPLETELY BROKEN if the same index is used twice.
+
+#### Scope: XMSS in this library is a v1 → v2 migration vehicle
+
+The XMSS implementation in `go-qrllib` exists for one purpose: to
+keep QRL v1 mainnet addresses parseable, verifiable, and (for their
+owners) signable during the ongoing migration to **ML-DSA-87
+(FIPS 204)**. New signature issuance on QRL uses ML-DSA-87. XMSS in
+this library is not intended as a standards-tracking implementation
+and is not recommended for new wallets.
+
+#### Parameter-set provenance
+
+The library exposes three hash-function options:
+
+| HashFunction | Status                                                      |
+|--------------|-------------------------------------------------------------|
+| `SHA2_256`   | XMSS-SHA2_*_256 family — RFC 8391 (Aug 2018) signature format. See "Standards alignment" below for the relationship to SP 800-208. |
+| `SHAKE_256`  | XMSS-SHAKE_*_256 family — RFC 8391 (Aug 2018) signature format. See "Standards alignment" below for the relationship to SP 800-208. |
+| `SHAKE_128`  | **QRL-specific extension, retained for legacy compatibility from QRL's pre-standardisation XMSS implementation.** Not part of NIST SP 800-208. With a 32-byte output it offers approximately 64-bit quantum security under a Grover-style attack — theoretically reduced relative to SHAKE_256 / SHA2_256 (~128-bit quantum). **Not recommended for new wallets.** Existing v1 mainnet addresses minted under SHAKE_128 must continue to be parseable, verifiable and signable, which is the only reason this option survives. |
+
+Signatures produced by go-qrllib for the **XMSS-SHA2_10_256** parameter
+set match the RFC 8391 (August 2018) signature format and verify under
+the reference implementation (see `.github/cross-verify/README.md`).
+The keypair-derivation surface diverges from the reference in two
+distinct ways:
+
+1. **Layout conventions**: the 48-byte QRL seed is SHAKE-256-expanded
+   into the 96 bytes (SK_SEED || SK_PRF || PUB_SEED) the reference
+   takes directly, and the QRL public key is prefixed with a 3-byte
+   QRL descriptor rather than a 4-byte RFC 8391 OID. The
+   [`crypto/xmss/rfc8391`](../crypto/xmss/rfc8391/) sub-package
+   exposes a 96-byte direct-seed entry point and OID-form public-key
+   marshalling that bridge both conventions, and is what the
+   bidirectional cross-verify CI uses on the go-qrllib side.
+
+2. **`expand_seed` construction**: the WOTS+ secret-key derivation
+   follows the original RFC 8391 (Aug 2018), not the NIST SP 800-208
+   (Oct 2020) refinement. This is because QRL's XMSS implementation
+   predates both standards and the v1 mainnet keypair derivation
+   depends on the original construction; adopting the SP 800-208
+   refinement would alter the keypair derived from any given v1 seed
+   and is therefore not appropriate for a deployed scheme. This is
+   an algorithmic difference and is *not* something the `rfc8391`
+   sub-package can bridge and the sub-package addresses layout
+   conventions only. The cross-verify CI accommodates the difference
+   by pinning `xmss-reference` to commit `7793c40` (the last revision
+   on the original construction) so the bidirectional check aligns
+   with the construction this library targets. See "Standards
+   alignment" below for the deeper discussion.
+
+#### Standards alignment
+
+The implementation predates RFC 8391 (August 2018) and follows the
+original RFC 8391 `expand_seed` construction. It does not track later
+refinements such as NIST SP 800-208 (October 2020), which adjusted
+`expand_seed` to take additional inputs. Applying that refinement
+would alter the keypair derived from any given v1 seed and is
+therefore not appropriate here. The cross-implementation verification
+CI in `.github/cross-verify/` pins `xmss-reference` to commit
+`7793c40` (the last revision on the original spec) so the
+bidirectional cross-verify aligns with the construction this library
+targets.
 
 ### Dilithium (Pre-FIPS)
 
@@ -128,13 +190,13 @@ String form: `"Q" + hex(address)` = 97 characters.
 
 - **Signature verification**: challenge comparison via `subtle.ConstantTimeCompare` (ML-DSA-87, Dilithium, SPHINCS+)
 - **NTT/inverse NTT**: fixed loop bounds, no data-dependent branches
-- **Polynomial norm checks**: branchless violation-flag accumulator — iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
+- **Polynomial norm checks**: branchless violation-flag accumulator: iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
 - **Field decomposition**: `Power2Round`, `Decompose`, `MakeHint`, `UseHint` all use mask-based conditional selection with no branches on coefficient values (see `crypto/internal/lattice/rounding.go`)
 - **Public key equality**: `CryptoPublicKey.Equal` uses `subtle.ConstantTimeCompare`
 
 **Inherently variable-time (not secret-dependent):**
 
-- **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern — the rejection probability depends on public parameters and random nonces, not on the secret key
+- **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern: the rejection probability depends on public parameters and random nonces, not on the secret key
 - **SHAKE-256 / SHA-3 operations**: assumed constant-time for a given input length (provided by `golang.org/x/crypto/sha3`)
 
 **Go runtime caveats:**
@@ -173,25 +235,58 @@ go test -v -run TestCanonicality ./crypto/...
 
 ### Key Zeroization
 
-All crypto types implement `Zeroize()` to clear sensitive material:
+All crypto types implement `Zeroize()` to clear the secret-key and seed
+fields of the instance. Internally these route through the package's
+shared `zeroBytes` helper so the wipe behaviour is defined in one place:
 
 ```go
 func (d *MLDSA87) Zeroize() {
-    for i := range d.sk {
-        d.sk[i] = 0
-    }
-    for i := range d.seed {
-        d.seed[i] = 0
-    }
+    zeroBytes(d.sk[:])
+    zeroBytes(d.seed[:])
 }
 ```
 
-In addition to instance-level `Zeroize()`, signing functions automatically zeroize secret temporaries via deferred cleanup when they return. This reduces the window for secrets persisting in freed memory between signing operations:
+`zeroBytes` overwrites the slice in place and uses `runtime.KeepAlive`
+to prevent the compiler from eliding the writes as a dead store.
 
-- **ML-DSA-87 / Dilithium**: `key`, `rhoPrime`, `s1`, `s2`, `t0`
+In addition to instance-level `Zeroize()`, both **signing AND key-generation** paths
+automatically zeroise their secret temporaries via deferred cleanup
+when they return. This reduces the window for secret intermediates
+persisting in freed memory:
+
+- **ML-DSA-87 / Dilithium signing** (`cryptoSignSignatureInternal`): `key`, `rhoPrime`, `s1`, `s2`, `t0`
+- **ML-DSA-87 key generation** (`cryptoSignKeypair`): `key`, `rhoPrime`, `s1`, `s1hat`, `s2`, `t0`
+- **ML-DSA-87 hex-seed parsing** (`NewMLDSA87FromHexSeed`): the heap-allocated `unsizedSeed` byte slice and the temporary fixed-size seed array
 - **SPHINCS+**: `ctx.SkSeed`
 
-**Limitation**: Go's garbage collector may copy memory before zeroization. For highest security, use hardware security modules.
+#### Guarantee boundary (best-effort under Go's memory model)
+
+Zeroisation in this library is **best-effort**, not absolute. Go's
+runtime may copy values during garbage collection, escape analysis,
+slice growth, or interface boxing; any such copy that occurred
+*before* the zeroisation executes is outside the library's control
+and remains in memory until that copy is itself overwritten or
+reclaimed. The `runtime.KeepAlive` calls in `zeroBytes` and the
+`zeroPoly` family defeat **dead-store elimination by the compiler**
+for the explicit overwrite, but they do **not** address
+**runtime-side duplication** of the underlying data.
+
+What this means in practice:
+
+- Calling `Zeroize` (or letting a signing-path defer fire) closes the
+  obvious window where secret material sits in process memory after
+  it has finished being used. This is a useful defence-in-depth
+  measure for short-lived signers and against memory-disclosure bugs
+  in the host process.
+- It does **NOT** guarantee that no copy of the secret survives
+  anywhere in the address space. Workloads with adversaries that
+  have physical or kernel-level memory access (cold-boot attacks,
+  `/proc/<pid>/mem`, hibernation images, swap files) need a
+  hardware security module for hard guarantees.
+
+For highest security, combine in-library zeroisation with HSM-backed
+key storage, locked memory pages (`mlock`/`VirtualLock`), and
+swap-disabled hosts.
 
 ---
 
@@ -226,6 +321,67 @@ For production XMSS usage:
 3. **Log all signing operations** for audit
 4. **Monitor remaining signatures** (2^height limit)
 5. **Plan key rotation** before exhaustion
+
+---
+
+## API Precondition Guarantees
+
+Every public verification and "open" function in the library treats malformed inputs as a refusal, **never as a panic**. The following preconditions are checked at the API boundary:
+
+### Panic policy
+
+The library distinguishes two failure classes:
+
+- **Malformed user input**: nil pointers, wrong-size buffers, unsupported parameter values supplied through the public API. Always surfaces as a typed error or a `false` / `nil` return; **never panics**. The tables below enumerate the specific cases.
+- **Invariant violations**: internal preconditions that should never fail if the rest of the library is correct (e.g. an unrecognised `HashFunction` reaching the dispatch switch *after* the public constructor's validation guard, or `xmss/params.go`'s `logW` switch reaching its impossible default). These **panic with a clear message**; they exist as crash-early tripwires so that any future regression which bypasses an upstream guard fails loudly in tests rather than silently corrupting key material in production.
+
+Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter values), `crypto/xmss/hash.go:coreHash` (HashFunction dispatch), `crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), and several SHAKE I/O sites in `crypto/sphincsplus_256s/hash_shake.go` (cryptographic-primitive errors that the SHA-3 contract guarantees do not occur). All carry comments explaining what upstream invariant is being enforced.
+
+| Function | Nil public key | Wrong-size signature | Oversized context | Verification failure |
+|----------|----------------|----------------------|-------------------|----------------------|
+| `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` | returns `false` |
+| `crypto/ml_dsa_87.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | `(nil, ErrInvalidContext)` | `(nil, ErrInvalidSignature)` |
+| `crypto/dilithium.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/dilithium.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
+| `crypto/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/sphincsplus_256s.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
+| `crypto/xmss.Verify` | n/a (slice; len-checked) | returns `false` | n/a | returns `false` |
+| `legacywallet/xmss.Verify` | n/a (value type) | returns `false` | n/a | returns `false` |
+| `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+
+The crypto-level `Open` functions return `([]byte, error)`. Each failure mode surfaces a distinct typed sentinel from `cryptoerrors`, so callers that need to log or route on specific failure types can use `errors.Is(err, cryptoerrors.ErrPublicKeyNil)` etc. Callers that don't care which failure occurred can write `msg, _ := Open(...)` and treat `msg == nil` as "did not verify".
+
+Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same nil-PK guard as defense-in-depth and surface the same typed sentinels.
+
+Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk path with a recover-and-fail-on-panic harness so a future edit that removes the guard fails CI immediately.
+
+#### Information-leakage considerations
+
+The typed errors returned by `Open` describe (a) the caller's own input shape — nil pointer, oversized context, undersized signature buffer — or (b) the boolean verification outcome. **None is computed from secret material**, so no error path constitutes a verification oracle that could help an attacker forge signatures: the underlying ML-DSA / Dilithium / SPHINCS+ schemes are EUF-CMA secure, and an attacker with unlimited Verify queries learns nothing useful from a "valid input shape, invalid signature" error that they would not learn from `Verify` returning `false`.
+
+The fast-fail vs slow-fail timing distinction (early input-shape errors vs full verification then `ErrInvalidSignature`) reveals only input-shape information that the attacker supplied themselves. Within the slow-fail path the constant-time-comparison properties documented above ensure no further timing leak based on secret state.
+
+Callers forwarding these errors to untrusted clients should follow standard Go server-side practice of mapping internal errors to coarser external messages.
+
+### Constructor preconditions (XMSS parameter validation)
+
+XMSS constructors additionally validate parameter-set identifiers at the API boundary. The contract is: every exported XMSS constructor MUST call `HashFunction.IsValid()` and `Height.IsValid()` on its caller-supplied values *before* deriving any key material; an invalid value MUST surface as a typed error (`cryptoerrors.ErrInvalidHashFunction` or `cryptoerrors.ErrInvalidHeight`) rather than producing a degenerate zero-rooted XMSS at signing time.
+
+| Constructor | HashFunction validated | Height validated |
+|-------------|------------------------|------------------|
+| `crypto/xmss.InitializeTree` | yes | yes |
+| `crypto/xmss.XMSSFastGenKeyPair` | yes (via internal dispatch tripwire, see below) | yes |
+| `legacywallet/xmss.NewWalletFromSeed` | yes (defence-in-depth) | yes (existing `height > MaxHeight` check) |
+| `legacywallet/xmss.NewWalletFromExtendedSeed` | yes (via descriptor parser → `xmss.ToHashFunction`) | yes (same path) |
+| `legacywallet/xmss.NewWalletFromHeight` | yes (delegates to `NewWalletFromSeed`) | yes (same) |
+
+Two internal defence-in-depth tripwires back the contract:
+
+1. **`crypto/xmss.coreHash`** dispatch `switch` carries a `default:` panic that fires immediately if any future regression lets an invalid `HashFunction` reach the hash function with no upstream guard. Without this default case the buffer would be left zero-initialised (the original audit defect).
+2. **`crypto/xmss.InitializeTree`** post-construction non-zero-root check, which asserts the constructed Merkle root is not all-zero before returning the XMSS. Catches any *other* future regression in the key-derivation pipeline that produces an unconstructed root.
+
+Regression tests live in `crypto/xmss/hash_function_validation_test.go` and `legacywallet/xmss/hash_function_validation_test.go`; together they cover every invalid `uint8` value cast to `HashFunction`, the `coreHash` tripwire, and a positive cross-seed-distinct-roots invariant for each valid hash function.
 
 ---
 

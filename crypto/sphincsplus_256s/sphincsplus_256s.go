@@ -96,8 +96,16 @@ func (s *SphincsPlus256s) GetHexSeed() string {
 	return "0x" + hex.EncodeToString(seed[:])
 }
 
-// Seal the message, returns signature attached with message.
-func (s *SphincsPlus256s) Seal(message []uint8) ([]uint8, error) {
+// SignAttached signs message and returns `signature || message` as a
+// single attached-signature byte string.
+//
+// Use [SphincsPlus256s.Sign] (and [Verify]) for the *detached* form;
+// SignAttached (and [Open]) is the attached-signature variant.
+//
+// SignAttached has no confidentiality property; the message bytes are
+// embedded in the result in the clear. Renamed from Seal in
+// TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
+func (s *SphincsPlus256s) SignAttached(message []uint8) ([]uint8, error) {
 	return cryptoSign(message, s.sk[:], s.generateOptRand)
 }
 
@@ -113,22 +121,42 @@ func (s *SphincsPlus256s) Sign(message []uint8) ([params.SPX_BYTES]uint8, error)
 	return signature, err
 }
 
-// Open the sealed message m. Returns the original message sealed with signature.
-// In case the signature is invalid, nil is returned.
-func Open(signatureMessage []uint8, pk *[params.SPX_PK_BYTES]uint8) []uint8 {
-	// Check for undersized input
+// Open verifies an attached-signature byte string produced by
+// [SphincsPlus256s.SignAttached] (i.e. `signature || message`) under
+// pk and returns the recovered plaintext message on success.
+//
+// The returned message is the same bytes that were originally signed —
+// it is *not* decrypted; this scheme has no confidentiality property,
+// the message bytes were already in plaintext inside signatureMessage.
+//
+// Returns a typed error distinguishing each failure mode (TOB-QRLLIB-14):
+//
+//   - [cryptoerrors.ErrPublicKeyNil] if pk is nil
+//   - [cryptoerrors.ErrInvalidSignatureSize] if signatureMessage is shorter than params.SPX_BYTES
+//   - [cryptoerrors.ErrInvalidSignature] if the signature does not verify under pk
+//
+// On any error the returned message slice is nil.
+func Open(signatureMessage []uint8, pk *[params.SPX_PK_BYTES]uint8) ([]uint8, error) {
+	if pk == nil {
+		return nil, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(signatureMessage) < params.SPX_BYTES {
-		return nil
+		return nil, cryptoerrors.ErrInvalidSignatureSize
 	}
 	m := make([]uint8, len(signatureMessage)-params.SPX_BYTES)
-	result := cryptoSignOpen(m, signatureMessage, pk[:])
-	if !result {
-		return nil
+	if !cryptoSignOpen(m, signatureMessage, pk[:]) {
+		return nil, cryptoerrors.ErrInvalidSignature
 	}
-	return m
+	return m, nil
 }
 
+// Verify reports whether signature is a valid SPHINCS+ signature over
+// message under pk. Returns false if pk is nil rather than panicking.
+// (TOB-QRLLIB-11)
 func Verify(message []uint8, signature [params.SPX_BYTES]uint8, pk *[params.SPX_PK_BYTES]uint8) bool {
+	if pk == nil {
+		return false
+	}
 	return cryptoSignVerify(signature[:], message, pk[:])
 }
 

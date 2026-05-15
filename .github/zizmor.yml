@@ -1,0 +1,31 @@
+# zizmor configuration for go-qrllib
+#
+# zizmor (https://docs.zizmor.sh) is a static-analysis linter for GitHub
+# Actions workflow files. We run it as a CI gate
+# (.github/workflows/actionlint.yml) in --persona=pedantic mode at all
+# severities — any new finding zizmor knows about, of any severity, fails
+# the build. The configuration below records the only two deliberate
+# exceptions to that rule.
+#
+# Adding new exceptions to this file should be rare and well-justified;
+# the default is to fix the underlying finding in the workflow rather
+# than suppress it here.
+
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # SLSA reusable workflows MUST be tag-pinned so the slsa-verifier
+        # can validate the generator's identity against the signed release.
+        # SHA-pinning here would break SLSA Level 3 provenance verification.
+        # https://github.com/slsa-framework/slsa-github-generator/blob/main/SECURITY.md
+        slsa-framework/slsa-github-generator/*: ref-pin
+
+  dangerous-triggers:
+    # The release workflow uses `workflow_run` deliberately so it only
+    # fires after Test, Lint and Security all pass on main. The downstream
+    # guards (`workflow_run.conclusion == 'success'` and an explicit
+    # `github.repository == 'theQRL/go-qrllib'` check) close the misuse
+    # vectors zizmor warns about in the general case.
+    ignore:
+      - release.yml

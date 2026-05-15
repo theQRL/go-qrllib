@@ -14,13 +14,48 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   actionlint:
     name: Lint workflow files
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Run actionlint
-        uses: raven-actions/actionlint@v2
+        uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2.1.2
+
+  zizmor:
+    name: zizmor (Actions security analysis)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # for SARIF upload to code scanning, if enabled
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install zizmor
+        run: pipx install zizmor
+
+      - name: Run zizmor
+        # --persona=pedantic enables the broadest audit set zizmor knows
+        # about, including stylistic findings like missing job concurrency
+        # limits, undocumented permissions, and template-injection candidates.
+        # We hold the entire workflow surface to that bar — any new finding
+        # at any severity fails the build. Configuration in
+        # .github/zizmor.yml records the two deliberate exceptions:
+        #
+        #   - slsa-framework reusable workflow (must be tag-pinned for
+        #     verifier compatibility — see release.yml inline comment)
+        #   - dangerous-triggers ignore on release.yml (the workflow_run
+        #     trigger is deliberate and gated by downstream conditionals)
+        run: zizmor --persona=pedantic --config .github/zizmor.yml .github/workflows

@@ -88,10 +88,21 @@ func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 	if err != nil {
 		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
 	}
+	// The decoded seed is secret material; wipe the heap-allocated
+	// intermediate buffer once we no longer need it. The fixed-size
+	// stack array `seed` is also wiped after key derivation completes —
+	// NewMLDSA87FromSeed copies it into the returned struct, so the
+	// local copy is no longer needed after that call. Best-effort under
+	// Go's memory model (see SECURITY.md and MLDSA87.Zeroize).
+	// (TOB-QRLLIB-10)
+	defer zeroBytes(unsizedSeed)
+
 	if len(unsizedSeed) != SEED_BYTES {
 		return nil, cryptoerrors.ErrInvalidSeed
 	}
 	var seed [SEED_BYTES]uint8
+	defer zeroBytes(seed[:])
+
 	copy(seed[:], unsizedSeed)
 	return NewMLDSA87FromSeed(seed)
 }
@@ -113,8 +124,19 @@ func (d *MLDSA87) GetHexSeed() string {
 	return "0x" + hex.EncodeToString(seed[:])
 }
 
-// Seal the message, returns signature attached with message.
-func (d *MLDSA87) Seal(ctx, message []uint8) ([]uint8, error) {
+// SignAttached signs message with the FIPS 204 context ctx and returns
+// `signature || message` as a single attached-signature byte string.
+//
+// Use [MLDSA87.Sign] (and [Verify]) for the *detached* form, where the
+// signature and message are kept as separate values; use SignAttached
+// (and [Open]) when a single self-contained byte string is convenient
+// — for example when storing or transmitting a signed message over a
+// channel that does not have a place for a side-channel signature.
+//
+// SignAttached has no confidentiality property; the message bytes are
+// embedded in the result in the clear. Renamed from Seal in
+// TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
+func (d *MLDSA87) SignAttached(ctx, message []uint8) ([]uint8, error) {
 	return cryptoSign(message, ctx, &d.sk, d.randomizedSigning)
 }
 
@@ -131,16 +153,39 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	return signature, err
 }
 
-// Open the sealed message m. Returns the original message sealed with signature.
-// In case the signature is invalid, nil is returned.
-func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) []uint8 {
-	msg, _ := cryptoSignOpen(signatureMessage, ctx, pk)
-	return msg
+// Open verifies an attached-signature byte string produced by
+// [MLDSA87.SignAttached] (i.e. `signature || message`) under pk and the
+// FIPS 204 context ctx, and returns the recovered plaintext message on
+// success.
+//
+// The returned message is the same bytes that were originally signed —
+// it is *not* decrypted; this scheme has no confidentiality property,
+// the message bytes were already in plaintext inside signatureMessage.
+//
+// Returns a typed error distinguishing each failure mode (TOB-QRLLIB-14):
+//
+//   - [cryptoerrors.ErrPublicKeyNil] if pk is nil
+//   - [cryptoerrors.ErrInvalidContext] if len(ctx) > 255
+//   - [cryptoerrors.ErrInvalidSignatureSize] if signatureMessage is shorter than CRYPTO_BYTES
+//   - [cryptoerrors.ErrInvalidSignature] if the signature does not verify under pk
+//
+// On any error the returned message slice is nil. Callers that don't
+// need to distinguish failure modes can use `msg, _ := Open(...)` and
+// check `msg != nil`.
+func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	if pk == nil {
+		return nil, cryptoerrors.ErrPublicKeyNil
+	}
+	return cryptoSignOpen(signatureMessage, ctx, pk)
 }
 
 // Verify checks the signature against the message and public key with the given context.
 // The ctx parameter must match the context used during signing (FIPS 204 requirement).
+// Returns false if pk is nil rather than panicking. (TOB-QRLLIB-11)
 func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
+	if pk == nil {
+		return false
+	}
 	result, err := cryptoSignVerify(signature, message, ctx, pk)
 	if err != nil {
 		return false
@@ -166,13 +211,34 @@ func ExtractSignature(signatureMessage []uint8) []uint8 {
 	return signatureMessage[:CRYPTO_BYTES]
 }
 
-// Zeroize clears sensitive key material from memory.
-// This should be called when the MLDSA87 instance is no longer needed.
+// Zeroize clears the secret-key and seed fields of the MLDSA87 instance.
+// Call this when the instance is no longer needed.
+//
+// # Guarantee boundary (best-effort under Go's memory model)
+//
+// Zeroisation in this library is **best-effort**, not absolute. Go's
+// runtime is free to copy values during garbage collection, escape
+// analysis, slice growth, or interface boxing; any such copy that
+// occurred before Zeroize executes is outside the library's control
+// and remains in memory until that copy is itself overwritten or
+// reclaimed. The package's [zeroBytes] helper uses [runtime.KeepAlive]
+// to defeat dead-store elimination for the explicit overwrite, which
+// addresses compiler-side erasure but not runtime-side duplication.
+//
+// What this means in practice:
+//
+//   - Calling Zeroize closes the obvious window where d.sk and d.seed
+//     sit in process memory after the keypair has finished being used.
+//     This is a useful defence-in-depth measure for short-lived signers
+//     and against memory-disclosure bugs in the host process.
+//   - It does NOT guarantee that no copy of the secret survives anywhere
+//     in the address space. Workloads with adversaries that have
+//     physical or kernel-level memory access (cold-boot, /proc/<pid>/mem,
+//     hibernation images, swap files) need a hardware security module
+//     for hard guarantees.
+//
+// See SECURITY.md ("Key Zeroization") for the full discussion.
 func (d *MLDSA87) Zeroize() {
-	for i := range d.sk {
-		d.sk[i] = 0
-	}
-	for i := range d.seed {
-		d.seed[i] = 0
-	}
+	zeroBytes(d.sk[:])
+	zeroBytes(d.seed[:])
 }

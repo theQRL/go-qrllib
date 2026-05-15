@@ -236,7 +236,7 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 			}
 
 			// Seal
-			sealed, err := spx.Seal(msg)
+			sealed, err := spx.SignAttached(msg)
 			if err != nil {
 				t.Fatalf("Failed to seal: %v", err)
 			}
@@ -248,7 +248,10 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 
 			// Open
 			pk := spx.GetPK()
-			opened := Open(sealed, &pk)
+			opened, err := Open(sealed, &pk)
+			if err != nil {
+				t.Fatalf("Open returned error: %v", err)
+			}
 			if opened == nil {
 				t.Fatal("Open returned nil")
 			}
@@ -519,7 +522,7 @@ func TestKATOpenShortInput(t *testing.T) {
 	}
 
 	for i, input := range shortInputs {
-		result := Open(input, &pk)
+		result, _ := Open(input, &pk)
 		if result != nil {
 			t.Errorf("Open should return nil for short input %d (len=%d)", i, len(input))
 		}

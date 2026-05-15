@@ -109,44 +109,48 @@ func ExampleVerify() {
 	// Wrong context: false
 }
 
-// ExampleMLDSA87_Seal demonstrates the Seal operation.
-func ExampleMLDSA87_Seal() {
+// ExampleMLDSA87_SignAttached demonstrates the attached-signature
+// variant: the returned byte string is `signature || message`. Use this
+// when you want a single self-contained payload rather than the
+// detached signature returned by Sign. There is no confidentiality —
+// the message bytes are embedded in the result in the clear.
+func ExampleMLDSA87_SignAttached() {
 	m, _ := ml_dsa_87.New()
 	defer m.Zeroize()
 
-	ctx := []byte("seal-context")
-	message := []byte("confidential data")
+	ctx := []byte("example-context")
+	message := []byte("example transaction payload")
 
-	// Seal prepends the signature to the message
-	sealed, err := m.Seal(ctx, message)
+	// SignAttached returns signature || message in a single buffer.
+	signed, err := m.SignAttached(ctx, message)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
 
-	// Sealed message is signature || message
-	fmt.Printf("Sealed length: %d (signature: %d + message: %d)\n",
-		len(sealed), ml_dsa_87.CRYPTO_BYTES, len(message))
-	// Output: Sealed length: 4644 (signature: 4627 + message: 17)
+	fmt.Printf("Signed length: %d (signature: %d + message: %d)\n",
+		len(signed), ml_dsa_87.CRYPTO_BYTES, len(message))
+	// Output: Signed length: 4654 (signature: 4627 + message: 27)
 }
 
-// ExampleOpen demonstrates verifying and extracting a sealed message.
+// ExampleOpen demonstrates verifying an attached-signature byte string
+// (produced by SignAttached) and recovering the plaintext message.
 func ExampleOpen() {
 	m, _ := ml_dsa_87.New()
 	defer m.Zeroize()
 
 	ctx := []byte("open-context")
-	original := []byte("secret message")
-	sealed, _ := m.Seal(ctx, original)
+	original := []byte("example transaction payload")
+	signed, _ := m.SignAttached(ctx, original)
 
-	// Open verifies and extracts the message
+	// Open verifies and returns the recovered message
 	pk := m.GetPK()
-	message := ml_dsa_87.Open(ctx, sealed, &pk)
-	if message == nil {
-		fmt.Println("Verification failed")
+	message, err := ml_dsa_87.Open(ctx, signed, &pk)
+	if err != nil {
+		fmt.Println("Verification failed:", err)
 		return
 	}
 
 	fmt.Println("Recovered:", string(message))
-	// Output: Recovered: secret message
+	// Output: Recovered: example transaction payload
 }

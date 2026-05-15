@@ -5,15 +5,74 @@ import (
 	"github.com/theQRL/go-qrllib/misc"
 )
 
+// XMSSFastGenKeyPair generates an XMSS keypair from a 48-byte
+// caller-supplied seed, expanding it via SHAKE256 into the 3*n bytes
+// of randomness (SK_SEED || SK_PRF || PUB_SEED) the construction
+// requires. This is the QRL pre-standardisation seed-derivation
+// convention and is what every QRL wallet path uses.
+//
+// Callers that need to bypass the SHAKE256 expansion — typically for
+// RFC 8391 reference-implementation interop where the 96 bytes are
+// supplied directly — should use [XMSSFastGenKeyPairFromExpandedSeed]
+// or the [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package.
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
-
-	if xmssParams.h&1 == 1 {
-		//coverage:ignore
-		//rationale: InitializeTree validates height with BDS check which ensures even heights before calling this
-		return cryptoerrors.ErrInvalidHeight
+	if err := validateXMSSFastParams(xmssParams); err != nil {
+		return err
 	}
 
+	// Expand the 48-byte caller-supplied seed into 3*n bytes of
+	// randomness (SK_SEED || SK_PRF || PUB_SEED). For the supported
+	// n=32 parameter set this is 96 bytes; the parameter-set guard
+	// above ensures this layout is always correct.
+	var expanded [96]uint8
+	misc.SHAKE256(expanded[:], seed)
+
+	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, &expanded)
+}
+
+// XMSSFastGenKeyPairFromExpandedSeed generates an XMSS keypair from
+// 96 bytes of already-expanded seed material (SK_SEED || SK_PRF ||
+// PUB_SEED). This matches the layout the RFC 8391 reference
+// implementation consumes directly and is what the
+// [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package builds
+// on for bidirectional cross-implementation interop.
+//
+// QRL wallet code should use [XMSSFastGenKeyPair] instead — it
+// expands a 48-byte seed via SHAKE256, which is the QRL-specific
+// derivation convention and the only path that produces v1-mainnet
+// addresses.
+func XMSSFastGenKeyPairFromExpandedSeed(hashFunction HashFunction, xmssParams *XMSSParams,
+	pk, sk []uint8, bdsState *BDSState, expandedSeed *[96]uint8) error {
+	if err := validateXMSSFastParams(xmssParams); err != nil {
+		return err
+	}
+	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, expandedSeed)
+}
+
+// validateXMSSFastParams checks the parameter-set tuple against the
+// supported family (n=32, w=16, k=2, h ∈ even [2, MaxHeight]). The
+// buffer arithmetic in xmssFastGenKeyPairCore (`rnd=96`, `pks=32`,
+// the `4+2*n` / `4+3*n` offsets) is correct only for n=32; calling
+// it with any other value would silently produce malformed keys.
+// (TOB-QRLLIB-1 + TOB-QRLLIB-2.)
+func validateXMSSFastParams(xmssParams *XMSSParams) error {
+	if xmssParams.n != WOTSParamN || xmssParams.wotsParams.w != WOTSParamW || xmssParams.k != WOTSParamK {
+		return cryptoerrors.ErrUnsupportedParameterSet
+	}
+	if xmssParams.h < 2 || xmssParams.h > uint32(MaxHeight) || xmssParams.h&1 == 1 {
+		return cryptoerrors.ErrInvalidHeight
+	}
+	return nil
+}
+
+// xmssFastGenKeyPairCore performs the actual key derivation given
+// already-expanded seed material. Both [XMSSFastGenKeyPair] (which
+// performs the QRL SHAKE256 expansion) and
+// [XMSSFastGenKeyPairFromExpandedSeed] (which takes the bytes
+// directly) call into here after parameter validation.
+func xmssFastGenKeyPairCore(hashFunction HashFunction, xmssParams *XMSSParams,
+	pk, sk []uint8, bdsState *BDSState, expandedSeed *[96]uint8) error {
 	n := xmssParams.n
 
 	// Set idx = 0
@@ -22,15 +81,11 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	sk[2] = 0
 	sk[3] = 0
 
-	// Copy PUB_SEED to public key
-	randombits := make([]uint8, 3*n)
-
-	misc.SHAKE256(randombits, seed)
-	//shake256(randombits, 3 * n, seed, 48);  // FIXME: seed size has been hardcoded to 48
-
-	rnd := 96
-	pks := uint32(32)
-	copy(sk[4:], randombits[:rnd])
+	const (
+		rnd = 96 // 3 * n for n=32
+		pks = 32 // n
+	)
+	copy(sk[4:], expandedSeed[:rnd])
 	copy(pk[n:], sk[4+2*n:4+2*n+pks])
 
 	addr := make([]uint32, 8)
@@ -64,7 +119,7 @@ func xmssFastSignMessage(hashFunction HashFunction, params *XMSSParams, sk []uin
 	R := make([]uint8, n)
 	var otsAddr [8]uint32
 
-	prf(hashFunction, R, idxBytes32[:], skPRF, n)
+	prf(hashFunction, R, &idxBytes32, skPRF, n)
 	copy(hashKey[:n], R)
 	copy(hashKey[n:n+n], sk[4+3*n:4+3*n+n])
 	misc.ToByteBigEndian(hashKey[2*n:2*n+n], idx, n) // RFC 8391 requires big-endian encoding
@@ -113,6 +168,18 @@ func treeHashSetup(hashFunction HashFunction, node []uint8, index uint32, bdsSta
 	n := xmssParams.n
 	h := xmssParams.h
 	k := xmssParams.k
+
+	// Defense-in-depth (TOB-QRLLIB-2): both public constructors
+	// (InitializeTree, XMSSFastGenKeyPair) now validate h ∈ [2, MaxHeight]
+	// before reaching here. This guard exists as a tripwire against any
+	// future regression that removes one of those upstream checks, since
+	// h >= 32 would overflow (1 << h) below and silently produce a
+	// zero-rooted tree rather than a controlled failure.
+	if h < 2 || h > uint32(MaxHeight) || h&1 == 1 {
+		//coverage:ignore
+		//rationale: upstream constructors enforce this; tripwire only.
+		panic("xmss: treeHashSetup reached with invalid height; upstream validation was bypassed")
+	}
 
 	var otsAddr [8]uint32
 	var lTreeAddr [8]uint32
@@ -204,7 +271,7 @@ func getSeed(hashFunction HashFunction, seed, skSeed []uint8, n uint32, addr *[8
 
 	// Generate pseudorandom value
 	misc.AddrToByte(&bytes, addr)
-	prf(hashFunction, seed, bytes[:], skSeed, n)
+	prf(hashFunction, seed, &bytes, skSeed, n)
 }
 
 func wOTSPKGen(hashFunction HashFunction, pk, sk []uint8, wOTSParams *WOTSParams, pubSeed []uint8, addr *[8]uint32) {
@@ -227,7 +294,7 @@ func expandSeed(hashFunction HashFunction, outSeeds, inSeeds []uint8, n, len uin
 	var ctr [32]uint8
 	for i := uint32(0); i < len; i++ {
 		misc.ToByteBigEndian(ctr[:], i, 32) // RFC 8391 requires big-endian encoding
-		prf(hashFunction, outSeeds[i*n:i*n+n], ctr[:], inSeeds, n)
+		prf(hashFunction, outSeeds[i*n:i*n+n], &ctr, inSeeds, n)
 	}
 }
 
@@ -250,11 +317,11 @@ func hashF(hashFunction HashFunction, out, in, pubSeed []uint8, addr *[8]uint32,
 
 	misc.SetKeyAndMask(addr, 0)
 	misc.AddrToByte(&byteAddr, addr)
-	prf(hashFunction, key, byteAddr[:], pubSeed, n)
+	prf(hashFunction, key, &byteAddr, pubSeed, n)
 
 	misc.SetKeyAndMask(addr, 1)
 	misc.AddrToByte(&byteAddr, addr)
-	prf(hashFunction, bitMask, byteAddr[:], pubSeed, n)
+	prf(hashFunction, bitMask, &byteAddr, pubSeed, n)
 
 	for i := uint32(0); i < n; i++ {
 		buf[i] = in[i] ^ bitMask[i]

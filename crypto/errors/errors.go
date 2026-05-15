@@ -16,6 +16,7 @@ var (
 var (
 	ErrInvalidPublicKey  = errors.New("invalid public key")
 	ErrInvalidSecretKey  = errors.New("invalid secret key")
+	ErrPublicKeyNil      = errors.New("public key is nil")
 	ErrSecretKeyNil      = errors.New("secret key is nil")
 	ErrSecretKeyZeroized = errors.New("secret key is zeroized")
 	ErrKeyGeneration     = errors.New("key generation failed")
@@ -35,11 +36,12 @@ var (
 
 // XMSS-specific errors
 var (
-	ErrInvalidHeight    = errors.New("invalid height")
-	ErrInvalidBDSParams = errors.New("invalid BDS parameters")
-	ErrOTSIndexTooHigh  = errors.New("OTS index exceeds maximum")
-	ErrOTSIndexRewind   = errors.New("cannot rewind OTS index")
-	ErrXMSSInternal     = errors.New("internal XMSS error")
+	ErrInvalidHeight          = errors.New("invalid height")
+	ErrInvalidBDSParams       = errors.New("invalid BDS parameters")
+	ErrOTSIndexTooHigh        = errors.New("OTS index exceeds maximum")
+	ErrOTSIndexRewind         = errors.New("cannot rewind OTS index")
+	ErrXMSSInternal           = errors.New("internal XMSS error")
+	ErrUnsupportedParameterSet = errors.New("unsupported XMSS parameter set")
 )
 
 // Hash function errors

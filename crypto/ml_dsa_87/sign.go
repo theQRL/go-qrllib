@@ -47,6 +47,22 @@ func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uin
 	var s1, s1hat polyVecL
 	var s2, t1, t0 polyVecK
 
+	// Zeroize secret intermediates when key generation completes.
+	// Mirrors the cleanup pattern in cryptoSignSignatureInternal so both
+	// paths handle their unpacked secret material consistently. Go's GC
+	// may copy values before zeroization executes, so this is a
+	// best-effort reduction of the in-memory exposure window rather than
+	// a guarantee — see SECURITY.md and MLDSA87.Zeroize for the exact
+	// boundary. (TOB-QRLLIB-10)
+	defer func() {
+		zeroBytes(key[:])
+		zeroBytes(rhoPrime[:])
+		zeroPolyVecL(&s1)
+		zeroPolyVecL(&s1hat)
+		zeroPolyVecK(&s2)
+		zeroPolyVecK(&t0)
+	}()
+
 	if seed == nil {
 		//coverage:ignore
 		//rationale: all public API callers (New, NewMLDSA87FromSeed) always provide a seed
@@ -407,6 +423,12 @@ func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, p
 }
 
 func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) (bool, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11). The public Verify/Open
+	// wrappers also check, but this internal entry point is reachable
+	// from crypto.Signer (via cryptoSign etc.) and any future caller.
+	if pk == nil {
+		return false, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(ctx) > 255 {
 		return false, cryptoerrors.ErrInvalidContext
 	}
@@ -420,8 +442,12 @@ func cryptoSignVerify(sig [CRYPTO_BYTES]uint8, m []uint8, ctx []uint8, pk *[CRYP
 }
 
 func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+	// Defense-in-depth nil-check (TOB-QRLLIB-11); see cryptoSignVerify.
+	if pk == nil {
+		return nil, cryptoerrors.ErrPublicKeyNil
+	}
 	if len(sm) < CRYPTO_BYTES {
-		return nil, nil
+		return nil, cryptoerrors.ErrInvalidSignatureSize
 	}
 
 	var sig [CRYPTO_BYTES]uint8
@@ -430,8 +456,12 @@ func cryptoSignOpen(sm []uint8, ctx []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8)
 	copy(sig[:], sm)
 	copy(msg, sm[CRYPTO_BYTES:])
 
-	if result, err := cryptoSignVerify(sig, msg, ctx, pk); err != nil || !result {
+	result, err := cryptoSignVerify(sig, msg, ctx, pk)
+	if err != nil {
 		return nil, err
+	}
+	if !result {
+		return nil, cryptoerrors.ErrInvalidSignature
 	}
 
 	return msg, nil

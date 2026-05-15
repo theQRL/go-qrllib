@@ -36,7 +36,7 @@ func FuzzDilithiumOpen(f *testing.F) {
 		copy(pk[:], pkBytes)
 
 		// This should never panic
-		_ = Open(signatureMessage, &pk)
+		_, _ = Open(signatureMessage, &pk)
 	})
 }
 

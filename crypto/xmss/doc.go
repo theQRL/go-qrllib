@@ -1,5 +1,15 @@
-// Package xmss implements the XMSS (eXtended Merkle Signature Scheme) as
-// specified in RFC 8391.
+// Package xmss implements the XMSS (eXtended Merkle Signature Scheme)
+// hash-based signature primitive used by QRL v1 mainnet addresses.
+// The implementation predates RFC 8391 and is retained as a v1 → v2
+// migration shim — it is not intended as a general standards-tracking
+// XMSS implementation. Where parameter-set choices overlap with
+// RFC 8391 (XMSS-SHA2_10_256, XMSS-SHAKE_256_10_256), signatures
+// produced by this package are wire-compatible with the RFC 8391
+// reference implementation, and bidirectional cross-verify against
+// the reference is exercised in CI via the [rfc8391] sub-package.
+// See SECURITY.md for the full provenance discussion.
+//
+// [rfc8391]: https://pkg.go.dev/github.com/theQRL/go-qrllib/crypto/xmss/rfc8391
 //
 // # CRITICAL WARNING: STATEFUL SIGNATURE SCHEME
 //
@@ -23,9 +33,11 @@
 //   - [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] (FIPS 204, lattice-based)
 //   - [github.com/theQRL/go-qrllib/crypto/sphincsplus_256s] (FIPS 205, hash-based)
 //
-// XMSS should only be used for:
-//   - Legacy QRL address compatibility
-//   - Specific compliance requirements mandating RFC 8391
+// XMSS in this library should only be used for:
+//   - Legacy QRL address compatibility (the primary purpose)
+//   - Interop testing against an RFC 8391 reference implementation
+//     where v1-compatible XMSS signatures are needed (via the
+//     [rfc8391] sub-package)
 //
 // # Security Level
 //
@@ -34,9 +46,42 @@
 //   - Height 16: 2^16 = 65,536 signatures
 //   - Height 20: 2^20 = 1,048,576 signatures
 //
+// # Supported parameter sets
+//
+// This implementation only supports the parameter set family that QRL
+// has actually deployed. The exported [XMSSFastGenKeyPair] entry point
+// rejects any other tuple with [github.com/theQRL/go-qrllib/crypto/errors.ErrUnsupportedParameterSet].
+// The supported family is:
+//
+//   - n = 32 (output length)
+//   - w = 16 (Winternitz parameter)
+//   - k = 2 (BDS traversal parameter)
+//   - h ∈ {2, 4, 6, …, [MaxHeight]} (even tree heights)
+//
+// Combined with the supported [HashFunction] values, this gives the
+// following concrete parameter sets:
+//
+//   - XMSS-SHA2_h_256 — RFC 8391 (Aug 2018) signature format
+//   - XMSS-SHAKE_256_h_256 — RFC 8391 (Aug 2018) signature format
+//   - XMSS-SHAKE_128_h_256 — QRL pre-standardisation extension, retained
+//     for legacy v1 address compatibility (see [SHAKE_128]). Not part of
+//     RFC 8391 or NIST SP 800-208. Not recommended for new wallets.
+//
+// Note: this implementation follows the original RFC 8391 (Aug 2018)
+// `expand_seed` construction, not the NIST SP 800-208 (Oct 2020)
+// refinement that adds `pub_seed || ADRS` inputs. See SECURITY.md
+// "Standards alignment" for the rationale.
+//
+// Wider RFC 8391 coverage (`n=64` parameter sets, e.g. XMSS-SHA2_h_512)
+// is not implemented and is not on the roadmap; new XMSS-style issuance
+// on QRL is moving to ML-DSA-87 (FIPS 204), which sidesteps this concern
+// entirely. Bidirectional reference-implementation interop for the
+// supported sets is available via the [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391]
+// sub-package.
+//
 // Supported hash functions:
 //   - SHA2_256: SHA-256 based
-//   - SHAKE_128: SHAKE128 based
+//   - SHAKE_128: SHAKE128 based (legacy QRL extension)
 //   - SHAKE_256: SHAKE256 based
 //
 // # Thread Safety
@@ -47,7 +92,17 @@
 //
 // # Safe Usage Pattern
 //
-//	tree, err := xmss.InitializeTree(10, xmss.SHAKE_256, seed)
+// Always construct Height via xmss.ToHeight (or xmss.UInt32ToHeight) rather
+// than a raw cast such as xmss.Height(10). The helpers validate the value
+// against the allowed range (even integers in [2, MaxHeight]) and return a
+// typed error for invalid input; a raw cast bypasses that validation and
+// will be rejected at InitializeTree with ErrInvalidHeight.
+//
+//	height, err := xmss.ToHeight(10)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	tree, err := xmss.InitializeTree(height, xmss.SHAKE_256, seed)
 //	if err != nil {
 //	    log.Fatal(err)
 //	}

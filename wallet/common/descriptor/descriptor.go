@@ -58,6 +58,11 @@ func (d Descriptor) Type() byte {
 // descriptors to one canonical value per wallet type, so a single
 // keypair cannot be used to derive sibling addresses through the
 // public API.
+//
+// IsValid is the right check for descriptor parsing and address
+// derivation. It does NOT report whether the library will currently
+// issue new wallets of this type or accept signatures under it; for
+// those see IsIssuable and IsVerifiable.
 func (d Descriptor) IsValid() bool {
 	switch wallettype.WalletType(d[0]) {
 	case wallettype.SPHINCSPLUS_256S, wallettype.ML_DSA_87:
@@ -65,6 +70,23 @@ func (d Descriptor) IsValid() bool {
 	default:
 		return false
 	}
+}
+
+// IsIssuable reports whether the descriptor is well-formed AND the library
+// will currently construct *new* wallets of this type. SPHINCSPLUS_256S
+// is parseable (IsValid) but not currently issuable; it is reserved as a
+// forward placeholder for QRL's eventual SLH-DSA (FIPS 205) adoption.
+// See wallettype.WalletType.IsIssuable for the per-type rationale.
+func (d Descriptor) IsIssuable() bool {
+	return d.IsValid() && wallettype.WalletType(d[0]).IsIssuable()
+}
+
+// IsVerifiable reports whether the descriptor is well-formed AND the
+// library has an active verification path for signatures produced under
+// this wallet type. SPHINCSPLUS_256S is parseable but not currently
+// verifiable; see wallettype.WalletType.IsVerifiable.
+func (d Descriptor) IsVerifiable() bool {
+	return d.IsValid() && wallettype.WalletType(d[0]).IsVerifiable()
 }
 
 func (d Descriptor) ToBytes() []byte {

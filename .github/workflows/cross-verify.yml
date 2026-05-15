@@ -11,15 +11,21 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dilithium-cross-verify:
     name: Dilithium (Round 3) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.25.x'
 
@@ -66,10 +72,12 @@ jobs:
     name: ML-DSA-87 (FIPS 204) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.25.x'
 
@@ -115,10 +123,12 @@ jobs:
     name: SPHINCS+ (SHAKE-256s-robust) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.25.x'
 
@@ -169,17 +179,28 @@ jobs:
     name: XMSS (SHA2_10_256) Cross-Verification
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.25.x'
 
-      - name: Clone XMSS reference (RFC 8391)
+      - name: Clone XMSS reference (pinned to original RFC 8391 spec)
         run: |
-          git clone --depth 1 https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
+          # QRL's XMSS implementation predates RFC 8391 and is retained
+          # as a v1 → v2 migration shim. Pinning to commit 7793c40
+          # (2020-04-14) — the last revision on the original RFC 8391
+          # expand_seed construction, before SP 800-208's later
+          # refinement landed in commit 3e28db2 — keeps cross-verify
+          # aligned with the construction QRL actually targets.
+          # See ../cross-verify/README.md "XMSS" section and SECURITY.md
+          # "Parameter-set provenance" for the full rationale.
+          git clone https://github.com/XMSS/xmss-reference.git /tmp/xmss-ref
           cd /tmp/xmss-ref
+          git checkout 7793c40
           echo "Reference commit: $(git rev-parse --short HEAD)"
 
       - name: Generate go-qrllib XMSS signature
@@ -193,11 +214,33 @@ jobs:
             params.c hash.c fips202.c hash_address.c randombytes.c wots.c \
             xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
 
-      - name: Verify go-qrllib signature with reference
+      - name: Verify go-qrllib signature with reference (forward direction)
         run: |
-          echo "=== Verifying go-qrllib XMSS signature with RFC 8391 reference ==="
+          echo "=== Forward: go-qrllib signs, reference verifies ==="
           /tmp/verify_xmss
           echo "✓ go-qrllib → reference: PASSED"
+
+      - name: Compile reference signer (reverse direction)
+        run: |
+          cd /tmp/xmss-ref
+          # NOTE: randombytes.c is intentionally omitted here.
+          # xmss_sign_ref.c provides its own deterministic randombytes()
+          # so the reference's xmssmt_core_keypair (which has no public
+          # seeded-keypair API at this commit pin) consumes a fixed
+          # 96-byte buffer. Linking randombytes.c too would duplicate
+          # the symbol.
+          gcc -o /tmp/sign_xmss_ref -Wall -O2 -I. \
+            "$GITHUB_WORKSPACE/.github/cross-verify/xmss_sign_ref.c" \
+            params.c hash.c fips202.c hash_address.c wots.c \
+            xmss.c xmss_core.c xmss_commons.c utils.c -lcrypto
+
+      - name: Generate reference XMSS signature with seeded keypair
+        run: /tmp/sign_xmss_ref
+
+      - name: Verify reference signature with go-qrllib (reverse direction)
+        run: |
+          echo "=== Reverse: reference signs, go-qrllib verifies via rfc8391 sub-package ==="
+          go run .github/cross-verify/xmss_verify.go
+          echo "✓ reference → go-qrllib: PASSED"
           echo ""
-          echo "Note: Only one-directional verification is performed."
-          echo "See .github/cross-verify/README.md for details."
+          echo "Both directions verified. See .github/cross-verify/README.md for details."
