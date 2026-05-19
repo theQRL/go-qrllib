@@ -171,15 +171,15 @@ targets.
 
 ### Address Derivation
 
-QRL v2.0 addresses are 48 bytes, derived as:
+QRL v2.0 addresses are 64 bytes, derived as:
 
 ```
-Address = SHAKE256(Descriptor || PK)[:48]
+Address = SHAKE256(Descriptor || PK)[:64]
 ```
 
-The 48-byte (384-bit) address provides **NIST Category 5** post-quantum collision resistance. A shorter address (e.g. 20 bytes / 160 bits) would reduce collision resistance below the security level of the underlying signature schemes (ML-DSA-87 and SPHINCS+-256s both target NIST Level 5). The 48-byte size ensures the address does not become the weakest link in the security chain.
+The 64-byte (512-bit) address exceeds **NIST Category 5** post-quantum collision resistance. NIST Category 5 targets 256-bit classical / 128-bit quantum security; the previous 48-byte (384-bit) size met that target and the 64-byte size provides additional headroom so the address never becomes the weakest link in the security chain (the underlying signature schemes — ML-DSA-87 and SPHINCS+-256s — both target NIST Level 5).
 
-String form: `"Q" + hex(address)` = 97 characters.
+String form: `"Q" + hex(address)` = 129 characters.
 
 ---
 
