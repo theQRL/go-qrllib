@@ -212,7 +212,7 @@ func TestKATSignDeterministic(t *testing.T) {
 			sk := mldsa.GetSK()
 			var rnd [RND_BYTES]uint8 // zero
 			internalSig := make([]uint8, CRYPTO_BYTES)
-			if err := cryptoSignSignatureWithRnd(internalSig, msg, ctx, &sk, rnd); err != nil {
+			if err = cryptoSignSignatureWithRnd(internalSig, msg, ctx, &sk, rnd); err != nil {
 				t.Fatalf("cryptoSignSignatureWithRnd: %v", err)
 			}
 			if !bytes.Equal(sig1[:], internalSig) {
