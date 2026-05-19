@@ -610,21 +610,33 @@ func TestWalletTypeConstants(t *testing.T) {
 }
 
 // TestSignatureDeterminism documents the determinism properties of each algorithm.
-// ML-DSA-87 is deterministic (same message + key = same signature).
-// SPHINCS+ uses randomized signing for additional security (hedged signatures).
+// ML-DSA-87 uses hedged signing as per FIPS 204. The previous deterministic-by-default
+// mode was retired as of TOB-QRLLIB-6. SPHINCS+ also uses randomized signing for
+// additional security (hedged signatures). For both algorithms, two signatures over the
+// same (key, message) should differ but both must verify.
 func TestSignatureDeterminism(t *testing.T) {
 	message := []byte("determinism test")
 
-	t.Run("ML-DSA-87_deterministic", func(t *testing.T) {
+	t.Run("ML-DSA-87_hedged", func(t *testing.T) {
 		var seed common.Seed
 		wallet, _ := ml_dsa_wallet.NewWalletFromSeed(seed)
+		pk := wallet.GetPK()
+		desc := wallet.GetDescriptor().ToDescriptor()
 
 		sig1, _ := wallet.Sign(message)
 		sig2, _ := wallet.Sign(message)
 
-		// ML-DSA-87 uses deterministic signing (no randomness)
-		if sig1 != sig2 {
-			t.Error("ML-DSA-87 signatures should be deterministic")
+		// ML-DSA-87 hedged signing (TOB-QRLLIB-6, FIPS 204 §3.4): two
+		// signatures over the same (key, message) MUST differ but both
+		// MUST verify correctly.
+		if sig1 == sig2 {
+			t.Error("ML-DSA-87 hedged signatures should differ for the same input; got identical bytes")
+		}
+		if !ml_dsa_wallet.Verify(message, sig1[:], &pk, desc) {
+			t.Error("first ML-DSA-87 signature should verify")
+		}
+		if !ml_dsa_wallet.Verify(message, sig2[:], &pk, desc) {
+			t.Error("second ML-DSA-87 signature should verify")
 		}
 	})
 

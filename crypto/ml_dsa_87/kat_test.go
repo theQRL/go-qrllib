@@ -7,16 +7,22 @@ import (
 )
 
 // Known Answer Test (KAT) vectors for ML-DSA-87
-// These test vectors verify deterministic key generation and signing.
+// These test vectors verify deterministic key generation, hedged
+// signature generation, and signature verification.
 //
-// NOTE: These are self-generated test vectors using known seeds.
-// For full NIST FIPS 204 compliance, official ACVP test vectors should
-// be obtained from: https://github.com/usnistgov/ACVP-Server
+// NOTE: These are self-generated test vectors using known seeds. For
+// full NIST FIPS 204 compliance, official ACVP test vectors should be
+// obtained from: https://github.com/usnistgov/ACVP-Server (exercised
+// in CI by acvp_test.go).
 //
 // The test vectors below verify:
-// 1. Deterministic keypair generation from seed
-// 2. Deterministic signature generation (when randomizedSigning=false)
-// 3. Signature verification correctness
+//  1. Deterministic keypair generation from seed.
+//  2. Hedged signature generation (FIPS 204 §3.4): two Sign calls on
+//     the same (key, ctx, msg) produce DISTINCT signatures, both of
+//     which verify under the same public key. Removed the previous
+//     "signatures must be identical" assertion when default-deterministic
+//     signing was retired in TOB-QRLLIB-6.
+//  3. Signature verification correctness.
 
 // Test vector structure for KAT
 type katVector struct {
@@ -89,10 +95,16 @@ func TestKATDeterministicKeypair(t *testing.T) {
 	}
 }
 
-// TestKATDeterministicSignature verifies that signature generation is deterministic
-func TestKATDeterministicSignature(t *testing.T) {
+// TestKATHedgedSignature verifies that the public Sign path is hedged
+// (FIPS 204 §3.4): two Sign calls on the same (key, ctx, msg) produce
+// distinct signatures, both of which verify under the same public key.
+// This is the determinism-difference regression test asked for in the
+// TOB-QRLLIB-6 mitigation plan; signing is now always randomised, and
+// the deterministic path is reachable only via the unexported
+// cryptoSignSignatureWithRnd entry point used by ACVP / KAT vectors.
+func TestKATHedgedSignature(t *testing.T) {
 	for _, vec := range katVectors {
-		t.Run(vec.name+"_sig_deterministic", func(t *testing.T) {
+		t.Run(vec.name+"_sig_hedged", func(t *testing.T) {
 			seedBytes, err := hex.DecodeString(vec.seed)
 			if err != nil {
 				t.Fatalf("Failed to decode seed: %v", err)
@@ -116,7 +128,7 @@ func TestKATDeterministicSignature(t *testing.T) {
 				t.Fatalf("Failed to create MLDSA87: %v", err)
 			}
 
-			// Sign the same message twice
+			// Sign the same message twice with the same key.
 			sig1, err := mldsa.Sign(ctx, msg)
 			if err != nil {
 				t.Fatalf("Failed to sign (1): %v", err)
@@ -127,15 +139,167 @@ func TestKATDeterministicSignature(t *testing.T) {
 				t.Fatalf("Failed to sign (2): %v", err)
 			}
 
-			// Signatures must be identical (deterministic signing)
-			if !bytes.Equal(sig1[:], sig2[:]) {
-				t.Error("Signatures should be identical for deterministic signing")
+			// Signatures MUST differ (hedged signing).
+			if bytes.Equal(sig1[:], sig2[:]) {
+				t.Error("Signatures should differ for hedged signing; got identical bytes")
 			}
 
-			// Verify the signature
+			// Both signatures MUST verify under the same public key.
 			pk := mldsa.GetPK()
 			if !Verify(ctx, msg, sig1, &pk) {
-				t.Error("Signature verification failed")
+				t.Error("First signature failed verification")
+			}
+			if !Verify(ctx, msg, sig2, &pk) {
+				t.Error("Second signature failed verification")
+			}
+		})
+	}
+}
+
+// TestKATSignDeterministic verifies the public-API
+// [MLDSA87.SignDeterministic] helper produces FIPS-204-deterministic
+// signatures: two calls with the same (key, ctx, message) yield
+// byte-identical bytes, the result verifies under the public key, and
+// the bytes match what the unexported deterministic-rnd path produces
+// directly (i.e. SignDeterministic is genuinely a thin wrapper).
+// This is the user-facing escape hatch for protocols that require
+// deterministic signing such as RANDAO; see TOB-QRLLIB-6.
+func TestKATSignDeterministic(t *testing.T) {
+	for _, vec := range katVectors {
+		t.Run(vec.name+"_sign_deterministic_helper", func(t *testing.T) {
+			seedBytes, err := hex.DecodeString(vec.seed)
+			if err != nil {
+				t.Fatalf("Failed to decode seed: %v", err)
+			}
+			var seed [SEED_BYTES]uint8
+			copy(seed[:], seedBytes)
+			msg, err := hex.DecodeString(vec.message)
+			if err != nil {
+				t.Fatalf("Failed to decode message: %v", err)
+			}
+			ctx, err := hex.DecodeString(vec.ctx)
+			if err != nil {
+				t.Fatalf("Failed to decode context: %v", err)
+			}
+
+			mldsa, err := NewMLDSA87FromSeed(seed)
+			if err != nil {
+				t.Fatalf("Failed to create MLDSA87: %v", err)
+			}
+
+			// Two deterministic signs MUST produce identical bytes.
+			sig1, err := mldsa.SignDeterministic(ctx, msg)
+			if err != nil {
+				t.Fatalf("SignDeterministic (1): %v", err)
+			}
+			sig2, err := mldsa.SignDeterministic(ctx, msg)
+			if err != nil {
+				t.Fatalf("SignDeterministic (2): %v", err)
+			}
+			if !bytes.Equal(sig1[:], sig2[:]) {
+				t.Error("SignDeterministic should be deterministic; got differing signatures")
+			}
+
+			// The signature MUST verify under the public key.
+			pk := mldsa.GetPK()
+			if !Verify(ctx, msg, sig1, &pk) {
+				t.Error("SignDeterministic produced a signature that did not verify")
+			}
+
+			// The deterministic helper output MUST equal what the
+			// unexported zero-rnd internal path produces directly —
+			// confirming SignDeterministic is genuinely the same path.
+			sk := mldsa.GetSK()
+			var rnd [RND_BYTES]uint8 // zero
+			internalSig := make([]uint8, CRYPTO_BYTES)
+			if err = cryptoSignSignatureWithRnd(internalSig, msg, ctx, &sk, rnd); err != nil {
+				t.Fatalf("cryptoSignSignatureWithRnd: %v", err)
+			}
+			if !bytes.Equal(sig1[:], internalSig) {
+				t.Error("SignDeterministic output should match internal cryptoSignSignatureWithRnd(rnd=zero) bytes")
+			}
+
+			// Hedged Sign over the same input MUST differ from the
+			// deterministic output (defends against any future
+			// regression that wires Sign to the deterministic path).
+			hedgedSig, err := mldsa.Sign(ctx, msg)
+			if err != nil {
+				t.Fatalf("Sign: %v", err)
+			}
+			if bytes.Equal(hedgedSig[:], sig1[:]) {
+				t.Error("Hedged Sign should not produce the same bytes as SignDeterministic; possible regression of TOB-QRLLIB-6 default")
+			}
+		})
+	}
+}
+
+// TestKATSignDeterministicContextTooLong exercises the
+// SignDeterministic error path with an oversized context (FIPS 204
+// max is 255 bytes). Closes the coverage gap on the helper's error
+// return.
+func TestKATSignDeterministicContextTooLong(t *testing.T) {
+	mldsa, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mldsa.Zeroize()
+
+	longCtx := make([]byte, 256) // max is 255
+	_, err = mldsa.SignDeterministic(longCtx, []byte("msg"))
+	if err == nil {
+		t.Error("expected SignDeterministic to return an error for context > 255 bytes")
+	}
+}
+
+// TestKATDeterministicSignatureViaInternalAPI verifies that the
+// internal cryptoSignSignatureWithRnd entry point with rnd=zero
+// produces FIPS-204-deterministic signatures suitable for ACVP / KAT
+// vector reproduction. This path is intentionally not exposed on the
+// public MLDSA87 type — see TOB-QRLLIB-6 and the package doc.
+func TestKATDeterministicSignatureViaInternalAPI(t *testing.T) {
+	for _, vec := range katVectors {
+		t.Run(vec.name+"_sig_deterministic_internal", func(t *testing.T) {
+			seedBytes, err := hex.DecodeString(vec.seed)
+			if err != nil {
+				t.Fatalf("Failed to decode seed: %v", err)
+			}
+			var seed [SEED_BYTES]uint8
+			copy(seed[:], seedBytes)
+			msg, err := hex.DecodeString(vec.message)
+			if err != nil {
+				t.Fatalf("Failed to decode message: %v", err)
+			}
+			ctx, err := hex.DecodeString(vec.ctx)
+			if err != nil {
+				t.Fatalf("Failed to decode context: %v", err)
+			}
+
+			mldsa, err := NewMLDSA87FromSeed(seed)
+			if err != nil {
+				t.Fatalf("Failed to create MLDSA87: %v", err)
+			}
+			sk := mldsa.GetSK()
+
+			var rnd [RND_BYTES]uint8 // zero = FIPS 204 deterministic mode
+			sig1 := make([]uint8, CRYPTO_BYTES)
+			if err := cryptoSignSignatureWithRnd(sig1, msg, ctx, &sk, rnd); err != nil {
+				t.Fatalf("cryptoSignSignatureWithRnd (1): %v", err)
+			}
+			sig2 := make([]uint8, CRYPTO_BYTES)
+			if err := cryptoSignSignatureWithRnd(sig2, msg, ctx, &sk, rnd); err != nil {
+				t.Fatalf("cryptoSignSignatureWithRnd (2): %v", err)
+			}
+
+			if !bytes.Equal(sig1, sig2) {
+				t.Error("Internal deterministic-rnd path should produce identical signatures; got different bytes")
+			}
+
+			// Sanity: both verify.
+			pk := mldsa.GetPK()
+			var sigArr [CRYPTO_BYTES]uint8
+			copy(sigArr[:], sig1)
+			if !Verify(ctx, msg, sigArr, &pk) {
+				t.Error("Deterministic signature failed verification")
 			}
 		})
 	}

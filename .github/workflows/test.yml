@@ -66,6 +66,14 @@ jobs:
             done
           done
 
+      - name: Run metamorphic invariant sweep
+        # Build-tagged exhaustive bit-by-bit metamorphic tests
+        # contributed by Trail of Bits during the audit engagement.
+        # Runs in ~30s; guarded behind `-tags metamorphic` so it doesn't
+        # slow down day-to-day `go test ./...`.
+        timeout-minutes: 5
+        run: go test -tags metamorphic -count=1 -run "TestMetamorphic" -timeout 5m ./crypto/ml_dsa_87/
+
       - name: Upload coverage to Codecov
         if: github.repository == 'theQRL/go-qrllib' && github.event_name == 'push'
         uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5.5.4

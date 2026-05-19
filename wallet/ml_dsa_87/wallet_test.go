@@ -220,6 +220,14 @@ func TestWallet_AddressStr(t *testing.T) {
 }
 
 func TestWallet_Sign(t *testing.T) {
+	// Hedged signing: tc.wantSignature is a stored reference signature
+	// from the deterministic-default era and cannot be reproduced
+	// byte-for-byte from a fresh Sign call. What we still want to assert
+	// is that w.Sign produces a signature that verifies under the wallet's
+	// public key and descriptor, i.e. the produced sig is valid for THIS
+	// (message, key, descriptor) tuple. The stored reference sig is
+	// independently exercised by TestVerify (which doesn't depend on
+	// reproducing it).
 	for creatorName, creator := range walletCreators {
 		for _, tc := range walletTestCases {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
@@ -228,9 +236,10 @@ func TestWallet_Sign(t *testing.T) {
 				if err != nil {
 					t.Fatal("failed to sign ", err.Error())
 				}
-				gotStr := hex.EncodeToString(got[:])
-				if gotStr != tc.wantSignature {
-					t.Errorf("Signature = %v\nwant %v", gotStr, tc.wantSignature)
+				pk := w.GetPK()
+				desc := w.GetDescriptor().ToDescriptor()
+				if !Verify([]byte(tc.message), got[:], &pk, desc) {
+					t.Errorf("Sign produced a signature that did not verify under its own (pk, descriptor) for case %q", tc.name)
 				}
 			})
 		}

@@ -159,11 +159,17 @@ func TestACVPSigGen(t *testing.T) {
 			var sk [CRYPTO_SECRET_KEY_BYTES]uint8
 			copy(sk[:], skBytes)
 
-			// Deterministic signing: rnd is all zeros, context encoded as
-			// FIPS 204 domain separation prefix [0x00, len(ctx), ctx...]
+			// FIPS-204-deterministic signing for ACVP vector reproduction:
+			// rnd = all zeros (FIPS 204 §3.5). Public ML-DSA-87 signing
+			// in this library is hedged (TOB-QRLLIB-6); the deterministic
+			// path is exposed only via the unexported
+			// cryptoSignSignatureWithRnd entry point so that test-vector
+			// reproduction remains possible without offering a
+			// deterministic-by-default knob to external callers.
+			var rnd [RND_BYTES]uint8 // zero — FIPS 204 deterministic mode
 			sig := make([]uint8, CRYPTO_BYTES)
-			if err := cryptoSignSignature(sig, msg, ctx, &sk, false); err != nil {
-				t.Fatalf("cryptoSignSignature failed: %v", err)
+			if err := cryptoSignSignatureWithRnd(sig, msg, ctx, &sk, rnd); err != nil {
+				t.Fatalf("cryptoSignSignatureWithRnd failed: %v", err)
 			}
 
 			if !bytes.Equal(sig, expectedSig) {
