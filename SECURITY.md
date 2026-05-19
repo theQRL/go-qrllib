@@ -54,7 +54,8 @@ This library assumes:
 |----------|--------|
 | Post-quantum secure | Yes (Module-LWE assumption) |
 | EUF-CMA secure | Yes |
-| Deterministic signing | Default (randomized signing not exposed in public API) |
+| Deterministic signing | **Hedged by default** as per FIPS 204: each call mixes fresh `crypto/rand` randomness into the per-signature `RND_BYTES`, so two calls with the same `(key, ctx, message)` produce distinct signatures (both verify under the same public key). FIPS 204 deterministic mode (`rnd = 32 zero bytes`) is available as an explicit opt-in via `MLDSA87.SignDeterministic(ctx, msg)` for protocols where determinism is itself a requirement (RANDAO-style verifiable beacon contributions, test-vector reproduction). Equivalent at the wire level to `crypto.Signer.Sign(zeroReader, ...)` — both paths route into the same internal entry point. |
+| `crypto.Signer.Sign` rand handling | The caller-supplied `io.Reader` is honoured: non-nil → its bytes drive `RND_BYTES`; nil → `crypto/rand` is used. |
 | Stateless | Yes |
 | Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
 | Signature malleability | No (canonical encoding enforced) |

@@ -1,6 +1,7 @@
 package ml_dsa_87
 
 import (
+	"bytes"
 	"crypto/rand"
 	"testing"
 )
@@ -492,7 +493,11 @@ func TestCanonicalityValidSignatureVerifies(t *testing.T) {
 	}
 }
 
-// TestCanonicalitySignatureUniqueness tests that the same message produces valid but potentially different signatures.
+// TestCanonicalitySignatureUniqueness asserts that signing the same
+// (key, ctx, msg) twice produces DISTINCT signatures, both of which
+// verify under the same public key. This is the public-API surface of
+// the FIPS 204 §3.4 hedged-signing default — TOB-QRLLIB-6 retired the
+// deterministic-by-default path. See also TestKATHedgedSignature.
 func TestCanonicalitySignatureUniqueness(t *testing.T) {
 	mldsa, err := New()
 	if err != nil {
@@ -513,7 +518,7 @@ func TestCanonicalitySignatureUniqueness(t *testing.T) {
 		t.Fatalf("Failed to sign: %v", err)
 	}
 
-	// Both signatures must verify
+	// Both signatures must verify under the same key.
 	if !Verify(ctx, msg, sig1, &pk) {
 		t.Error("First signature should verify")
 	}
@@ -521,6 +526,8 @@ func TestCanonicalitySignatureUniqueness(t *testing.T) {
 		t.Error("Second signature should verify")
 	}
 
-	// Note: ML-DSA-87 with deterministic signing may produce identical signatures
-	// This is expected behavior and not a canonicality issue
+	// Hedged signing: signatures MUST differ.
+	if bytes.Equal(sig1[:], sig2[:]) {
+		t.Error("Hedged signing should produce distinct signatures from the same (key, ctx, msg); got identical bytes")
+	}
 }

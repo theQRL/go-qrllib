@@ -17,7 +17,16 @@ The GitHub Action (`.github/workflows/acvp.yml`) clones the NIST ACVP-Server rep
 | `TestACVPKeyGen` | 25 | Seed -> (pk, sk) matches NIST expected output |
 | `TestACVPSigGen` | 15 | sk + message + context -> signature matches NIST expected output |
 
-Only **deterministic, external-interface, pure** (non-preHash) signature vectors are tested, as go-qrllib implements deterministic pure ML-DSA signing.
+Only **deterministic, external-interface, pure** (non-preHash) signature
+vectors are tested. Note that go-qrllib's public ML-DSA-87 API is
+**hedged by default** per FIPS 204 §3.4 (see SECURITY.md and
+TOB-QRLLIB-6); a public Sign call mixes fresh `crypto/rand` into the
+per-signature `RND_BYTES` and therefore cannot reproduce a fixed ACVP
+vector byte-for-byte. The ACVP test runner here uses the unexported
+`cryptoSignSignatureWithRnd(..., rnd = zero)` entry point — the same
+internal function the hedged path calls into, but with an explicit
+all-zero `rnd` so the FIPS 204 §3.5 deterministic-mode signatures the
+ACVP vectors were generated against can be reproduced.
 
 ## Running Locally
 

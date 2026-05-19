@@ -180,6 +180,13 @@ func (w *Wallet) GetAddressStr() string {
 	return fmt.Sprintf("Q%x", addr[:])
 }
 
+// Sign produces an ML-DSA-87 signature over message using the
+// descriptor-bound signing context. Signing is hedged by default as per
+// FIPS 204: each call mixes fresh `crypto/rand` randomness into the per-signature
+// `RND_BYTES`, so two calls over the same message produce distinct signatures,
+// both of which verify under the same public key + descriptor. See the
+// [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
+// "Signing Mode" section for the full discussion.
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }

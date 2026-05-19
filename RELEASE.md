@@ -111,6 +111,51 @@ test: add integration tests for sphincsplus
 ci: add code coverage reporting
 ```
 
+## Notable Behavioural Changes
+
+This section logs behavioural changes that callers may notice between
+releases, separate from the auto-generated changelog. Each entry should
+also be reflected in the commit message that introduces it (with a
+`BREAKING CHANGE:` footer where appropriate so semantic-release picks
+it up).
+
+### ML-DSA-87 signing is now hedged by default
+
+Public ML-DSA-87 signing — `MLDSA87.Sign`, `MLDSA87.SignAttached`,
+`wallet/ml_dsa_87.Wallet.Sign`, and `crypto.Signer`-style
+`CryptoSigner.Sign` — is now **always hedged** as per FIPS 204 (the
+recommended mode). Each call mixes fresh `crypto/rand` randomness into
+the per-signature `RND_BYTES` value, so two calls with the same
+`(key, ctx, message)` now produce **distinct** signatures. Both still
+verify under the same public key — verification is unchanged and
+existing verifiers, on-chain or off, are unaffected.
+
+The previous deterministic-by-default mode is no longer the default,
+but FIPS 204 deterministic mode (`rnd = 32 zero bytes`) remains
+explicitly reachable via two equivalent public paths for protocols
+that need it (RANDAO-style verifiable beacon contributions,
+test-vector reproduction):
+
+  - `MLDSA87.SignDeterministic(ctx, msg)` — thin convenience helper
+    that signs with `rnd = 0^32`. Recommended entry point when the
+    deterministic property is itself a protocol requirement.
+  - `crypto.Signer.Sign(deterministicReader, …)` — useful when
+    integrating with code that drives randomness through Go's
+    `crypto.Signer` interface; pass an `io.Reader` returning 32
+    deterministic bytes (e.g. `bytes.NewReader(make([]byte, 32))`).
+
+Both paths route into the same internal entry point and produce
+byte-identical signatures for byte-identical input.
+
+The `MLDSA87.randomizedSigning bool` field was removed from the struct
+(positional struct literals like `&MLDSA87{pk, sk, seed, false}` will
+no longer compile — use the `New()` / `NewMLDSA87FromSeed()` /
+`NewMLDSA87FromHexSeed()` constructors).
+
+`crypto.Signer.Sign` now also honours its `rand io.Reader` parameter
+(previously discarded): if non-nil, RND_BYTES are read from the
+caller-supplied source; if nil, `crypto/rand` is used.
+
 ## Release Workflow
 
 ### Automatic Releases

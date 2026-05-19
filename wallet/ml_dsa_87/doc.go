@@ -44,6 +44,16 @@
 //
 //	Common Seed (48 bytes) → SHA-256 → ML-DSA-87 Seed (32 bytes) → Keypair
 //
+// # Signing Mode
+//
+// Wallet signing is hedged by default as per FIPS 204: each call to
+// [Wallet.Sign] mixes fresh `crypto/rand` randomness into the
+// per-signature `RND_BYTES`, so two signs over the same message
+// produce distinct signature bytes, both of which verify under the
+// wallet's public key and descriptor. See the
+// [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
+// "Signing Mode" section for the full discussion.
+//
 // # Address Format
 //
 // QRL addresses are generated from the public key with a descriptor prefix using SHAKE256:

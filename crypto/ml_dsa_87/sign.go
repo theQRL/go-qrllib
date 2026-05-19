@@ -284,37 +284,48 @@ rej:
 	return nil
 }
 
-func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) error {
+// cryptoSignSignature is the standard hedged-signing entry point. It
+// reads RND_BYTES from crypto/rand and calls
+// [cryptoSignSignatureWithRnd]. Per FIPS 204 §3.4, hedged (randomised)
+// signing reduces side-channel and fault-injection leverage relative
+// to the deterministic variant; all public ML-DSA-87 signing in this
+// library uses this path. (TOB-QRLLIB-6.)
+//
+// Callers needing an explicit rnd value (the crypto.Signer.Sign
+// caller-supplied io.Reader path; ACVP / KAT determinism tests with
+// rnd=zero) call [cryptoSignSignatureWithRnd] directly.
+func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) error {
+	var rnd [RND_BYTES]uint8
+	if _, err := rand.Read(rnd[:]); err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if system entropy source is broken
+		return cryptoerrors.ErrSeedGeneration
+	}
+	return cryptoSignSignatureWithRnd(sig, m, ctx, sk, rnd)
+}
+
+// cryptoSignSignatureWithRnd signs m using the explicit rnd value
+// (FIPS 204 §3.5; rnd is mixed into the deterministic signing nonce).
+// Pass an all-zero rnd for FIPS-204-deterministic signing (used by
+// ACVP / KAT vectors); pass entropy from crypto/rand or an
+// authenticated source for hedged signing. The crypto.Signer wrapper
+// uses this path when the caller supplies an io.Reader.
+func cryptoSignSignatureWithRnd(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, rnd [RND_BYTES]uint8) error {
 	if len(ctx) > 255 {
 		return cryptoerrors.ErrInvalidContext
 	}
-
-	var rnd [RND_BYTES]uint8
-
 	pre := make([]uint8, len(ctx)+2)
 	pre[0] = 0
 	pre[1] = uint8(len(ctx))
 	copy(pre[2:], ctx)
-
-	if randomizedSigning {
-		//coverage:ignore
-		//rationale: randomizedSigning is always false in current API (deterministic signing)
-		_, err := rand.Read(rnd[:])
-		if err != nil {
-			//coverage:ignore
-			//rationale: crypto/rand.Read only fails if system entropy source is broken
-			return cryptoerrors.ErrSeedGeneration
-		}
-	}
-
 	return cryptoSignSignatureInternal(sig, m, pre[:], rnd, sk)
 }
 
 // attached sig wrappers
-func cryptoSign(msg []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, randomizedSigning bool) ([]uint8, error) {
+func cryptoSign(msg []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) ([]uint8, error) {
 	sm := make([]uint8, CRYPTO_BYTES+len(msg))
 	copy(sm[CRYPTO_BYTES:], msg)
-	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], ctx, sk, randomizedSigning)
+	err := cryptoSignSignature(sm[:CRYPTO_BYTES], sm[CRYPTO_BYTES:], ctx, sk)
 	if err != nil {
 		for i := range sm {
 			sm[i] = 0

@@ -261,7 +261,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | Maximum security, don't trust lattice assumptions | SPHINCS+-256s primitive (wallet path gated, see notes) |
 | QRL blockchain transactions | ML-DSA-87 (via wallet layer) |
 | Legacy QRL address compatibility | XMSS (with extreme care) |
-| Signatures must be deterministic | ML-DSA-87 (default), Dilithium |
+| Signatures must be deterministic (e.g. RANDAO-style verifiable beacon contributions) | ML-DSA-87 via the `SignDeterministic(ctx, msg)` opt-in helper (FIPS 204 deterministic mode) — `Sign` itself is hedged by default as per FIPS 204. Dilithium also remains deterministic. |
 
 ### Key Sizes
 
