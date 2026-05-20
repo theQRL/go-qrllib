@@ -88,6 +88,15 @@ broadcast(sig)  // Index may not be persisted
 as a primitive but the QRL wallet path for SPHINCS+/SLH-DSA is intentionally gated until
 NIST and QRL settle on a final SLH-DSA parameter set; see the SPHINCS+ notes below.
 
+### Same requirements at every API level
+
+The persistence requirement applies identically whether you call:
+
+- `crypto/xmss.XMSS.Sign` — the lower-level primitive shown in the example above, or
+- `legacywallet/xmss.XMSSWallet.Sign` — the wallet-level wrapper used to sign for legacy QRL v1 addresses.
+
+Both must persist the updated index (`tree.GetIndex()` or `wallet.GetIndex()` respectively) **AFTER** the call returns and **BEFORE** the signature is used or broadcast. The wallet wrapper is a thin delegate over the primitive — it carries the same statefulness invariants. See the godoc on each `Sign` method and the package documentation for [`legacywallet/xmss`](legacywallet/xmss/doc.go) for the full safe-usage pattern.
+
 ---
 
 ## Installation
