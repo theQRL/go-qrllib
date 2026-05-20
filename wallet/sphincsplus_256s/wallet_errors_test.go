@@ -144,6 +144,16 @@ func TestNewWalletFromMnemonic_InvalidMnemonic(t *testing.T) {
 	}
 }
 
+func TestNewWalletFromMnemonic_WrongExtendedSeedLength(t *testing.T) {
+	// Two valid words decode successfully, but only to three bytes. The
+	// SPHINCS+ wallet mnemonic must encode a full common.ExtendedSeed.
+	shortMnemonic := "aback aback"
+	_, err := NewWalletFromMnemonic(shortMnemonic)
+	if err == nil {
+		t.Error("expected error for mnemonic with wrong extended seed length")
+	}
+}
+
 func TestNewWalletFromMnemonic_WrongDescriptorType(t *testing.T) {
 	// Create extended seed with ML-DSA-87 type
 	mldsaDescBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0, 0})

@@ -1,7 +1,7 @@
 // Structured fuzz tests for ML-DSA-87, contributed by Trail of Bits
 // during the audit engagement (TOB-QRLLIB). Light adaptations applied
 // for current go-qrllib API surface (post TOB-6 / TOB-12 / TOB-14):
-//   - `Seal` renamed to `SignAttached`
+//   - attached-signature API renamed to `SignAttached`
 //   - `Open` now returns `([]byte, error)`
 //   - the `randomized bool` parameter was removed from
 //     `cryptoSignSignature` (hedged is now the default)
@@ -181,7 +181,7 @@ func FuzzMLDSA87SignAttachedOpenRoundTripMutate(f *testing.F) {
 		pk := mldsa.GetPK()
 		opened, err := Open(ctx, sealed, &pk)
 		if err != nil {
-			t.Fatalf("Open returned an error for a valid sealed message: %v", err)
+			t.Fatalf("Open returned an error for a valid attached-signature message: %v", err)
 		}
 		if !bytes.Equal(opened, message) {
 			t.Fatal("Open did not recover the original message")
@@ -194,7 +194,7 @@ func FuzzMLDSA87SignAttachedOpenRoundTripMutate(f *testing.F) {
 
 		mutatedSealed := mutateSlice(sealed, mutation)
 		if _, err := Open(ctx, mutatedSealed, &pk); err == nil {
-			t.Fatal("Open succeeded with mutated sealed message")
+			t.Fatal("Open succeeded with mutated attached-signature message")
 		}
 
 		mutatedPK := mutatePublicKey(pk, mutation)

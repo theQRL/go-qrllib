@@ -139,12 +139,14 @@ func TestDescriptorIsolation(t *testing.T) {
 			wallettype.SPHINCSPLUS_256S, sphincsDesc[0])
 	}
 
-	// Verify descriptor validation
+	// Verify descriptor validation. SPHINCSPLUS_256S remains reserved for the
+	// package-local experimental test path, but it is not a valid common wallet
+	// descriptor until QRL activates a reviewed SLH-DSA wallet path.
 	if !mlDesc.IsValid() {
 		t.Error("ML-DSA descriptor should be valid")
 	}
-	if !sphincsDesc.IsValid() {
-		t.Error("SPHINCS+ descriptor should be valid")
+	if sphincsDesc.IsValid() {
+		t.Error("SPHINCS+ descriptor should not be a valid common wallet descriptor")
 	}
 
 	// Verify invalid descriptor type
@@ -316,7 +318,7 @@ func TestKeySizeInvariants(t *testing.T) {
 			t.Fatalf("Sign failed: %v", err)
 		}
 
-		// Verify expected FIPS 205 SPHINCS+-256s sizes
+		// Verify expected SPHINCS+-256s sizes
 		const (
 			expectedPK  = 64
 			expectedSK  = 128
@@ -598,8 +600,8 @@ func TestWalletTypeConstants(t *testing.T) {
 	}
 
 	// Verify validity
-	if !wallettype.SPHINCSPLUS_256S.IsValid() {
-		t.Error("SPHINCSPLUS_256S should be valid")
+	if wallettype.SPHINCSPLUS_256S.IsValid() {
+		t.Error("SPHINCSPLUS_256S should not be a valid common wallet type today")
 	}
 	if !wallettype.ML_DSA_87.IsValid() {
 		t.Error("ML_DSA_87 should be valid")

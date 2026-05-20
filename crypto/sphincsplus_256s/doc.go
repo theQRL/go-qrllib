@@ -1,5 +1,11 @@
-// Package sphincsplus_256s implements the SPHINCS+-256s digital signature algorithm
-// as specified in FIPS 205 (Stateless Hash-Based Digital Signature Standard).
+// Package sphincsplus_256s implements the pre-FIPS SPHINCS+-256s
+// SHAKE-256s-robust digital signature algorithm.
+//
+// NIST later standardised the stateless hash-based signature family as
+// SLH-DSA in FIPS 205. This package is retained as the SPHINCS+ submission
+// variant used by go-qrllib today; callers that need strict FIPS 205
+// compliance should wait for the QRL-selected SLH-DSA parameter set and
+// corresponding implementation update.
 //
 // SPHINCS+ is a stateless hash-based signature scheme that provides conservative
 // post-quantum security based solely on the security of hash functions, without
@@ -10,7 +16,7 @@
 //   - Post-quantum secure based on hash function security
 //   - Stateless: no state management required (unlike XMSS)
 //   - Conservative security assumptions
-//   - NIST Level 5 security (equivalent to AES-256)
+//   - Level-5 parameter set intent (equivalent to AES-256 security target)
 //
 // # Trade-offs
 //
@@ -33,7 +39,7 @@
 // # Thread Safety
 //
 // A SphincsPlus256s instance is safe for concurrent reads (GetPK, GetSK, GetSeed),
-// but Sign and Seal should not be called concurrently on the same instance.
+// but Sign and SignAttached should not be called concurrently on the same instance.
 // The package-level Verify and Open functions are safe for concurrent use.
 //
 // # Randomized vs Deterministic Signing

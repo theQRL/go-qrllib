@@ -36,22 +36,22 @@ type katVector struct {
 // These can be cross-verified with other ML-DSA-87 implementations
 var katVectors = []katVector{
 	{
-		name:     "zero_seed",
-		seed:     "0000000000000000000000000000000000000000000000000000000000000000",
-		message:  "",
-		ctx:      "",
+		name:    "zero_seed",
+		seed:    "0000000000000000000000000000000000000000000000000000000000000000",
+		message: "",
+		ctx:     "",
 	},
 	{
-		name:     "incremental_seed",
-		seed:     "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-		message:  "48656c6c6f2c20576f726c6421", // "Hello, World!"
-		ctx:      "5a4f4e44",                   // "ZOND"
+		name:    "incremental_seed",
+		seed:    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+		message: "48656c6c6f2c20576f726c6421", // "Hello, World!"
+		ctx:     "5a4f4e44",                   // "ZOND"
 	},
 	{
-		name:     "random_seed_1",
-		seed:     "deadbeefcafebabe0123456789abcdef00112233445566778899aabbccddeeff",
-		message:  "54657374206d65737361676520666f72204b415420766572696669636174696f6e", // "Test message for KAT verification"
-		ctx:      "",
+		name:    "random_seed_1",
+		seed:    "deadbeefcafebabe0123456789abcdef00112233445566778899aabbccddeeff",
+		message: "54657374206d65737361676520666f72204b415420766572696669636174696f6e", // "Test message for KAT verification"
+		ctx:     "",
 	},
 }
 
@@ -377,8 +377,8 @@ func TestKATSignVerifyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestKATSealOpenRoundTrip verifies seal/open round trip
-func TestKATSealOpenRoundTrip(t *testing.T) {
+// TestKATSignAttachedOpenRoundTrip verifies sign-attached/open round trip
+func TestKATSignAttachedOpenRoundTrip(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_seal_open", func(t *testing.T) {
 			seedBytes, err := hex.DecodeString(vec.seed)
@@ -404,15 +404,15 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 				t.Fatalf("Failed to create MLDSA87: %v", err)
 			}
 
-			// Seal
+			// SignAttached
 			sealed, err := mldsa.SignAttached(ctx, msg)
 			if err != nil {
-				t.Fatalf("Failed to seal: %v", err)
+				t.Fatalf("Failed to sign attached: %v", err)
 			}
 
-			// Sealed message should be signature + message
+			// Attached signature message should be signature + message
 			if len(sealed) != CRYPTO_BYTES+len(msg) {
-				t.Errorf("Sealed message length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(sealed))
+				t.Errorf("Attached signature message length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(sealed))
 			}
 
 			// Open
@@ -449,8 +449,8 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 // TestKATKeySize verifies key sizes match FIPS 204 ML-DSA-87 specification
 func TestKATKeySize(t *testing.T) {
 	// ML-DSA-87 key sizes per FIPS 204
-	expectedPKSize := 2592 // bytes
-	expectedSKSize := 4896 // bytes
+	expectedPKSize := 2592  // bytes
+	expectedSKSize := 4896  // bytes
 	expectedSigSize := 4627 // bytes
 
 	if CRYPTO_PUBLIC_KEY_BYTES != expectedPKSize {

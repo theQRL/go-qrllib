@@ -299,9 +299,9 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   [SLH-DSA (FIPS 205)](https://csrc.nist.gov/pubs/fips/205/final) in August 2024 as
   the standardised successor; FIPS 205 differs from the SPHINCS+ submission in
   parameter-set details. The QRL wallet layer **does not currently issue new
-  SPHINCS+/SLH-DSA wallets**: the wallet type is reserved in the descriptor format
-  but `IsIssuable()` returns `false` until QRL settles on a specific SLH-DSA
-  parameter set and the implementation is updated to match it. Existing
+  SPHINCS+/SLH-DSA wallets**: the wallet type is retained as a reserved constant,
+  but common wallet descriptor/type validation rejects it until QRL settles on a
+  specific SLH-DSA parameter set and the implementation is updated to match it. Existing
   SPHINCS+-256s primitive use (the `crypto/sphincsplus_256s` package, outside the
   wallet layer) remains supported with the caveat that the parameter set may
   change once SLH-DSA finalises for QRL. **For new wallets, use ML-DSA-87.**

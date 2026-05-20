@@ -29,18 +29,19 @@ func NewSphincsPlus256sDescriptorFromDescriptorBytes(descriptorBytes [descriptor
 }
 
 func (d Descriptor) WalletType() wallettype.WalletType {
-	wt, err := wallettype.ToWalletTypeOf(d[0], wallettype.SPHINCSPLUS_256S)
-	if err != nil {
-		return wallettype.InvalidWalletType
+	if d[0] == byte(wallettype.SPHINCSPLUS_256S) {
+		return wallettype.SPHINCSPLUS_256S
 	}
-	return wt
+	return wallettype.InvalidWalletType
 }
 
 // IsValid reports whether the descriptor is a well-formed SPHINCS+-256s
 // descriptor. Bytes 1 and 2 carry no defined semantics today and must
-// be zero; see descriptor.Descriptor.IsValid for rationale.
+// be zero. This package-local check exists only for the experimental
+// SPHINCS+ implementation; descriptor.Descriptor.IsValid intentionally
+// rejects SPHINCSPLUS_256S in the production common wallet API.
 func (d Descriptor) IsValid() bool {
-	if _, err := wallettype.ToWalletTypeOf(d[0], wallettype.SPHINCSPLUS_256S); err != nil {
+	if d[0] != byte(wallettype.SPHINCSPLUS_256S) {
 		return false
 	}
 	return d[1] == 0 && d[2] == 0

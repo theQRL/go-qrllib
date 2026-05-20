@@ -15,9 +15,10 @@ import (
 
 // experimental controls whether the SPHINCS+ wallet path is enabled.
 //
-// SPHINCSPLUS_256S is reserved in the QRL descriptor format as a forward
-// placeholder for QRL's eventual SLH-DSA (FIPS 205) adoption (see
-// [github.com/theQRL/go-qrllib/wallet/common/wallettype.WalletType.IsIssuable]).
+// SPHINCSPLUS_256S is retained as a reserved constant for QRL's eventual
+// SLH-DSA (FIPS 205) adoption, but it is not a valid production common wallet
+// type today (see
+// [github.com/theQRL/go-qrllib/wallet/common/wallettype.WalletType.IsValid]).
 // Until SLH-DSA activation, public wallet constructors return
 // [common.ErrWalletTypeNotIssuable] and Verify returns false, regardless
 // of the underlying primitive being functional.
@@ -27,7 +28,8 @@ import (
 // EnableExperimentalForTesting in a TestMain shim so the implementation
 // stays continuously exercised. Activation in production is a one-line
 // change to the IsIssuable / IsVerifiable switches in the wallettype
-// package; toggling this variable is not the supported activation path.
+// package, alongside the common validity checks; toggling this variable is not
+// the supported activation path.
 var experimental = false
 
 // EnableExperimentalForTesting flips the package-internal experimental
@@ -175,11 +177,12 @@ func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 		return nil, fmt.Errorf(common.ErrMnemonicToBin, wallettype.SPHINCSPLUS_256S, err)
 	}
 
-	extendedSeed, err := common.NewExtendedSeedFromBytes(bin)
-	if err != nil {
-		return nil, fmt.Errorf(common.ErrExtendedSeedFromMnemonic, wallettype.SPHINCSPLUS_256S, err)
+	if len(bin) != common.ExtendedSeedSize {
+		return nil, fmt.Errorf(common.ErrExtendedSeedFromMnemonic, wallettype.SPHINCSPLUS_256S, fmt.Errorf("invalid length of extendedSeedBytes"))
 	}
 
+	var extendedSeed common.ExtendedSeed
+	copy(extendedSeed[:], bin)
 	return NewWalletFromExtendedSeed(extendedSeed)
 }
 
@@ -188,10 +191,22 @@ func (w *Wallet) GetSeed() common.Seed {
 }
 
 func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
-	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
-	if err != nil {
-		return common.ExtendedSeed{}, fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.SPHINCSPLUS_256S, err)
+	if !w.desc.IsValid() {
+		return common.ExtendedSeed{}, fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.SPHINCSPLUS_256S, fmt.Errorf(common.ErrInvalidDescriptor, wallettype.SPHINCSPLUS_256S))
 	}
+
+	// SPHINCSPLUS_256S is intentionally not a valid common wallet
+	// descriptor while the wallet path is gated (TOB-QRLLIB-4), so this
+	// package cannot use common.NewExtendedSeed, which enforces the
+	// production descriptor policy. This method is only reachable after
+	// constructing an experimental SPHINCS+ wallet in tests or unsupported
+	// opt-in code; assemble the byte layout directly so the implementation
+	// remains exercised until SLH-DSA activation.
+	var extendedSeed common.ExtendedSeed
+	desc := w.desc.ToDescriptor()
+	seed := w.GetSeed()
+	copy(extendedSeed[:descriptor.DescriptorSize], desc[:])
+	copy(extendedSeed[descriptor.DescriptorSize:], seed[:])
 	return extendedSeed, nil
 }
 

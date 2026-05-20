@@ -133,8 +133,8 @@ func TestThreadSafetyConcurrentKeyGeneration(t *testing.T) {
 	}
 }
 
-// TestThreadSafetyConcurrentSealOpen tests parallel seal/open operations
-func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
+// TestThreadSafetyConcurrentSignAttachedOpen tests parallel sign-attached/open operations
+func TestThreadSafetyConcurrentSignAttachedOpen(t *testing.T) {
 	dil, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create Dilithium: %v", err)
@@ -146,13 +146,13 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 2) // Half seal, half open
 
-	// Pre-create some sealed messages
+	// Pre-create some attached-signature messages
 	sealedMsgs := make([][]byte, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
 		msg := []byte("message " + string(rune(i)))
 		sealed, err := dil.SignAttached(msg)
 		if err != nil {
-			t.Fatalf("Failed to seal: %v", err)
+			t.Fatalf("Failed to sign attached: %v", err)
 		}
 		sealedMsgs[i] = sealed
 	}
@@ -196,7 +196,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 	msg := []byte("test message")
 	sealed, err := dil.SignAttached(msg)
 	if err != nil {
-		t.Fatalf("Failed to seal: %v", err)
+		t.Fatalf("Failed to sign attached: %v", err)
 	}
 
 	const numGoroutines = 100

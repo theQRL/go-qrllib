@@ -98,9 +98,9 @@ func TestThreadSafetySeparateInstances(t *testing.T) {
 	}
 }
 
-// TestThreadSafetyConcurrentSealOpen tests parallel seal/open operations.
+// TestThreadSafetyConcurrentSignAttachedOpen tests parallel sign-attached/open operations.
 // Note: SPHINCS+ is slow (~7s per seal), so we use minimal iterations.
-func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
+func TestThreadSafetyConcurrentSignAttachedOpen(t *testing.T) {
 	spx, err := New()
 	if err != nil {
 		t.Fatalf("Failed to create SphincsPlus256s: %v", err)
@@ -108,14 +108,14 @@ func TestThreadSafetyConcurrentSealOpen(t *testing.T) {
 
 	pk := spx.GetPK()
 
-	// Pre-create one sealed message (SPHINCS+ seal is very slow ~7s)
-	msg := []byte("test message for seal/open")
+	// Pre-create one attached-signature message (SPHINCS+ SignAttached is very slow ~7s)
+	msg := []byte("test message for sign-attached/open")
 	sealed, err := spx.SignAttached(msg)
 	if err != nil {
-		t.Fatalf("Failed to seal: %v", err)
+		t.Fatalf("Failed to sign attached: %v", err)
 	}
 
-	// Concurrent opening of the same sealed message
+	// Concurrent opening of the same attached-signature message
 	var wg sync.WaitGroup
 	const numOpens = 3
 	wg.Add(numOpens)
@@ -146,7 +146,7 @@ func TestThreadSafetyConcurrentExtract(t *testing.T) {
 	msg := []byte("test message")
 	sealed, err := spx.SignAttached(msg)
 	if err != nil {
-		t.Fatalf("Failed to seal: %v", err)
+		t.Fatalf("Failed to sign attached: %v", err)
 	}
 
 	const numGoroutines = 50

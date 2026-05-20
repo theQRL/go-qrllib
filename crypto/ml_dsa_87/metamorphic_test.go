@@ -10,7 +10,7 @@
 //
 // Light adaptations applied for current go-qrllib API surface
 // (post TOB-6 / TOB-12 / TOB-14):
-//   - `Seal` renamed to `SignAttached`
+//   - attached-signature API renamed to `SignAttached`
 //   - `Open` now returns `([]byte, error)`
 //   - `cryptoSignSignature` no longer takes the `randomized bool` parameter
 //   - tests whose assertions depend on byte-equality of signatures (the
@@ -274,10 +274,10 @@ func TestMetamorphicSignAttachedOpenRejectsBitMauledAttachedSignatures(t *testin
 
 			opened, err := Open(tc.ctx, sealed, &pk)
 			if err != nil {
-				t.Fatalf("baseline sealed message returned error from Open: %v", err)
+				t.Fatalf("baseline attached-signature message returned error from Open: %v", err)
 			}
 			if !bytes.Equal(opened, tc.message) {
-				t.Fatalf("baseline sealed message failed to open: got %q", fmt.Sprintf("%x", opened))
+				t.Fatalf("baseline attached-signature message failed to open: got %q", fmt.Sprintf("%x", opened))
 			}
 
 			for bit := 0; bit < CRYPTO_BYTES*8; bit++ {
