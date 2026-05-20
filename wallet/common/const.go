@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	AddressSize           = 48
+	AddressSize           = 64
 	SeedSize              = 48
 	ExtendedSeedSize      = descriptor.DescriptorSize + SeedSize
 	MLDSA87PKSize         = 2592
