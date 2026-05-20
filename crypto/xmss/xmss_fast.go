@@ -17,6 +17,9 @@ import (
 // or the [github.com/theQRL/go-qrllib/crypto/xmss/rfc8391] sub-package.
 func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	pk, sk []uint8, bdsState *BDSState, seed []uint8) error {
+	if !hashFunction.IsValid() {
+		return cryptoerrors.ErrInvalidHashFunction
+	}
 	if err := validateXMSSFastParams(xmssParams); err != nil {
 		return err
 	}
@@ -44,6 +47,9 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 // addresses.
 func XMSSFastGenKeyPairFromExpandedSeed(hashFunction HashFunction, xmssParams *XMSSParams,
 	pk, sk []uint8, bdsState *BDSState, expandedSeed *[96]uint8) error {
+	if !hashFunction.IsValid() {
+		return cryptoerrors.ErrInvalidHashFunction
+	}
 	if err := validateXMSSFastParams(xmssParams); err != nil {
 		return err
 	}

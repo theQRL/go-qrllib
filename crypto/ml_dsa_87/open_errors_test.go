@@ -90,7 +90,7 @@ func TestOpen_InvalidSignature_ReturnsErrInvalidSignature(t *testing.T) {
 	m, ctx, sealed := openFixture(t)
 	pk := m.GetPK()
 
-	// Flip a bit inside the signature portion. The sealed message is
+	// Flip a bit inside the signature portion. The attached-signature message is
 	// `signature || message`; tampering anywhere up to CRYPTO_BYTES
 	// invalidates the signature.
 	tampered := make([]byte, len(sealed))

@@ -113,19 +113,13 @@ func TestGetAddressMLDSA87(t *testing.T) {
 	}
 }
 
-func TestGetAddressSphincsPlus256s(t *testing.T) {
+func TestGetAddressRejectsSphincsPlus256s(t *testing.T) {
 	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 	pk := make([]byte, SPHINCSPlus256sPKSize)
 
-	got, err := GetAddress(pk, desc)
-	if err != nil {
-		t.Fatalf("GetAddress returned error: %v", err)
-	}
-
-	want := UnsafeGetAddress(pk, desc)
-	if got != want {
-		t.Error("GetAddress output mismatch with UnsafeGetAddress")
+	if _, err := GetAddress(pk, desc); err == nil {
+		t.Fatal("GetAddress accepted reserved SPHINCSPLUS_256S descriptor")
 	}
 }
 

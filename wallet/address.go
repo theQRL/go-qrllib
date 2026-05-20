@@ -8,7 +8,6 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 	"github.com/theQRL/go-qrllib/wallet/ml_dsa_87"
-	"github.com/theQRL/go-qrllib/wallet/sphincsplus_256s"
 )
 
 func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error {
@@ -16,17 +15,6 @@ func validatePKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor) error
 		return errors.New("invalid descriptor")
 	}
 	switch wallettype.WalletType(descriptor[0]) {
-	case wallettype.SPHINCSPLUS_256S:
-		_, err := sphincsplus_256s.BytesToPK(pk)
-		if err != nil {
-			return err
-		}
-		_, err = sphincsplus_256s.NewSphincsPlus256sDescriptorFromDescriptor(descriptor)
-		if err != nil {
-			//coverage:ignore
-			//rationale: descriptor.IsValid() already passed, can't fail for valid wallet type
-			return err
-		}
 	case wallettype.ML_DSA_87:
 		_, err := ml_dsa_87.BytesToPK(pk)
 		if err != nil {
@@ -52,4 +40,3 @@ func GetAddressFromPKAndDescriptor(pk []uint8, descriptor descriptor.Descriptor)
 	}
 	return common.UnsafeGetAddress(pk, descriptor), nil
 }
-

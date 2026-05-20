@@ -53,7 +53,7 @@ func TestCanonicalityTruncatedSignatures(t *testing.T) {
 			truncated := make([]byte, tc.length)
 			copy(truncated, validSig[:tc.length])
 
-			// Use Open which handles variable-length sealed messages
+			// Use Open which handles variable-length attached-signature messages
 			sealed := append(truncated, msg...)
 			if recovered, _ := Open(sealed, &pk); recovered != nil {
 				t.Errorf("Truncated signature at %d bytes should not verify", tc.length)

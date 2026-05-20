@@ -94,7 +94,7 @@ func (d *Dilithium) GetHexSeed() string {
 // SignAttached (and [Open]) is the attached-signature variant.
 //
 // SignAttached has no confidentiality property; the message bytes are
-// embedded in the result in the clear. Renamed from Seal in
+// embedded in the result in the clear. Renamed during
 // TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
 func (d *Dilithium) SignAttached(message []uint8) ([]uint8, error) {
 	return cryptoSign(message, &d.sk, d.randomizedSigning)

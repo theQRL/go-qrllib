@@ -53,8 +53,6 @@ func expectedPKSize(desc descriptor.Descriptor) (int, error) {
 	switch wallettype.WalletType(desc.Type()) {
 	case wallettype.ML_DSA_87:
 		return MLDSA87PKSize, nil
-	case wallettype.SPHINCSPLUS_256S:
-		return SPHINCSPlus256sPKSize, nil
 	default:
 		//coverage:ignore
 		//rationale: only called from GetAddress after desc.IsValid() check

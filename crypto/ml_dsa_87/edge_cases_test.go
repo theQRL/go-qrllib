@@ -32,10 +32,10 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 		t.Error("Failed to verify signature on empty message")
 	}
 
-	// Seal/Open empty message
+	// SignAttached/Open empty message
 	sealed, err := mldsa.SignAttached(ctx, emptyMsg)
 	if err != nil {
-		t.Fatalf("Failed to seal empty message: %v", err)
+		t.Fatalf("Failed to sign attached empty message: %v", err)
 	}
 
 	opened, err := Open(ctx, sealed, &pk)
@@ -302,7 +302,7 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 
 		_, err = mldsa.SignAttached(longCtx, msg)
 		if err == nil {
-			t.Error("Seal should fail with context > 255 bytes")
+			t.Error("SignAttached should fail with context > 255 bytes")
 		}
 	})
 }
@@ -379,7 +379,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	})
 
 	t.Run("invalid_signature_in_sealed", func(t *testing.T) {
-		// Create a sealed message with invalid signature
+		// Create a attached-signature message with invalid signature
 		invalidSealed := make([]byte, CRYPTO_BYTES+10)
 		_, _ = rand.Read(invalidSealed)
 		if msg, _ := Open(ctx, invalidSealed, &pk); msg != nil {

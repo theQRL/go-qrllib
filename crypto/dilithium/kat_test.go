@@ -183,8 +183,8 @@ func TestKATSignVerifyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestKATSealOpenRoundTrip verifies seal/open round trip
-func TestKATSealOpenRoundTrip(t *testing.T) {
+// TestKATSignAttachedOpenRoundTrip verifies sign-attached/open round trip
+func TestKATSignAttachedOpenRoundTrip(t *testing.T) {
 	for _, vec := range katVectors {
 		t.Run(vec.name+"_seal_open", func(t *testing.T) {
 			seedSlice, err := hex.DecodeString(vec.seed)
@@ -204,15 +204,15 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 				t.Fatalf("Failed to create Dilithium: %v", err)
 			}
 
-			// Seal
+			// SignAttached
 			sealed, err := dil.SignAttached(msg)
 			if err != nil {
-				t.Fatalf("Failed to seal: %v", err)
+				t.Fatalf("Failed to sign attached: %v", err)
 			}
 
-			// Sealed message should be signature + message
+			// Attached signature message should be signature + message
 			if len(sealed) != CRYPTO_BYTES+len(msg) {
-				t.Errorf("Sealed message length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(sealed))
+				t.Errorf("Attached signature message length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(sealed))
 			}
 
 			// Open

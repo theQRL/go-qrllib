@@ -372,7 +372,7 @@ XMSS constructors additionally validate parameter-set identifiers at the API bou
 | Constructor | HashFunction validated | Height validated |
 |-------------|------------------------|------------------|
 | `crypto/xmss.InitializeTree` | yes | yes |
-| `crypto/xmss.XMSSFastGenKeyPair` | yes (via internal dispatch tripwire, see below) | yes |
+| `crypto/xmss.XMSSFastGenKeyPair` / `XMSSFastGenKeyPairFromExpandedSeed` | yes | yes |
 | `legacywallet/xmss.NewWalletFromSeed` | yes (defence-in-depth) | yes (existing `height > MaxHeight` check) |
 | `legacywallet/xmss.NewWalletFromExtendedSeed` | yes (via descriptor parser → `xmss.ToHashFunction`) | yes (same path) |
 | `legacywallet/xmss.NewWalletFromHeight` | yes (delegates to `NewWalletFromSeed`) | yes (same) |
