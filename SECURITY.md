@@ -181,6 +181,34 @@ The 64-byte (512-bit) address exceeds **NIST Category 5** post-quantum collision
 
 String form: `"Q" + hex(address)` = 129 characters.
 
+### EIP-55-style Checksum
+
+QRL v2 addresses support an EIP-55-style mixed-case checksum to detect
+transcription errors. The scheme is identical across `@theqrl/wallet.js`,
+`go-qrllib`, and `rust-qrllib`: the case-selection nibbles are drawn from
+**SHAKE-256** of the UTF-8 bytes of the 128-character lowercase hex body
+(no `"Q"` prefix), with `dkLen = AddressSize` (64 bytes = 128 nibbles). For
+each hex character: if it is a letter (`a`-`f`) and the corresponding nibble
+is `≥ 8`, it is uppercased; otherwise it stays lowercase. The `"Q"` prefix
+is always uppercase on output and is not part of the checksum input.
+
+| Helper | Behavior |
+|--------|----------|
+| `common.ToChecksumAddress(addr)` | Emits the canonical checksummed mixed-case form. |
+| `(w *Wallet) GetChecksumAddressStr()` | Convenience wrapper on the wallet. |
+| `common.IsValidAddress(s)` | **Permissive**: accepts all-lowercase, all-uppercase, or correctly-checksummed mixed case. Mixed case with a bad checksum is rejected. |
+| `common.IsValidChecksumAddress(s)` | **Strict**: returns true only for the exact canonical form (uppercase `Q`, hex body case-for-case identical to `ToChecksumAddress` output). |
+
+This is a typo-detection layer, not an authentication mechanism. An attacker
+who controls the address-display path can always show a correctly-checksummed
+address of their choosing. The lowercase form remains a valid encoding;
+applications that want stronger guarantees against transcription errors should
+require checksummed input via `IsValidChecksumAddress`.
+
+A digit substitution is not detected (digits carry no checksum information); a
+case flip on a hex letter is detected with probability ≈ 15/16 per affected
+letter.
+
 ---
 
 ## Cryptographic Implementation Details
