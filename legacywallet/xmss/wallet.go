@@ -164,6 +164,33 @@ func (w *XMSSWallet) GetIndex() uint32 {
 	return w.xmss.GetIndex()
 }
 
+// Sign produces an XMSS signature over message and advances the
+// wallet's internal one-time-signature (OTS) index by one.
+//
+// # CRITICAL WARNING — STATEFUL SIGNATURE SCHEME
+//
+// XMSS is a STATEFUL signature scheme. Each signature consumes a unique
+// OTS index. Reusing an index — even for a different message — exposes
+// enough of the secret key to allow an attacker to forge signatures for
+// ANY message.
+//
+// Callers MUST:
+//
+//  1. Persist the UPDATED index — obtained via [XMSSWallet.GetIndex] —
+//     to durable storage AFTER this call returns and BEFORE the returned
+//     signature is used or broadcast. If the persistence step fails, the
+//     signature MUST NOT be used.
+//  2. Never call Sign concurrently on the same XMSSWallet instance. The
+//     index is not protected by locks, and concurrent signing will
+//     corrupt the BDS state and may lead to index reuse.
+//  3. Never restore an XMSSWallet from a backup whose persisted index is
+//     behind the true last-used index — doing so would re-use indices.
+//  4. Plan for key rotation before index exhaustion (2^height signatures).
+//
+// See the package documentation and [github.com/theQRL/go-qrllib/crypto/xmss]
+// for the full safe-usage pattern, including the recovery procedure that
+// uses [XMSSWallet.SetIndex] to fast-forward the BDS state when restoring
+// from a persisted index.
 func (w *XMSSWallet) Sign(message []uint8) ([]uint8, error) {
 	return w.xmss.Sign(message)
 }

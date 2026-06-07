@@ -238,19 +238,19 @@ func TestDilithium_SignAttached(t *testing.T) {
 		t.Error("failed to seal ", err.Error())
 	}
 
-	// Verify the sealed message has correct size (signature + message)
+	// Verify the attached-signature message has correct size (signature + message)
 	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
-		t.Errorf("sealed message size mismatch: got %d, want %d", len(signatureMessage), CRYPTO_BYTES+len(msg))
+		t.Errorf("attached-signature message size mismatch: got %d, want %d", len(signatureMessage), CRYPTO_BYTES+len(msg))
 	}
 
-	// Verify the sealed message can be opened with the correct public key
+	// Verify the attached-signature message can be opened with the correct public key
 	pk := d.GetPK()
 	opened, err := Open(signatureMessage, &pk)
 	if err != nil {
 		t.Errorf("Open returned error: %v", err)
 	}
 	if !reflect.DeepEqual(opened, msg) {
-		t.Error("failed to open sealed message")
+		t.Error("failed to open attached-signature message")
 	}
 
 	// Verify determinism - same seed, same message should produce same sealed result
@@ -394,7 +394,7 @@ func TestExtractMessage(t *testing.T) {
 		t.Error("failed to seal ", err.Error())
 	}
 
-	// Verify sealed message has correct size
+	// Verify attached-signature message has correct size
 	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
 		t.Errorf("signatureMessage length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(signatureMessage))
 	}
@@ -425,7 +425,7 @@ func TestExtractSignature(t *testing.T) {
 		t.Error("failed to seal ", err.Error())
 	}
 
-	// Verify sealed message has correct size
+	// Verify attached-signature message has correct size
 	if len(signatureMessage) != CRYPTO_BYTES+len(msg) {
 		t.Errorf("signatureMessage length: expected %d, got %d", CRYPTO_BYTES+len(msg), len(signatureMessage))
 	}

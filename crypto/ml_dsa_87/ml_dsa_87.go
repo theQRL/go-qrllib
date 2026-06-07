@@ -4,7 +4,7 @@
 // # API Difference: Context Parameter
 //
 // Unlike other signature packages in go-qrllib (Dilithium, SPHINCS+, XMSS),
-// ML-DSA-87 requires a context parameter (ctx) in Sign, Verify, Seal, and Open
+// ML-DSA-87 requires a context parameter (ctx) in Sign, Verify, SignAttached, and Open
 // functions. This is mandated by FIPS 204 for domain separation.
 //
 // The context parameter:
@@ -15,7 +15,7 @@
 //
 // Why other packages don't have context:
 //   - Dilithium: Pre-FIPS version of the algorithm (no context in original spec)
-//   - SPHINCS+: FIPS 205 hash-based signature (context not part of spec)
+//   - SPHINCS+: pre-FIPS hash-based signature (context not part of spec)
 //   - XMSS: RFC 8391 hash-based signature (uses hash function selector instead)
 //
 // The wallet layer (wallet/ml_dsa_87) abstracts this by hardcoding the context,
@@ -59,7 +59,7 @@
 // # Thread Safety
 //
 // An MLDSA87 instance is safe for concurrent reads (GetPK, GetSK, GetSeed),
-// but Sign and Seal should not be called concurrently on the same instance.
+// but Sign and SignAttached should not be called concurrently on the same instance.
 // The package-level Verify and Open functions are safe for concurrent use.
 package ml_dsa_87
 
@@ -175,7 +175,7 @@ func (d *MLDSA87) GetHexSeed() string {
 // channel that does not have a place for a side-channel signature.
 //
 // SignAttached has no confidentiality property; the message bytes are
-// embedded in the result in the clear. Renamed from Seal in
+// embedded in the result in the clear. Renamed during
 // TOB-QRLLIB-12 to remove the misleading AEAD-style connotation.
 //
 // Signing is hedged (FIPS 204 §3.4): the per-signature RND_BYTES are

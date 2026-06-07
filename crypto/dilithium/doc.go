@@ -24,7 +24,7 @@
 // # Thread Safety
 //
 // A Dilithium instance is safe for concurrent reads (GetPK, GetSK, GetSeed),
-// but Sign and Seal should not be called concurrently on the same instance.
+// but Sign and SignAttached should not be called concurrently on the same instance.
 // The package-level Verify function is safe for concurrent use.
 // The SignWithSecretKey function is safe for concurrent use with different keys.
 //

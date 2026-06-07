@@ -10,7 +10,7 @@ func TestWalletTypeIsValid(t *testing.T) {
 		wt       WalletType
 		expected bool
 	}{
-		{"SPHINCSPLUS_256S is valid", SPHINCSPLUS_256S, true},
+		{"SPHINCSPLUS_256S reserved but not valid today", SPHINCSPLUS_256S, false},
 		{"ML_DSA_87 is valid", ML_DSA_87, true},
 		{"InvalidWalletType is not valid", InvalidWalletType, false},
 		{"Unknown type 100 is not valid", WalletType(100), false},
@@ -53,7 +53,7 @@ func TestToWalletType(t *testing.T) {
 		expected    WalletType
 		expectError bool
 	}{
-		{"valid SPHINCSPLUS_256S", 0, SPHINCSPLUS_256S, false},
+		{"SPHINCSPLUS_256S reserved but invalid today", 0, InvalidWalletType, true},
 		{"valid ML_DSA_87", 1, ML_DSA_87, false},
 		{"invalid type 2", 2, InvalidWalletType, true},
 		{"invalid type 100", 100, InvalidWalletType, true},
@@ -82,7 +82,7 @@ func TestToWalletTypeOf(t *testing.T) {
 		expected    WalletType
 		expectError bool
 	}{
-		{"matching SPHINCSPLUS_256S", 0, SPHINCSPLUS_256S, SPHINCSPLUS_256S, false},
+		{"SPHINCSPLUS_256S reserved but invalid today", 0, SPHINCSPLUS_256S, InvalidWalletType, true},
 		{"matching ML_DSA_87", 1, ML_DSA_87, ML_DSA_87, false},
 		{"mismatch - got ML_DSA_87 expected SPHINCSPLUS_256S", 1, SPHINCSPLUS_256S, InvalidWalletType, true},
 		{"mismatch - got SPHINCSPLUS_256S expected ML_DSA_87", 0, ML_DSA_87, InvalidWalletType, true},
@@ -104,12 +104,10 @@ func TestToWalletTypeOf(t *testing.T) {
 }
 
 // TestWalletType_IsIssuable pins the per-type issuability matrix added
-// while remediating TOB-QRLLIB-4. SPHINCSPLUS_256S is recognised in the
-// descriptor format (IsValid=true) but is not currently issuable; it is
-// reserved as a forward placeholder for SLH-DSA (FIPS 205) adoption.
-// ML_DSA_87 is the only currently-issuable wallet type. When SLH-DSA is
-// activated this test will need updating to flip SPHINCSPLUS_256S to
-// true; that update is the intended single point of change.
+// while remediating TOB-QRLLIB-4. SPHINCSPLUS_256S is reserved as a
+// forward placeholder for SLH-DSA (FIPS 205) adoption but is not a valid
+// or issuable common wallet type today. ML_DSA_87 is the only
+// currently-issuable wallet type.
 func TestWalletType_IsIssuable(t *testing.T) {
 	tests := []struct {
 		name string
@@ -158,10 +156,10 @@ func TestWalletType_IsVerifiable(t *testing.T) {
 }
 
 // TestWalletType_IsValidVsIssuableContract documents the contract
-// relationship between IsValid (parseable) and IsIssuable (constructable):
+// relationship between IsValid and IsIssuable:
 // every issuable type must also be valid; the converse is not required.
 // This invariant prevents a future edit from making something issuable
-// without making it parseable, which would be self-contradictory.
+// without making it valid, which would be self-contradictory.
 func TestWalletType_IsValidVsIssuableContract(t *testing.T) {
 	for v := 0; v <= 255; v++ {
 		w := WalletType(v)

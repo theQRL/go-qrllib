@@ -24,7 +24,7 @@ func TestValidatePKAndDescriptor_MLDSA87(t *testing.T) {
 	}
 }
 
-func TestValidatePKAndDescriptor_SPHINCS(t *testing.T) {
+func TestValidatePKAndDescriptor_RejectsSPHINCS(t *testing.T) {
 	wallet, err := sphincsplus_256s.NewWallet()
 	if err != nil {
 		t.Fatalf("failed to create wallet: %v", err)
@@ -33,9 +33,8 @@ func TestValidatePKAndDescriptor_SPHINCS(t *testing.T) {
 	pk := wallet.GetPK()
 	desc := wallet.GetDescriptor().ToDescriptor()
 
-	err = validatePKAndDescriptor(pk[:], desc)
-	if err != nil {
-		t.Errorf("validatePKAndDescriptor failed for valid SPHINCS+: %v", err)
+	if err := validatePKAndDescriptor(pk[:], desc); err == nil {
+		t.Error("validatePKAndDescriptor accepted reserved SPHINCS+ descriptor")
 	}
 }
 
@@ -60,14 +59,14 @@ func TestValidatePKAndDescriptor_WrongPKSize_MLDSA87(t *testing.T) {
 	}
 }
 
-func TestValidatePKAndDescriptor_WrongPKSize_SPHINCS(t *testing.T) {
+func TestValidatePKAndDescriptor_RejectsSPHINCSBeforePKSize(t *testing.T) {
 	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
-	wrongPK := make([]byte, 32) // SPHINCS+ PKSize is 64, so 32 is wrong
+	wrongPK := make([]byte, 32)
 
 	err := validatePKAndDescriptor(wrongPK, desc)
 	if err == nil {
-		t.Error("expected error for wrong PK size")
+		t.Error("expected error for reserved SPHINCS+ descriptor")
 	}
 }
 
@@ -101,7 +100,7 @@ func TestGetAddressFromPKAndDescriptor_MLDSA87(t *testing.T) {
 	}
 }
 
-func TestGetAddressFromPKAndDescriptor_SPHINCS(t *testing.T) {
+func TestGetAddressFromPKAndDescriptor_RejectsSPHINCS(t *testing.T) {
 	wallet, err := sphincsplus_256s.NewWallet()
 	if err != nil {
 		t.Fatalf("failed to create wallet: %v", err)
@@ -110,14 +109,8 @@ func TestGetAddressFromPKAndDescriptor_SPHINCS(t *testing.T) {
 	pk := wallet.GetPK()
 	desc := wallet.GetDescriptor().ToDescriptor()
 
-	addr, err := GetAddressFromPKAndDescriptor(pk[:], desc)
-	if err != nil {
-		t.Fatalf("GetAddressFromPKAndDescriptor failed: %v", err)
-	}
-
-	walletAddr := wallet.GetAddress()
-	if addr != walletAddr {
-		t.Error("address mismatch between GetAddressFromPKAndDescriptor and wallet.GetAddress")
+	if _, err := GetAddressFromPKAndDescriptor(pk[:], desc); err == nil {
+		t.Fatal("GetAddressFromPKAndDescriptor accepted reserved SPHINCS+ descriptor")
 	}
 }
 
@@ -149,10 +142,15 @@ func TestGetAddressFromPKAndDescriptor_CrossAlgorithm(t *testing.T) {
 	mlPK := mlWallet.GetPK()
 	sphincsPK := sphincsWallet.GetPK()
 
-	mlAddr, _ := GetAddressFromPKAndDescriptor(mlPK[:], mlWallet.GetDescriptor().ToDescriptor())
-	sphincsAddr, _ := GetAddressFromPKAndDescriptor(sphincsPK[:], sphincsWallet.GetDescriptor().ToDescriptor())
+	mlAddr, err := GetAddressFromPKAndDescriptor(mlPK[:], mlWallet.GetDescriptor().ToDescriptor())
+	if err != nil {
+		t.Fatalf("GetAddressFromPKAndDescriptor failed for ML-DSA-87: %v", err)
+	}
 
-	if mlAddr == sphincsAddr {
-		t.Error("addresses from different algorithms should differ")
+	if _, err := GetAddressFromPKAndDescriptor(sphincsPK[:], sphincsWallet.GetDescriptor().ToDescriptor()); err == nil {
+		t.Fatal("GetAddressFromPKAndDescriptor accepted reserved SPHINCS+ descriptor")
+	}
+	if mlAddr == sphincsWallet.GetAddress() {
+		t.Error("ML-DSA top-level address should differ from package-local SPHINCS+ address")
 	}
 }

@@ -36,17 +36,12 @@ func ToWalletTypeOf(val uint8, walletType WalletType) (WalletType, error) {
 	return w, nil
 }
 
-// IsValid reports whether the wallet type is recognised by the descriptor
-// format. It does NOT report whether the library will currently issue new
-// wallets of that type or accept signatures under it; for those see
-// IsIssuable and IsVerifiable.
-//
-// IsValid is the right check for descriptor parsing and address derivation,
-// where every type that has ever been (or will be) on the network must
-// remain recognisable.
+// IsValid reports whether the wallet type is valid in the production common
+// wallet API today. SPHINCSPLUS_256S remains a reserved constant, but is not a
+// valid wallet type until QRL activates a reviewed SLH-DSA wallet path.
 func (w WalletType) IsValid() bool {
 	switch w {
-	case SPHINCSPLUS_256S, ML_DSA_87:
+	case ML_DSA_87:
 		return true
 	default:
 		return false
@@ -60,8 +55,6 @@ func (w WalletType) IsValid() bool {
 //
 // SPHINCSPLUS_256S is reserved as a forward placeholder for QRL's eventual
 // adoption of the SLH-DSA family (FIPS 205) and is not currently issuable.
-// The placeholder is retained in the descriptor format so the on-wire
-// layout does not need to change when SLH-DSA activation lands.
 func (w WalletType) IsIssuable() bool {
 	switch w {
 	case ML_DSA_87:

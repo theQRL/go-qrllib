@@ -42,6 +42,7 @@ func TestNewExtendedSeed_InvalidDescriptor(t *testing.T) {
 		{"unknown wallet type", descriptor.Descriptor{255, 0, 0}},
 		{"ML_DSA_87 with non-zero metadata byte 1", descriptor.Descriptor{byte(wallettype.ML_DSA_87), 0x01, 0x00}},
 		{"ML_DSA_87 with non-zero metadata byte 2", descriptor.Descriptor{byte(wallettype.ML_DSA_87), 0x00, 0x01}},
+		{"SPHINCSPLUS_256S canonical reserved but not valid today", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x00, 0x00}},
 		{"SPHINCSPLUS_256S with non-canonical metadata", descriptor.Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0x12, 0x34}},
 	}
 
@@ -153,7 +154,7 @@ func TestNewExtendedSeedFromHexString_InvalidHex(t *testing.T) {
 }
 
 func TestExtendedSeed_GetDescriptorBytes(t *testing.T) {
-	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
+	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 	var seed Seed
 
@@ -234,7 +235,7 @@ func TestExtendedSeed_ToBytes(t *testing.T) {
 
 func TestExtendedSeed_RoundTrip(t *testing.T) {
 	// Create original extended seed
-	descBytes := descriptor.GetDescriptorBytes(wallettype.SPHINCSPLUS_256S, [2]byte{0x00, 0x00})
+	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
 	desc := descriptor.New(descBytes)
 
 	var seed Seed

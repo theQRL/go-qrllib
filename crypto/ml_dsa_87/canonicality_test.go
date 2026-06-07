@@ -56,7 +56,7 @@ func TestCanonicalityTruncatedSignatures(t *testing.T) {
 			truncated := make([]byte, tc.length)
 			copy(truncated, validSig[:tc.length])
 
-			// Use Open which handles variable-length sealed messages
+			// Use Open which handles variable-length attached-signature messages
 			sealed := append(truncated, msg...)
 			if recovered, _ := Open(ctx, sealed, &pk); recovered != nil {
 				t.Errorf("Truncated signature at %d bytes should not verify", tc.length)
@@ -381,10 +381,10 @@ func TestCanonicalityZVectorCorruption(t *testing.T) {
 
 	// Test corruption at various positions in z-vector
 	positions := []int{
-		zStart,                  // First byte of z
+		zStart,                         // First byte of z
 		zStart + POLY_Z_PACKED_BYTES/2, // Middle of first z poly
 		zStart + POLY_Z_PACKED_BYTES,   // Start of second z poly
-		zEnd - 1,               // Last byte of z
+		zEnd - 1,                       // Last byte of z
 	}
 
 	for _, pos := range positions {

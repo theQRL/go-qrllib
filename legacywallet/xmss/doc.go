@@ -17,11 +17,50 @@
 // [github.com/theQRL/go-qrllib/crypto/xmss.SHAKE_128] for the per-enum
 // note and SECURITY.md for the parameter-set provenance summary.
 //
-// # Stateful signing
+// # CRITICAL WARNING — STATEFUL SIGNATURE SCHEME
 //
-// XMSS is a stateful signature scheme: the OTS index returned by GetIndex
-// MUST be persisted to durable storage AFTER signing and BEFORE using the
-// returned signature. Reusing an index allows an attacker to forge
-// signatures for any message. See [github.com/theQRL/go-qrllib/crypto/xmss]
-// for the full safe-usage pattern.
+// XMSS is a STATEFUL signature scheme. Each call to [XMSSWallet.Sign]
+// consumes a unique one-time-signature (OTS) index. Reusing an index —
+// even for a different message — exposes enough of the secret key to
+// allow an attacker to forge signatures for ANY message.
+//
+// To use XMSSWallet safely you MUST:
+//
+//  1. NEVER sign with the same index twice.
+//  2. Persist the UPDATED index — obtained via [XMSSWallet.GetIndex] —
+//     to durable storage AFTER each [XMSSWallet.Sign] call and BEFORE
+//     the returned signature is used or broadcast. If the persistence
+//     step fails, the signature MUST NOT be used.
+//  3. NEVER call Sign concurrently on the same XMSSWallet instance. The
+//     index is not protected by locks; concurrent signing corrupts the
+//     internal BDS state and may lead to index reuse.
+//  4. NEVER restore from a backup whose persisted index is behind the
+//     true last-used index — doing so would re-use indices.
+//  5. Plan for key rotation before index exhaustion (2^height signatures).
+//
+// # Recovery and BDS state
+//
+// XMSS uses BDS state to speed up signing. This state is not persisted
+// or serialised by the library. Recovery requires:
+//
+//  1. Securely storing the seed (or extended seed) once, and
+//  2. Persisting the last-used index after each signature.
+//
+// To recover, rebuild the wallet from the seed via NewWalletFromSeed
+// (or NewWalletFromExtendedSeed) and call [XMSSWallet.SetIndex] with
+// the persisted index to advance the BDS state. SetIndex is O(Δ) in
+// the number of skipped indices, so persist frequently and avoid large
+// gaps. SetIndex must NEVER be used to "rewind" the index below the
+// last-used value.
+//
+// # Recommendation
+//
+// For new applications strongly prefer the stateless alternative:
+//
+//   - [github.com/theQRL/go-qrllib/wallet/ml_dsa_87] (FIPS 204, lattice-based).
+//
+// XMSS should only be used for legacy QRL v1 address compatibility.
+//
+// See [github.com/theQRL/go-qrllib/crypto/xmss] for the full safe-usage
+// pattern at the lower-level API.
 package xmss

@@ -112,6 +112,40 @@ func TestXMSSFastGenKeyPairFromExpandedSeed_RejectsUnsupported(t *testing.T) {
 	}
 }
 
+func TestXMSSFastGenKeyPair_RejectsInvalidHashFunction(t *testing.T) {
+	seed := make([]uint8, 48)
+	sk, pk, bds := allocBuffers(t)
+	params := NewXMSSParams(WOTSParamN, 10, WOTSParamW, WOTSParamK)
+
+	err := XMSSFastGenKeyPair(HashFunction(99), params, pk, sk, bds, seed)
+	if err == nil {
+		t.Fatal("XMSSFastGenKeyPair(invalid HashFunction) accepted; want ErrInvalidHashFunction")
+	}
+	if !errors.Is(err, cryptoerrors.ErrInvalidHashFunction) {
+		t.Errorf("XMSSFastGenKeyPair(invalid HashFunction) returned %v; want ErrInvalidHashFunction", err)
+	}
+	if !bytes.Equal(pk, make([]byte, len(pk))) {
+		t.Error("XMSSFastGenKeyPair(invalid HashFunction) wrote to pk on error path")
+	}
+}
+
+func TestXMSSFastGenKeyPairFromExpandedSeed_RejectsInvalidHashFunction(t *testing.T) {
+	var expanded [96]uint8
+	sk, pk, bds := allocBuffers(t)
+	params := NewXMSSParams(WOTSParamN, 10, WOTSParamW, WOTSParamK)
+
+	err := XMSSFastGenKeyPairFromExpandedSeed(HashFunction(99), params, pk, sk, bds, &expanded)
+	if err == nil {
+		t.Fatal("XMSSFastGenKeyPairFromExpandedSeed(invalid HashFunction) accepted; want ErrInvalidHashFunction")
+	}
+	if !errors.Is(err, cryptoerrors.ErrInvalidHashFunction) {
+		t.Errorf("XMSSFastGenKeyPairFromExpandedSeed(invalid HashFunction) returned %v; want ErrInvalidHashFunction", err)
+	}
+	if !bytes.Equal(pk, make([]byte, len(pk))) {
+		t.Error("XMSSFastGenKeyPairFromExpandedSeed(invalid HashFunction) wrote to pk on error path")
+	}
+}
+
 // TestXMSSFastGenKeyPairFromExpandedSeed_AcceptsSupported is the
 // positive control: the RFC 8391 direct-seed path should produce a
 // well-formed keypair (non-zero pub_seed, non-zero root) given valid

@@ -9,8 +9,6 @@
 // the reference is exercised in CI via the [rfc8391] sub-package.
 // See SECURITY.md for the full provenance discussion.
 //
-// [rfc8391]: https://pkg.go.dev/github.com/theQRL/go-qrllib/crypto/xmss/rfc8391
-//
 // # CRITICAL WARNING: STATEFUL SIGNATURE SCHEME
 //
 // XMSS is a STATEFUL signature scheme. Each signature uses a unique index
@@ -31,7 +29,7 @@
 //
 // For new applications, strongly prefer stateless alternatives:
 //   - [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] (FIPS 204, lattice-based)
-//   - [github.com/theQRL/go-qrllib/crypto/sphincsplus_256s] (FIPS 205, hash-based)
+//   - [github.com/theQRL/go-qrllib/crypto/sphincsplus_256s] (pre-FIPS SPHINCS+, hash-based)
 //
 // XMSS in this library should only be used for:
 //   - Legacy QRL address compatibility (the primary purpose)
@@ -138,6 +136,7 @@
 // serialized by the library. Recovery requires:
 //  1. Securely storing the seed (or extended seed) once, and
 //  2. Persisting the last used index after each signature.
+//
 // To recover, rebuild the tree from the seed and call SetIndex(persistedIndex)
 // to advance the BDS state to the last used index. This can be O(Δ) in the
 // number of skipped indices, so persist frequently and avoid large gaps.
@@ -148,4 +147,6 @@
 //
 //	pk := tree.GetRoot() // combined with tree.GetPKSeed()
 //	valid := xmss.Verify(hashFunc, message, signature, pk)
+//
+// [rfc8391]: https://pkg.go.dev/github.com/theQRL/go-qrllib/crypto/xmss/rfc8391
 package xmss

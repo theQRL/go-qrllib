@@ -1,11 +1,11 @@
-// Regression tests for TOB-QRLLIB-4: the wallet allows SPHINCS+ as a valid
-// signature scheme.
+// Regression tests for TOB-QRLLIB-4: SPHINCS+ is not a supported wallet
+// signature scheme today.
 //
 // Our position is that SPHINCSPLUS_256S is a forward placeholder for the
 // eventual SLH-DSA (FIPS 205) adoption rather than a legacy type to remove.
-// The library therefore keeps the descriptor parseable but gates wallet
-// construction and verification behind the IsIssuable/IsVerifiable
-// switches in wallettype, so that no SPHINCS+ wallet can be issued and no
+// The library therefore keeps only the package-local descriptor parseable for
+// experimental tests, while common descriptors, wallet construction, and
+// verification remain gated so that no SPHINCS+ wallet can be issued and no
 // SPHINCS+ signature can be verified through the public API today.
 //
 // These tests assert the gate's behaviour by explicitly flipping the

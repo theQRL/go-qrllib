@@ -407,14 +407,18 @@ var walletCreators = map[string]walletCreator{
 // Helper functions for creating wallets in different ways
 func createWalletFromSeed(t *testing.T, tc *walletTestCase) *Wallet {
 	t.Helper()
-	extendedSeed, err := common.NewExtendedSeedFromHexString(tc.extendedSeed)
+	extendedSeedBytes, err := hex.DecodeString(tc.extendedSeed)
 	if err != nil {
-		t.Fatalf("failed to create extended seed: %v", err)
+		t.Fatalf("failed to decode extended seed: %v", err)
 	}
-	seed, err := extendedSeed.GetSeed()
+	if len(extendedSeedBytes) != common.ExtendedSeedSize {
+		t.Fatalf("invalid extended seed length: got %d, want %d", len(extendedSeedBytes), common.ExtendedSeedSize)
+	}
+	seed, err := common.ToSeed(extendedSeedBytes[descriptor.DescriptorSize:])
 	if err != nil {
-		t.Fatalf("failed to get seed: %v", err)
+		t.Fatalf("failed to parse seed: %v", err)
 	}
+
 	w, err := NewWalletFromSeed(seed)
 	if err != nil {
 		t.Fatalf("NewWalletFromSeed() error = %v", err)
@@ -424,13 +428,9 @@ func createWalletFromSeed(t *testing.T, tc *walletTestCase) *Wallet {
 
 func createWalletFromExtendedSeed(t *testing.T, tc *walletTestCase) *Wallet {
 	t.Helper()
-	extendedSeed, err := common.NewExtendedSeedFromHexString(tc.extendedSeed)
+	w, err := NewWalletFromHexExtendedSeed(tc.extendedSeed)
 	if err != nil {
-		t.Fatalf("failed to create extended seed: %v", err)
-	}
-	w, err := NewWalletFromExtendedSeed(extendedSeed)
-	if err != nil {
-		t.Fatalf("NewWalletFromExtendedSeed() error = %v", err)
+		t.Fatalf("NewWalletFromHexExtendedSeed() error = %v", err)
 	}
 	return w
 }

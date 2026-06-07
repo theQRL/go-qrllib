@@ -1,7 +1,7 @@
 // Metamorphic fuzz tests for ML-DSA-87, contributed by Trail of Bits
 // during the audit engagement (TOB-QRLLIB). Light adaptations applied
 // for current go-qrllib API surface (post TOB-6 / TOB-12 / TOB-14):
-//   - `Seal` renamed to `SignAttached`
+//   - attached-signature API renamed to `SignAttached`
 //   - `Open` now returns `([]byte, error)`
 //   - `Sign` is hedged-by-default; tests that assert "different message
 //     → different signature" as a property of *deterministic* signing
@@ -195,10 +195,10 @@ func FuzzMetamorphicOpenRejectsMauledAttachedSignature(f *testing.F) {
 		pk := mldsa.GetPK()
 		opened, err := Open(ctx, sealed, &pk)
 		if err != nil {
-			t.Fatalf("baseline sealed message returned error from Open: %v", err)
+			t.Fatalf("baseline attached-signature message returned error from Open: %v", err)
 		}
 		if !bytes.Equal(opened, msg) {
-			t.Fatal("baseline sealed message did not round-trip through Open")
+			t.Fatal("baseline attached-signature message did not round-trip through Open")
 		}
 
 		// Restrict mauling to the attached signature prefix, mirroring the

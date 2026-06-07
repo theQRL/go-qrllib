@@ -88,6 +88,15 @@ broadcast(sig)  // Index may not be persisted
 as a primitive but the QRL wallet path for SPHINCS+/SLH-DSA is intentionally gated until
 NIST and QRL settle on a final SLH-DSA parameter set; see the SPHINCS+ notes below.
 
+### Same requirements at every API level
+
+The persistence requirement applies identically whether you call:
+
+- `crypto/xmss.XMSS.Sign` — the lower-level primitive shown in the example above, or
+- `legacywallet/xmss.XMSSWallet.Sign` — the wallet-level wrapper used to sign for legacy QRL v1 addresses.
+
+Both must persist the updated index (`tree.GetIndex()` or `wallet.GetIndex()` respectively) **AFTER** the call returns and **BEFORE** the signature is used or broadcast. The wallet wrapper is a thin delegate over the primitive — it carries the same statefulness invariants. See the godoc on each `Sign` method and the package documentation for [`legacywallet/xmss`](legacywallet/xmss/doc.go) for the full safe-usage pattern.
+
 ---
 
 ## Installation
@@ -169,7 +178,7 @@ if err != nil {
 }
 defer w.Zeroize()
 
-address := w.GetAddressStr()              // "Q" + hex(48 bytes)
+address := w.GetAddressStr()              // "Q" + hex(64 bytes)
 pk      := w.GetPK()
 desc    := w.GetDescriptor().ToDescriptor()
 
@@ -290,9 +299,9 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   [SLH-DSA (FIPS 205)](https://csrc.nist.gov/pubs/fips/205/final) in August 2024 as
   the standardised successor; FIPS 205 differs from the SPHINCS+ submission in
   parameter-set details. The QRL wallet layer **does not currently issue new
-  SPHINCS+/SLH-DSA wallets**: the wallet type is reserved in the descriptor format
-  but `IsIssuable()` returns `false` until QRL settles on a specific SLH-DSA
-  parameter set and the implementation is updated to match it. Existing
+  SPHINCS+/SLH-DSA wallets**: the wallet type is retained as a reserved constant,
+  but common wallet descriptor/type validation rejects it until QRL settles on a
+  specific SLH-DSA parameter set and the implementation is updated to match it. Existing
   SPHINCS+-256s primitive use (the `crypto/sphincsplus_256s` package, outside the
   wallet layer) remains supported with the caveat that the parameter set may
   change once SLH-DSA finalises for QRL. **For new wallets, use ML-DSA-87.**

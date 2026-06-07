@@ -13,9 +13,9 @@ func TestDescriptorIsValid(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "valid SPHINCSPLUS_256S descriptor",
+			name:     "SPHINCSPLUS_256S descriptor reserved but not valid today",
 			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0, 0},
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "valid ML_DSA_87 descriptor",
@@ -220,18 +220,18 @@ func TestDescriptor_IsVerifiable(t *testing.T) {
 }
 
 func TestDescriptor_IsValid_WithMetadata(t *testing.T) {
-	// Bytes 1 and 2 have no defined semantics for ML-DSA-87 or
-	// SPHINCS+-256s and must be zero. Only the canonical {type, 0, 0}
-	// descriptor is accepted.
+	// Bytes 1 and 2 have no defined semantics for ML-DSA-87 and must be zero.
+	// SPHINCSPLUS_256S remains reserved but is not a valid common wallet
+	// descriptor until QRL activates a reviewed SLH-DSA wallet path.
 	tests := []struct {
 		name     string
 		desc     Descriptor
 		expected bool
 	}{
 		{
-			name:     "SPHINCSPLUS_256S canonical",
+			name:     "SPHINCSPLUS_256S canonical reserved but invalid today",
 			desc:     Descriptor{byte(wallettype.SPHINCSPLUS_256S), 0, 0},
-			expected: true,
+			expected: false,
 		},
 		{
 			name:     "ML_DSA_87 canonical",

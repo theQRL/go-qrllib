@@ -12,7 +12,7 @@ import (
 // These test vectors verify deterministic key generation.
 //
 // NOTE: These are self-generated test vectors using known seeds.
-// For full NIST FIPS 205 compliance, official ACVP test vectors should
+// For strict SLH-DSA/FIPS 205 compliance, official ACVP test vectors will
 // be obtained from: https://github.com/usnistgov/ACVP-Server
 //
 // VALIDATION: These vectors have been cross-verified against the official
@@ -209,8 +209,8 @@ func TestKATSignVerifyRoundTrip(t *testing.T) {
 	}
 }
 
-// TestKATSealOpenRoundTrip verifies seal/open round trip
-func TestKATSealOpenRoundTrip(t *testing.T) {
+// TestKATSignAttachedOpenRoundTrip verifies sign-attached/open round trip
+func TestKATSignAttachedOpenRoundTrip(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping slow SPHINCS+ test in short mode")
 	}
@@ -235,15 +235,15 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 				t.Fatalf("Failed to create SphincsPlus256s: %v", err)
 			}
 
-			// Seal
+			// SignAttached
 			sealed, err := spx.SignAttached(msg)
 			if err != nil {
-				t.Fatalf("Failed to seal: %v", err)
+				t.Fatalf("Failed to sign attached: %v", err)
 			}
 
-			// Sealed message should be signature + message
+			// Attached signature message should be signature + message
 			if len(sealed) != params.SPX_BYTES+len(msg) {
-				t.Errorf("Sealed message length: expected %d, got %d", params.SPX_BYTES+len(msg), len(sealed))
+				t.Errorf("Attached signature message length: expected %d, got %d", params.SPX_BYTES+len(msg), len(sealed))
 			}
 
 			// Open
@@ -277,12 +277,12 @@ func TestKATSealOpenRoundTrip(t *testing.T) {
 	}
 }
 
-// TestKATKeySize verifies key sizes match FIPS 205 SLH-DSA-SHAKE-256s specification
+// TestKATKeySize verifies key sizes match the SPHINCS+-SHAKE-256s parameter set
 func TestKATKeySize(t *testing.T) {
-	// SLH-DSA-SHAKE-256s key sizes per FIPS 205
+	// SPHINCS+-SHAKE-256s key sizes
 	expectedPKSize := 64     // 2 * SPX_N = 2 * 32
 	expectedSKSize := 128    // 2*SPX_N + SPX_PK_BYTES = 64 + 64
-	expectedSigSize := 29792 // Per FIPS 205 specification
+	expectedSigSize := 29792 // Per SPHINCS+-SHAKE-256s parameter set
 	expectedSeedSize := 96   // 3 * SPX_N = 3 * 32
 
 	if params.SPX_PK_BYTES != expectedPKSize {
@@ -302,9 +302,9 @@ func TestKATKeySize(t *testing.T) {
 	}
 }
 
-// TestKATParameters verifies SPHINCS+-SHAKE-256s parameters match FIPS 205 specification
+// TestKATParameters verifies SPHINCS+-SHAKE-256s parameters
 func TestKATParameters(t *testing.T) {
-	// SLH-DSA-SHAKE-256s parameters per FIPS 205
+	// SPHINCS+-SHAKE-256s parameters
 	tests := []struct {
 		name     string
 		got      int
