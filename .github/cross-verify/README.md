@@ -4,7 +4,7 @@ This directory contains helper files for cross-implementation verification tests
 
 ## Overview
 
-These tests verify that go-qrllib's signature implementations are interoperable with the authoritative reference implementations.
+These tests verify that go-qrllib's signature implementations are interoperable with the authoritative reference implementations. The ML-KEM-1024 KEM is additionally cross-verified against the Go standard library's FIPS 203-validated `crypto/mlkem`.
 
 ## Tests
 
@@ -93,6 +93,17 @@ between go-qrllib's internal representation and the RFC byte layout.
 
 **Note**: XMSS in this library is a legacy algorithm: QRL's XMSS implementation predates RFC 8391 (Aug 2018), and the package is maintained as a v1 → v2 migration shim so QRL v1 mainnet addresses remain parseable, verifiable, and signable. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205, formerly SPHINCS+) is reserved as a wallet type in the QRL descriptor format but is not currently issuable. The implementation here remains the pre-FIPS-205 SPHINCS+ submission, and finalized parameter set under FIPS 205 remains to be determined.  Committing to a specific SLH-DSA parameter set under FIPS 205, and so activating the wallet path now, would commit users to a parameter set that may change.
 
+### ML-KEM-1024 (FIPS 203) — vs Go stdlib `crypto/mlkem`
+
+ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so cross-verification checks **shared-secret agreement** rather than signature interoperability. The reference is an independent Go implementation — the standard library's FIPS 203-validated `crypto/mlkem` — so no C reference is cloned or compiled; the check runs in-process.
+
+- Reference: Go standard library [`crypto/mlkem`](https://pkg.go.dev/crypto/mlkem) (FIPS 203)
+- `mlkem1024_crossverify.go` runs 1000 fresh keys and asserts:
+  1. the same 64-byte seed (`d || z`) derives an identical encapsulation key in both implementations;
+  2. a stdlib-produced ciphertext decapsulates to the same shared secret under go-qrllib; and
+  3. a go-qrllib-produced ciphertext decapsulates to the same shared secret under the stdlib.
+- Key sizes: EK=1568, seed=64, ciphertext=1568, shared secret=32 bytes
+
 ## Files
 
 | File | Description |
@@ -113,6 +124,7 @@ between go-qrllib's internal representation and the RFC byte layout.
 | `xmss_verify_ref.c` | Verify go-qrllib XMSS signature with reference (forward direction) |
 | `xmss_sign_ref.c` | Generate reference XMSS signature with seeded keypair (reverse direction) |
 | `xmss_verify.go` | Verify reference XMSS signature with go-qrllib via the rfc8391 sub-package (reverse direction) |
+| `mlkem1024_crossverify.go` | Cross-verify go-qrllib ML-KEM-1024 against Go stdlib `crypto/mlkem` (in-process, both directions) |
 
 ## Running Locally
 
