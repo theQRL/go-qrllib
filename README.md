@@ -8,7 +8,7 @@ Go implementation of the Quantum Resistant Ledger (QRL) cryptographic library.
 
 ## Overview
 
-go-qrllib provides post-quantum cryptographic signature schemes for the QRL blockchain and general-purpose applications requiring quantum-resistant security.
+go-qrllib provides post-quantum cryptographic signature schemes — plus an ML-KEM-1024 key-encapsulation primitive — for the QRL blockchain and general-purpose applications requiring quantum-resistant security.
 
 ### Supported Algorithms
 
@@ -18,6 +18,7 @@ go-qrllib provides post-quantum cryptographic signature schemes for the QRL bloc
 | **Dilithium** | Lattice-based | Pre-FIPS | Legacy compatibility |
 | **SPHINCS+-256s** | Hash-based | SPHINCS+ submission (pre-FIPS 205) — see SPHINCS+ notes | Stateless primitive; wallet path gated pending QRL's SLH-DSA parameter-set choice |
 | **XMSS** | Hash-based | Pre-standardisation; see XMSS notes | QRL v1 → v2 migration |
+| **ML-KEM-1024** | Lattice-based (KEM) | FIPS 203 | Key-encapsulation primitive (not a signature); `crypto/mlkem1024`, not wallet-integrated |
 
 ---
 
@@ -287,6 +288,8 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 
 ML-DSA-87 key generation and signing are verified against official [NIST ACVP test vectors](https://github.com/usnistgov/ACVP-Server). These tests run automatically in CI and are guarded by a build tag so they don't run during normal `go test ./...`.
 
+ML-KEM-1024 key generation, encapsulation, and decapsulation — including the encapsulation- and decapsulation-key validity checks — are likewise verified against NIST ACVP vectors. These run inline with `go test ./...` (see [`crypto/internal/mlkem1024/acvp_test.go`](crypto/internal/mlkem1024/acvp_test.go)).
+
 To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
 
 ---
@@ -326,6 +329,11 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   [SECURITY.md](SECURITY.md#parameter-set-provenance) for the full provenance
   discussion.
 - **Dilithium**: CRYSTALS-Dilithium (pre-FIPS version)
+- **ML-KEM-1024**: FIPS 203 (Module-Lattice-Based Key-Encapsulation Mechanism). Provided as a
+  key-establishment **primitive** in `crypto/mlkem1024`; it is **not** a signature scheme and is
+  **not** integrated into the QRL wallet or address layer. The implementation tracks Go's
+  FIPS-validated `crypto/mlkem` standard-library code and is verified against the NIST ACVP
+  ML-KEM vectors (key generation, encapsulation, decapsulation, and key-check cases).
 
 ---
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha3"
 	"crypto/subtle"
 	"errors"
+	"runtime"
 )
 
 const (
@@ -84,6 +85,14 @@ func decapsulate(dk *DecapsulationKey, ct *[CiphertextSize]byte) (sharedKey []by
 
 	subtle.ConstantTimeCopy(subtle.ConstantTimeCompare(ct[:], c[:]), Kout, K)
 
+	// Wipe transient secret material. m is the decrypted message that
+	// re-derives K and r; gInput and G hold copies of it. These wipes are
+	// data-independent, so they add no timing side channel. Kout is the
+	// returned shared secret and is intentionally retained.
+	wipe(m[:])
+	wipe(gInput[:])
+	wipe(G[:])
+
 	return Kout
 }
 
@@ -100,6 +109,21 @@ func (dk *DecapsulationKey) Bytes() []byte {
 	copy(b[32:], dk.z[:])
 
 	return b[:]
+}
+
+// Zeroize overwrites the decapsulation key's secret material — the d and z
+// seeds and the secret vector s — with zeros. It is best-effort under Go's
+// memory model (see the package documentation on zeroization). Non-secret
+// fields (the encapsulation key, matrix seed, and H(ek)) are left intact.
+func (dk *DecapsulationKey) Zeroize() {
+	wipe(dk.d[:])
+	wipe(dk.z[:])
+	for i := range dk.s {
+		for j := range dk.s[i] {
+			dk.s[i][j] = 0
+		}
+	}
+	runtime.KeepAlive(dk)
 }
 
 type EncapsulationKey struct {
@@ -136,10 +160,16 @@ func NewEncapsulationKey(ekBytes []byte) (*EncapsulationKey, error) {
 
 func (ek *EncapsulationKey) Encapsulate() (sharedKey, ciphertext []byte, err error) {
 	var m [32]byte
-	_, _ = rand.Read(m[:])
+	if _, err := rand.Read(m[:]); err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if the system entropy source is broken
+		return nil, nil, err
+	}
 
 	var ct [CiphertextSize]byte
 	sharedKey = encapsulateTo(&ct, ek, &m)
+
+	wipe(m[:])
 
 	return sharedKey, ct[:], nil
 }
@@ -165,6 +195,12 @@ func encapsulateTo(dst *[CiphertextSize]byte, ek *EncapsulationKey, m *[32]byte)
 
 	sharedKey := make([]byte, SharedKeySize)
 	copy(sharedKey, K)
+
+	// Wipe transient secret material derived from the message randomness. m is
+	// owned by the caller and left intact.
+	wipe(gInput[:])
+	wipe(G[:])
+
 	return sharedKey
 }
 
@@ -188,11 +224,22 @@ type decryptionKey struct {
 
 func GenerateKey() (*DecapsulationKey, error) {
 	var d, z [32]byte
-	_, _ = rand.Read(d[:])
-	_, _ = rand.Read(z[:])
+	if _, err := rand.Read(d[:]); err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if the system entropy source is broken
+		return nil, err
+	}
+	if _, err := rand.Read(z[:]); err != nil {
+		//coverage:ignore
+		//rationale: crypto/rand.Read only fails if the system entropy source is broken
+		return nil, err
+	}
 	dk := &DecapsulationKey{}
 
 	generateKey(dk, &d, &z)
+
+	wipe(d[:])
+	wipe(z[:])
 
 	return dk, nil
 }
@@ -211,4 +258,14 @@ func GenerateKeyInternal(d, z *[32]byte) *DecapsulationKey {
 	dk := &DecapsulationKey{}
 	generateKey(dk, d, z)
 	return dk
+}
+
+// wipe overwrites b with zeros. runtime.KeepAlive prevents the compiler from
+// eliding the writes as dead stores; this is best-effort under Go's memory
+// model (a copy may already have been made by the runtime).
+func wipe(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+	runtime.KeepAlive(&b)
 }

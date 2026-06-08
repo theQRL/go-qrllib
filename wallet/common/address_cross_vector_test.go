@@ -8,7 +8,18 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 )
 
-func TestAddressDerivationCrossImplementationVector(t *testing.T) {
+// TestAddressDerivationRegressionVector pins the output of the address
+// derivation SHAKE256(descriptor || pk)[:AddressSize] for a fixed input, so any
+// future change to the derivation is caught immediately.
+//
+// NOTE: this is a self-contained regression vector — the expected value is
+// whatever this implementation currently produces, not (yet) a value confirmed
+// against @theqrl/wallet.js or rust-qrllib. Cross-implementation *checksum*
+// parity is covered separately by parityVectors in address_test.go. To promote
+// this into a true cross-implementation derivation vector, regenerate the same
+// (descriptor, pk) address in the other implementations and confirm the bytes
+// match before relying on it for parity.
+func TestAddressDerivationRegressionVector(t *testing.T) {
 	descBytes := [descriptor.DescriptorSize]uint8{1, 0, 0}
 	desc := descriptor.New(descBytes)
 	pk := bytes.Repeat([]byte{0x42}, MLDSA87PKSize)

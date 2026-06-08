@@ -50,3 +50,53 @@ jobs:
           WYCHEPROOF_VECTORS_DIR: /tmp/wycheproof/testvectors_v1
         run: |
           go test -v -tags wycheproof -run TestWycheproof ./crypto/ml_dsa_87/ -timeout 300s
+
+  mlkem1024-wycheproof:
+    name: ML-KEM-1024 Wycheproof & CCTV Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.25.x'
+
+      - name: Clone C2SP/wycheproof (latest, sparse)
+        run: |
+          # Sparse checkout of testvectors_v1 only; we need the ML-KEM JSON
+          # files. Tracking master gives upstream additions automatically; if a
+          # future vector starts producing legitimate failures we can pin to a
+          # specific commit and bump deliberately.
+          git clone --depth 1 --no-checkout --filter=blob:none \
+            https://github.com/C2SP/wycheproof.git /tmp/wycheproof
+          cd /tmp/wycheproof
+          git sparse-checkout init --cone
+          git sparse-checkout set testvectors_v1
+          git checkout
+          echo "Wycheproof commit: $(git rev-parse --short HEAD)"
+          echo "Wycheproof date:   $(git log -1 --format=%ci)"
+          ls -la testvectors_v1/mlkem_1024_*.json
+
+      - name: Clone C2SP/CCTV (latest, sparse)
+        run: |
+          # CCTV provides the exhaustive invalid-encapsulation-key (modulus)
+          # vectors. Same tracking policy as wycheproof above.
+          git clone --depth 1 --no-checkout --filter=blob:none \
+            https://github.com/C2SP/CCTV.git /tmp/cctv
+          cd /tmp/cctv
+          git sparse-checkout init --cone
+          git sparse-checkout set ML-KEM
+          git checkout
+          echo "CCTV commit: $(git rev-parse --short HEAD)"
+          echo "CCTV date:   $(git log -1 --format=%ci)"
+          ls -la ML-KEM/modulus/ML-KEM-1024.txt.gz
+
+      - name: Run Wycheproof + CCTV ML-KEM-1024 tests
+        env:
+          WYCHEPROOF_VECTORS_DIR: /tmp/wycheproof/testvectors_v1
+          CCTV_VECTORS_DIR: /tmp/cctv/ML-KEM
+        run: |
+          go test -v -tags wycheproof -run 'TestWycheproofMLKEM|TestCCTVMLKEM' ./crypto/internal/mlkem1024/ -timeout 300s
