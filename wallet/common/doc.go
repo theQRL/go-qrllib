@@ -35,13 +35,14 @@
 // Addresses are validated using [IsValidAddress]. For address generation:
 //
 //   - Use [GetAddress] for untrusted inputs (validates descriptor and pk length)
-//
 //   - Use [UnsafeGetAddress] only when the descriptor and public key have already
 //     been validated by the caller (wallet implementations rely on this fast-path).
 //
-//     if !common.IsValidAddress(addr) {
-//     return errors.New("invalid QRL address")
-//     }
+// For example:
+//
+//	if !common.IsValidAddress(addr) {
+//	    return errors.New("invalid QRL address")
+//	}
 //
 // # Seed Derivation
 //

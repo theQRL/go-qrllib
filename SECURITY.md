@@ -167,6 +167,18 @@ targets.
 
 ---
 
+### ML-KEM-1024 (FIPS 203)
+
+ML-KEM-1024 is the NIST Module-Lattice-Based Key-Encapsulation Mechanism (FIPS 203). It is provided as a key-establishment **primitive** in `crypto/mlkem1024`; it is **not** a signature scheme and is **not** currently part of the QRL wallet or address layer.
+
+- **Provenance**: a restructured port of Go's FIPS-validated `crypto/mlkem` (standard library), with performance-oriented internal changes (lazy NTT reduction, fused base multiply, hand-unrolled bit-packing) verified bit-for-bit against the standard library and against the NIST ACVP vectors (KeyGen, Encapsulation, Decapsulation, and encapsulation/decapsulation key-check cases).
+- **IND-CCA2 / implicit rejection**: decapsulation uses the Fujisaki–Okamoto transform with a constant-time re-encryption comparison (`crypto/subtle`); on a ciphertext mismatch it returns a pseudorandom shared secret derived from the secret rejection value `z` (`SHAKE256(z‖ct)`) — never an error and never the real key — with no secret-dependent branching.
+- **Input validation**: encapsulation keys, decapsulation-key seeds, and ciphertexts are length-checked at the API boundary and return typed errors (never panic). Decoded encapsulation-key coefficients are rejected if any is ≥ q, preventing acceptance of malformed keys.
+- **Zeroization**: `DecapsulationKey.Zeroize()` wipes the secret seeds (`d`, `z`) and the secret vector `s`; the encapsulation/decapsulation paths additionally wipe the transient decrypted message and FO hash buffers on a best-effort basis (see [Key Zeroization](#key-zeroization)).
+- **Randomness**: key generation and encapsulation draw from `crypto/rand`; a failure of the system entropy source surfaces as an error rather than silently producing low-entropy keys.
+
+---
+
 ## Address Security
 
 ### Address Derivation

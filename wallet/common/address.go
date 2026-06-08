@@ -22,7 +22,7 @@ Callers MUST ensure:
   - pk is the correct length for that wallet type
 */
 func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
-	// noinspection GoBoolExpressions
+	//noinspection GoBoolExpressions
 	if AddressSize > 64 {
 		//coverage:ignore
 		//rationale: compile-time assertion, AddressSize is a constant (64) which is <= 64

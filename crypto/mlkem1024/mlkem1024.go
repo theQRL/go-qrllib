@@ -51,6 +51,14 @@ func (dk *DecapsulationKey) Bytes() []byte {
 	return dk.key.Bytes()
 }
 
+// Zeroize overwrites the decapsulation key's secret material with zeros on a
+// best-effort basis (see [github.com/theQRL/go-qrllib/SECURITY.md] on the
+// guarantee boundary under Go's memory model). Use it when the key is no
+// longer needed.
+func (dk *DecapsulationKey) Zeroize() {
+	dk.key.Zeroize()
+}
+
 // EncapsulationKey is an ML-KEM-1024 public key used to encapsulate shared
 // secrets for the corresponding decapsulation key.
 type EncapsulationKey struct {
@@ -82,6 +90,8 @@ func (ek *EncapsulationKey) Bytes() []byte {
 func GenerateKey() (*DecapsulationKey, error) {
 	key, err := mlkem1024.GenerateKey()
 	if err != nil {
+		//coverage:ignore
+		//rationale: internal GenerateKey only errors if crypto/rand.Read fails (system entropy broken)
 		return nil, err
 	}
 	return &DecapsulationKey{key}, nil
