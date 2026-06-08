@@ -22,6 +22,13 @@ Callers MUST ensure:
   - pk is the correct length for that wallet type
 */
 func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
+	// noinspection GoBoolExpressions
+	if AddressSize > 64 {
+		//coverage:ignore
+		//rationale: compile-time assertion, AddressSize is a constant (64) which is <= 64
+		panic("AddressSize must be <= 64")
+	}
+
 	sh := sha3.NewShake256()
 	_, _ = sh.Write(desc.ToBytes())
 	_, _ = sh.Write(pk)
