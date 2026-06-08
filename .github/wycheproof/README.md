@@ -1,9 +1,10 @@
 # Wycheproof Test Vector Verification
 
 This directory documents the CI integration of the
-[C2SP/wycheproof](https://github.com/C2SP/wycheproof) ML-DSA-87 test
-vectors into go-qrllib. There is no tooling in this directory — the
-test vectors are consumed directly from the upstream JSON files at
+[C2SP/wycheproof](https://github.com/C2SP/wycheproof) and
+[C2SP/CCTV](https://github.com/C2SP/CCTV) test vectors (ML-DSA-87 and
+ML-KEM-1024) into go-qrllib. There is no tooling in this directory — the
+test vectors are consumed directly from the upstream files at
 CI time. This page exists so reviewers can see at a glance what is
 covered and how.
 
@@ -36,6 +37,48 @@ are not currently exercised — NIST ACVP already covers
 seed-to-keypair and signature-determinism in CI, and the
 sign-noseed path uses sk formats not currently consumed by
 go-qrllib. They could be added later if a coverage gap appears.
+
+## ML-KEM-1024
+
+ML-KEM-1024 (`crypto/internal/mlkem1024`) is verified against two upstreams,
+both consumed directly at CI time by the `mlkem1024-wycheproof` job. The harness
+lives in `crypto/internal/mlkem1024/wycheproof_test.go`; it is an in-package
+test because the derandomised encapsulation vectors need the test-only
+`EncapsulateInternal` entry point.
+
+1. **C2SP/wycheproof** `testvectors_v1/mlkem_1024_*.json` (via
+   `WYCHEPROOF_VECTORS_DIR`):
+
+   | Vector file | What it exercises |
+   |-------------|-------------------|
+   | `mlkem_1024_keygen_seed_test.json` | seed (`d‖z`) → encapsulation-key derivation (100 vectors) |
+   | `mlkem_1024_encaps_test.json` | derandomised encapsulation (`ek`,`m` → `c`,`K`) and encapsulation-key validation, incl. `ModulusOverflow` rejections (~270 vectors) |
+   | `mlkem_1024_test.json` | decapsulation (`seed`,`c` → `K`), incl. implicit-rejection and `Strcmp` constant-time-comparison edge cases, plus structural rejections (~190 vectors) |
+
+   `mlkem_1024_semi_expanded_decaps_test.json` is **not** consumed — it uses the
+   3168-byte expanded decapsulation-key format, while go-qrllib loads the
+   64-byte seed form.
+
+2. **C2SP/CCTV** `ML-KEM/modulus/ML-KEM-1024.txt.gz` (via `CCTV_VECTORS_DIR`):
+   1040 invalid encapsulation keys, each with one coefficient forced into
+   `[q, 2¹²-1]` at every position — all must be rejected by the `byteDecode12`
+   modulus check. This is the exhaustive counterpart to wycheproof's
+   `ModulusOverflow` cases.
+
+NIST ACVP functional vectors (KeyGen / Encaps / Decaps / key-checks) and the
+CCTV accumulated 10,000-iteration hash already run in the normal test suite
+(`crypto/internal/mlkem1024/acvp_test.go`, `crypto/mlkem1024/mlkem1024_test.go`),
+so they are not duplicated here.
+
+Run locally:
+
+```bash
+git clone --depth 1 https://github.com/C2SP/wycheproof.git /tmp/wycheproof
+git clone --depth 1 https://github.com/C2SP/CCTV.git /tmp/cctv
+WYCHEPROOF_VECTORS_DIR=/tmp/wycheproof/testvectors_v1 \
+  CCTV_VECTORS_DIR=/tmp/cctv/ML-KEM \
+  go test -v -tags wycheproof -run 'TestWycheproofMLKEM|TestCCTVMLKEM' ./crypto/internal/mlkem1024/
+```
 
 ## Result-Field Semantics
 

@@ -58,7 +58,7 @@ jobs:
       - name: Run fuzz tests
         run: |
           # Run each fuzz test for 10 seconds
-          for pkg in ./crypto/dilithium ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./wallet/misc; do
+          for pkg in ./crypto/dilithium ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./wallet/misc; do
             echo "Fuzzing $pkg..."
             for fuzz in $(go test "$pkg" -list 'Fuzz.*' 2>/dev/null | grep '^Fuzz'); do
               echo "  Running $fuzz..."
