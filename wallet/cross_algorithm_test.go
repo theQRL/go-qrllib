@@ -340,7 +340,7 @@ func TestKeySizeInvariants(t *testing.T) {
 }
 
 // TestAddressFormatConsistency verifies that both algorithms produce addresses
-// in the same format (Q + 40 hex chars).
+// in the same format (Q + 128 hex chars).
 func TestAddressFormatConsistency(t *testing.T) {
 	mlWallet, _ := ml_dsa_wallet.NewWallet()
 	sphincsWallet, _ := sphincs_wallet.NewWallet()
@@ -356,7 +356,7 @@ func TestAddressFormatConsistency(t *testing.T) {
 		t.Error("SPHINCS+ address should start with 'Q'")
 	}
 
-	// Both should be same length: Q + 96 hex chars = 97
+	// Both should be same length: Q + 128 hex chars = 129
 	expectedLen := 1 + common.AddressSize*2 // Q + hex-encoded address
 	if len(mlAddr) != expectedLen {
 		t.Errorf("ML-DSA address length: got %d, want %d", len(mlAddr), expectedLen)
