@@ -180,6 +180,15 @@ func (w *Wallet) GetAddressStr() string {
 	return fmt.Sprintf("Q%x", addr[:])
 }
 
+// GetChecksumAddressStr returns the EIP-55-style mixed-case checksummed
+// string form of the wallet address (see common.ToChecksumAddress). Use this
+// in user-facing displays where transcription-error detection is desirable;
+// GetAddressStr remains the canonical lowercase form for backward
+// compatibility with code that string-compares addresses.
+func (w *Wallet) GetChecksumAddressStr() string {
+	return common.ToChecksumAddress(w.GetAddress())
+}
+
 // Sign produces an ML-DSA-87 signature over message using the
 // descriptor-bound signing context. Signing is hedged by default as per
 // FIPS 204: each call mixes fresh `crypto/rand` randomness into the per-signature

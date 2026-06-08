@@ -224,9 +224,24 @@ The `opts` parameter must be `*ml_dsa_87.SignerOpts` or `nil` (empty context). P
 
 ### Address String Format
 
-QRL addresses are commonly displayed with a leading "Q" prefix followed by the hex
-encoded address bytes. This is a convention across legacy and modern tooling,
-but not every API in this library emits the "Q" prefix directly.
+QRL v2 addresses are displayed as a `"Q"` prefix followed by 128 hex characters
+(64-byte address, 129 characters total). Two string forms are produced:
+
+| Helper | Output | When to use |
+|--------|--------|-------------|
+| `common.ToChecksumAddress(addr)` / `wallet.GetChecksumAddressStr()` | Canonical EIP-55-style mixed-case (e.g. `QaFAE844Fa3bE904799cCdB74...`) | User-facing displays where transcription-error detection is desirable |
+| `(w *Wallet) GetAddressStr()` / `fmt.Sprintf("Q%x", addr)` | Lowercase hex | Backward-compatible canonical form; safe for string comparison |
+
+**Validation:**
+
+- `common.IsValidAddress(s)` — permissive: accepts all-lowercase, all-uppercase, or correctly-checksummed mixed-case. Mixed-case with a bad checksum is rejected.
+- `common.IsValidChecksumAddress(s)` — strict: only true when `s` matches the canonical checksummed form character-for-character (uppercase `"Q"` required; uniform-case forms containing letters return `false`).
+
+**Algorithm:** the case-selection nibbles are drawn from `SHAKE-256` of the
+UTF-8 bytes of the 128-character lowercase hex body (no `Q` prefix), with
+`dkLen = AddressSize`, giving exactly one nibble per hex character. For each
+`a`-`f` letter, uppercase iff the corresponding nibble is `≥ 8`. Identical
+across `@theqrl/wallet.js`, `go-qrllib`, and `rust-qrllib`.
 
 ---
 

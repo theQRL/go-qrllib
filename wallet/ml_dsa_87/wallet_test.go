@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/theQRL/go-qrllib/wallet/common"
@@ -213,6 +214,32 @@ func TestWallet_AddressStr(t *testing.T) {
 				w := creator(t, tc)
 				if got := w.GetAddressStr(); got != tc.wantAddress {
 					t.Errorf("Address = %v\nwant %v", got, tc.wantAddress)
+				}
+			})
+		}
+	}
+}
+
+func TestWallet_ChecksumAddressStr(t *testing.T) {
+	// GetChecksumAddressStr must produce the canonical EIP-55-style
+	// mixed-case form of the same address. Validate via the round-trip:
+	// (1) the strict checker accepts it, (2) lowercasing recovers the
+	// original GetAddressStr output, and (3) re-checksumming is a no-op.
+	for creatorName, creator := range walletCreators {
+		for _, tc := range walletTestCases {
+			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
+				w := creator(t, tc)
+				checksummed := w.GetChecksumAddressStr()
+				if !common.IsValidChecksumAddress(checksummed) {
+					t.Errorf("GetChecksumAddressStr = %q is not a valid checksummed address", checksummed)
+				}
+				// Lowercase the hex body (preserving the canonical uppercase
+				// "Q" prefix) and compare to GetAddressStr — they must agree.
+				if "Q"+strings.ToLower(checksummed[1:]) != w.GetAddressStr() {
+					t.Errorf("lowercased checksummed != lowercase address\n  cs   = %s\n  addr = %s", checksummed, w.GetAddressStr())
+				}
+				if common.ToChecksumAddress(w.GetAddress()) != checksummed {
+					t.Errorf("ToChecksumAddress(GetAddress()) != GetChecksumAddressStr()")
 				}
 			})
 		}
