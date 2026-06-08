@@ -72,7 +72,7 @@ jobs:
         # Runs in ~30s; guarded behind `-tags metamorphic` so it doesn't
         # slow down day-to-day `go test ./...`.
         timeout-minutes: 5
-        run: go test -tags metamorphic -count=1 -run "TestMetamorphic" -timeout 5m ./crypto/ml_dsa_87/
+        run: go test -tags metamorphic -count=1 -run "TestMetamorphic" -timeout 5m ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
 
       - name: Upload coverage to Codecov
         if: github.repository == 'theQRL/go-qrllib' && github.event_name == 'push'
