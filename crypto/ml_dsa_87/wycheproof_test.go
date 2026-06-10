@@ -58,9 +58,9 @@ type wycheproofVerifyTestFile struct {
 //
 //   - "valid":      Verify must return true.
 //   - "invalid":    Verify must return false (or the caller-side
-//                   length checks must reject the input).
+//     length checks must reject the input).
 //   - "acceptable": Either outcome is allowed by the spec; we record
-//                   what we observed but do not fail.
+//     what we observed but do not fail.
 func TestWycheproofVerify(t *testing.T) {
 	dir := wycheproofVectorsDir(t)
 

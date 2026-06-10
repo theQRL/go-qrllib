@@ -45,7 +45,7 @@ test:
 # Run fast tests only (excludes slow SPHINCS+ tests)
 test-fast:
 	@echo "Running fast tests (excludes SPHINCS+)..."
-	@go test ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/... ./wallet/... ./legacywallet/...
+	@go test ./crypto/ml_dsa_87/... ./crypto/xmss/... ./wallet/... ./legacywallet/...
 
 # Run tests with race detector
 test-race:
@@ -59,12 +59,12 @@ test-verbose:
 
 # Run tests with coverage (generates coverage.out and coverage.html)
 # Uses go-ignore-cov to process //coverage:ignore comments in source files
-# Install: go install github.com/hexira/go-ignore-cov@latest
+# Install: go install github.com/quantumcycle/go-ignore-cov@v0.7.1
 test-coverage:
 	@echo "Running tests with coverage..."
 	@go test -coverprofile=coverage.out -covermode=atomic ./...
 	@echo "Processing coverage exclusions (//coverage:ignore comments)..."
-	@$(GO_IGNORE_COV) --file coverage.out || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/hexira/go-ignore-cov@latest"
+	@$(GO_IGNORE_COV) --file coverage.out --ignore-empty || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/quantumcycle/go-ignore-cov@v0.7.1"
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out
 	@echo ""
@@ -73,9 +73,9 @@ test-coverage:
 # Run fast tests with coverage (excludes SPHINCS+)
 test-coverage-fast:
 	@echo "Running fast tests with coverage (excludes SPHINCS+)..."
-	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/internal/... ./wallet/... ./legacywallet/...
+	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/internal/... ./wallet/... ./legacywallet/...
 	@echo "Processing coverage exclusions (//coverage:ignore comments)..."
-	@$(GO_IGNORE_COV) --file coverage.out || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/hexira/go-ignore-cov@latest"
+	@$(GO_IGNORE_COV) --file coverage.out --ignore-empty || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/quantumcycle/go-ignore-cov@v0.7.1"
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out
 	@echo ""
@@ -89,13 +89,9 @@ bench:
 # Run fast benchmarks (excludes SPHINCS+)
 bench-fast:
 	@echo "Running benchmarks (excludes SPHINCS+)..."
-	@go test -bench=. -benchmem ./crypto/dilithium/... ./crypto/ml_dsa_87/... ./crypto/xmss/...
+	@go test -bench=. -benchmem ./crypto/ml_dsa_87/... ./crypto/xmss/...
 
 # Run benchmarks for a specific package
-bench-dilithium:
-	@echo "Running Dilithium benchmarks..."
-	@go test -bench=. -benchmem ./crypto/dilithium/...
-
 bench-mldsa:
 	@echo "Running ML-DSA-87 benchmarks..."
 	@go test -bench=. -benchmem ./crypto/ml_dsa_87/...
@@ -103,12 +99,12 @@ bench-mldsa:
 # Run KAT (Known Answer Test) tests only
 test-kat:
 	@echo "Running KAT tests..."
-	@go test -v ./crypto/ml_dsa_87/... ./crypto/dilithium/... ./crypto/sphincsplus_256s/... -run 'KAT'
+	@go test -v ./crypto/ml_dsa_87/... ./crypto/sphincsplus_256s/... -run 'KAT'
 
 # Run KAT tests for fast packages only (excludes SPHINCS+)
 test-kat-fast:
 	@echo "Running KAT tests (fast packages only)..."
-	@go test -v ./crypto/ml_dsa_87/... ./crypto/dilithium/... -run 'KAT'
+	@go test -v ./crypto/ml_dsa_87/... -run 'KAT'
 
 # Run edge case tests
 test-edge:
@@ -118,7 +114,7 @@ test-edge:
 # Run edge case tests for fast packages only (excludes SPHINCS+)
 test-edge-fast:
 	@echo "Running edge case tests (fast packages only)..."
-	@go test -v ./crypto/ml_dsa_87/... ./crypto/dilithium/... ./crypto/xmss/... -run 'EdgeCase'
+	@go test -v ./crypto/ml_dsa_87/... ./crypto/xmss/... -run 'EdgeCase'
 
 # Run thread safety tests with race detector
 test-thread:
@@ -128,17 +124,16 @@ test-thread:
 # Run thread safety tests for fast packages only (excludes SPHINCS+)
 test-thread-fast:
 	@echo "Running thread safety tests (fast packages only)..."
-	@go test -race -v ./crypto/ml_dsa_87/... ./crypto/dilithium/... ./crypto/xmss/... -run 'ThreadSafety'
+	@go test -race -v ./crypto/ml_dsa_87/... ./crypto/xmss/... -run 'ThreadSafety'
 
 # Run all fuzz tests for a short duration
-fuzz: fuzz-xmss fuzz-dilithium fuzz-mldsa fuzz-mlkem fuzz-sphincs fuzz-mnemonic
+fuzz: fuzz-xmss fuzz-mldsa fuzz-mlkem fuzz-sphincs fuzz-mnemonic
 	@echo "All fuzz tests completed."
 
 # Quick fuzz test (shorter duration, essential targets only)
 fuzz-quick:
 	@echo "Running quick fuzz tests ($(FUZZ_TIME) each)..."
 	@go test -fuzz=FuzzXMSSVerify -fuzztime=$(FUZZ_TIME) ./crypto/xmss/...
-	@go test -fuzz=FuzzDilithiumVerify -fuzztime=$(FUZZ_TIME) ./crypto/dilithium/...
 	@go test -fuzz=FuzzMLDSA87Verify -fuzztime=$(FUZZ_TIME) ./crypto/ml_dsa_87/...
 	@go test -fuzz=FuzzMLKEM1024Decapsulate -fuzztime=$(FUZZ_TIME) ./crypto/internal/mlkem1024/...
 	@go test -fuzz=FuzzMnemonicToBin -fuzztime=$(FUZZ_TIME) ./wallet/misc/...
@@ -148,14 +143,6 @@ fuzz-xmss:
 	@echo "Fuzzing XMSS ($(FUZZ_TIME))..."
 	@go test -fuzz=FuzzXMSSVerify -fuzztime=$(FUZZ_TIME) ./crypto/xmss/...
 	@go test -fuzz=FuzzXMSSVerifyWithCustomWOTSParamW -fuzztime=$(FUZZ_TIME) ./crypto/xmss/...
-
-# Fuzz Dilithium signature operations
-fuzz-dilithium:
-	@echo "Fuzzing Dilithium ($(FUZZ_TIME) per target)..."
-	@go test -fuzz=FuzzDilithiumVerify -fuzztime=$(FUZZ_TIME) ./crypto/dilithium/...
-	@go test -fuzz=FuzzDilithiumOpen -fuzztime=$(FUZZ_TIME) ./crypto/dilithium/...
-	@go test -fuzz=FuzzDilithiumExtractMessage -fuzztime=$(FUZZ_TIME) ./crypto/dilithium/...
-	@go test -fuzz=FuzzDilithiumExtractSignature -fuzztime=$(FUZZ_TIME) ./crypto/dilithium/...
 
 # Fuzz ML-DSA-87 signature operations
 fuzz-mldsa:
@@ -194,11 +181,11 @@ fuzz-mnemonic:
 # Install development tools
 tools:
 	@echo "Installing development tools..."
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install github.com/sonatype-nexus-community/nancy@latest
-	@go install github.com/hexira/go-ignore-cov@latest
+	@go install github.com/quantumcycle/go-ignore-cov@v0.7.1
 	@echo "Note: Install actionlint separately: https://github.com/rhysd/actionlint#install"
 
 # Run govulncheck (vulnerability scanner for Go code)
@@ -254,13 +241,11 @@ help:
 	@echo "  fuzz         - Run all fuzz tests (FUZZ_TIME=$(FUZZ_TIME))"
 	@echo "  fuzz-quick   - Run essential fuzz tests only"
 	@echo "  fuzz-xmss    - Fuzz XMSS signature verification"
-	@echo "  fuzz-dilithium - Fuzz Dilithium operations"
 	@echo "  fuzz-mldsa   - Fuzz ML-DSA-87 operations"
 	@echo "  fuzz-sphincs - Fuzz SPHINCS+ operations"
 	@echo "  fuzz-mnemonic- Fuzz mnemonic operations"
 	@echo "  bench        - Run all benchmarks"
 	@echo "  bench-fast   - Run fast benchmarks (excludes SPHINCS+)"
-	@echo "  bench-dilithium - Run Dilithium benchmarks"
 	@echo "  bench-mldsa  - Run ML-DSA-87 benchmarks"
 	@echo "  tools        - Install development tools"
 	@echo "  scan         - Run all security scans (govulncheck + gosec + nancy)"

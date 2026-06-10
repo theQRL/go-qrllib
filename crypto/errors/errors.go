@@ -7,9 +7,9 @@ import "errors"
 
 // Seed errors
 var (
-	ErrInvalidSeed       = errors.New("invalid seed")
-	ErrSeedGeneration    = errors.New("seed generation failed")
-	ErrInvalidHexSeed    = errors.New("invalid hex seed")
+	ErrInvalidSeed    = errors.New("invalid seed")
+	ErrSeedGeneration = errors.New("seed generation failed")
+	ErrInvalidHexSeed = errors.New("invalid hex seed")
 )
 
 // Key errors
@@ -36,11 +36,11 @@ var (
 
 // XMSS-specific errors
 var (
-	ErrInvalidHeight          = errors.New("invalid height")
-	ErrInvalidBDSParams       = errors.New("invalid BDS parameters")
-	ErrOTSIndexTooHigh        = errors.New("OTS index exceeds maximum")
-	ErrOTSIndexRewind         = errors.New("cannot rewind OTS index")
-	ErrXMSSInternal           = errors.New("internal XMSS error")
+	ErrInvalidHeight           = errors.New("invalid height")
+	ErrInvalidBDSParams        = errors.New("invalid BDS parameters")
+	ErrOTSIndexTooHigh         = errors.New("OTS index exceeds maximum")
+	ErrOTSIndexRewind          = errors.New("cannot rewind OTS index")
+	ErrXMSSInternal            = errors.New("internal XMSS error")
 	ErrUnsupportedParameterSet = errors.New("unsupported XMSS parameter set")
 )
 

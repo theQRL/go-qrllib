@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
-	"golang.org/x/crypto/sha3"
+	"crypto/sha3"
 )
 
 const (
@@ -36,14 +36,14 @@ func GetEndian() uint8 {
 }
 
 func SHAKE128(out, msg []byte) []byte {
-	hasher := sha3.NewShake128()
+	hasher := sha3.NewSHAKE128()
 	_, _ = hasher.Write(msg)
 	_, _ = hasher.Read(out) // ShakeHash.Read never returns an error
 	return out
 }
 
 func SHAKE256(out, msg []byte) []byte {
-	hasher := sha3.NewShake256()
+	hasher := sha3.NewSHAKE256()
 	_, _ = hasher.Write(msg)
 	_, _ = hasher.Read(out) // ShakeHash.Read never returns an error
 	return out

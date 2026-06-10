@@ -1,5 +1,5 @@
-// Package lattice provides shared mathematical primitives for lattice-based
-// cryptographic schemes (Dilithium and ML-DSA-87).
+// Package lattice provides shared mathematical primitives for the
+// ML-DSA-87 (FIPS 204) lattice-based signature scheme.
 package lattice
 
 const (

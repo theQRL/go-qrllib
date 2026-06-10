@@ -1,8 +1,8 @@
 package sphincsplus_256s
 
 import (
+	"crypto/sha3"
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -14,8 +14,9 @@ var (
 )
 
 // initializeHashFunction is a no-op for SHAKE256
+// rationale: empty function body has no statements to test
+//
 //coverage:ignore
-//rationale: empty function body has no statements to test
 func initializeHashFunction(ctx *SPXCtx) {
 	//coverage:ignore
 	//rationale: empty function body, no-op as in C reference
@@ -29,7 +30,7 @@ func prfAddr(out []byte, ctx *SPXCtx, addr *[8]uint32) {
 	copy(buf[params.SPX_N:], addrBytes[:])
 	copy(buf[params.SPX_N+params.SPX_ADDR_BYTES:], ctx.SkSeed[:])
 
-	shake := sha3.NewShake256()
+	shake := sha3.NewSHAKE256()
 	if _, err := shake.Write(buf); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
@@ -45,7 +46,7 @@ func prfAddr(out []byte, ctx *SPXCtx, addr *[8]uint32) {
 
 // genMessageRandom computes R = SHAKE256(skPrf || optRand || message)
 func genMessageRandom(R, skPrf, optRand, m []byte, ctx *SPXCtx) {
-	shake := sha3.NewShake256()
+	shake := sha3.NewSHAKE256()
 	if _, err := shake.Write(skPrf[:params.SPX_N]); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
@@ -73,7 +74,7 @@ func hashMessage(digest []byte, tree *uint64, leafIdx *uint32,
 	R, pk, m []byte, ctx *SPXCtx) {
 
 	buf := make([]byte, SPX_DGST_BYTES)
-	shake := sha3.NewShake256()
+	shake := sha3.NewSHAKE256()
 	if _, err := shake.Write(R[:params.SPX_N]); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract

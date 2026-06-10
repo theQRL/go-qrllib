@@ -14,6 +14,13 @@ func pkeKeyGen(dk *DecapsulationKey, d *[32]byte) {
 	copy(dk.rho[:], rho)
 	copy(dk.encoded[k*encodingSize12:], rho)
 
+	// Wipe key-generation secrets on return: gInput holds the seed d and
+	// G holds sigma (the CBD sampling seed).
+	defer func() {
+		wipe(gInput[:])
+		wipe(G[:])
+	}()
+
 	A := &dk.a
 	for i := range k {
 		for j := range k {
@@ -44,6 +51,7 @@ func pkeKeyGen(dk *DecapsulationKey, d *[32]byte) {
 		ntt(&e)
 		counter++
 		polyAddAssign(&acc, &e)
+		wipeRing(&e) // noise secret; no longer needed
 
 		t[i] = acc
 		byteEncode12((*[encodingSize12]byte)(dk.encoded[i*encodingSize12:(i+1)*encodingSize12]), &t[i])
@@ -76,6 +84,7 @@ func pkeEncrypt(dst *[CiphertextSize]byte, ek *encryptionKey, m, r *[32]byte) {
 		samplePolyCBD(&e1, r, counter)
 		counter++
 		polyAddAssign(&acc, &e1)
+		wipeRing(&e1) // noise secret; acc (= u_i) is public ciphertext
 
 		ringCompressAndEncode11((*[encodingSize11]byte)(dst[off:off+encodingSize11]), &acc)
 		off += encodingSize11
@@ -99,6 +108,17 @@ func pkeEncrypt(dst *[CiphertextSize]byte, ek *encryptionKey, m, r *[32]byte) {
 	polyAddAssign(&v, &mu)
 
 	ringCompressAndEncode5((*[encodingSize5]byte)(dst[off:off+encodingSize5]), &v)
+
+	// Wipe encryption secrets: y is the encryption randomness vector,
+	// e2/mu derive from the message randomness, and full-precision v
+	// carries mu before compression rounding. The u_i accumulators are
+	// not wiped — they are the public ciphertext content.
+	for i := range y {
+		wipeRing(&y[i])
+	}
+	wipeRing(&e2)
+	wipeRing(&mu)
+	wipeRing(&v)
 }
 
 func pkeDecrypt(dst *[32]byte, dk *DecapsulationKey, c *[CiphertextSize]byte) {
@@ -124,4 +144,12 @@ func pkeDecrypt(dst *[32]byte, dk *DecapsulationKey, c *[CiphertextSize]byte) {
 
 	polySubAssign(&v, &acc)
 	ringCompressAndEncode1(dst, &v)
+
+	// Wipe decryption secrets: acc is s^T·u (secret-key-dependent) and v
+	// holds the noisy plaintext polynomial after the subtraction. The
+	// decoded u is public ciphertext content and is left as is. dst (the
+	// decrypted message) is the caller's responsibility — decapsulate
+	// wipes it after the FO re-encryption check.
+	wipeRing(&acc)
+	wipeRing(&v)
 }

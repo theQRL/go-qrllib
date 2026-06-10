@@ -35,7 +35,7 @@ Semantic release uses the **Conventional Commits** specification to determine ve
 - **`chore:`** - Maintenance tasks (no version bump)
 - **`test:`** - Adding or updating tests (no version bump)
 - **`refactor:`** - Code changes that neither fix bugs nor add features (no version bump)
-- **`perf:`** - Performance improvements (PATCH version bump)
+- **`perf:`** - Performance improvements (no version bump by default — only `fix:`, `feat:`, and breaking changes trigger releases)
 - **`ci:`** - CI/CD changes (no version bump)
 - **`build:`** - Build system changes (no version bump)
 - **`style:`** - Code style changes (no version bump)
@@ -45,7 +45,7 @@ Semantic release uses the **Conventional Commits** specification to determine ve
 #### Patch Release (1.0.0 → 1.0.1)
 
 ```
-fix: resolve nil pointer in dilithium signature verification
+fix: resolve nil pointer in ml_dsa_87 signature verification
 
 The cryptoSignVerify function was not properly handling nil public keys,
 causing a panic. This change adds proper validation.
@@ -55,16 +55,12 @@ causing a panic. This change adds proper validation.
 fix(crypto): correct byte order in key serialization
 ```
 
-```
-perf(xmss): optimize hash computation for large trees
-```
-
 #### Minor Release (1.0.0 → 1.1.0)
 
 ```
-feat: add NewDilithiumFromSecretKey function
+feat: add NewMLDSA87FromSecretKey function
 
-This allows creating a Dilithium instance directly from a secret key
+This allows creating an MLDSA87 instance directly from a secret key
 without requiring the original seed.
 ```
 
@@ -79,7 +75,7 @@ Using `BREAKING CHANGE:` in the footer:
 ```
 feat: update to FIPS 204 final standard
 
-BREAKING CHANGE: The Dilithium algorithm has been updated to comply
+BREAKING CHANGE: The ML-DSA-87 algorithm has been updated to comply
 with the final FIPS 204 standard. Key formats and signatures from
 previous versions are incompatible.
 ```
@@ -168,15 +164,13 @@ caller-supplied source; if nil, `crypto/rand` is used.
 
 ### Manual Releases
 
-If you need to create a release manually:
-
-```bash
-# Tag the commit
-git tag v1.2.3
-
-# Push the tag
-git push origin v1.2.3
-```
+**Do not create or push version tags manually.** go-semantic-release
+derives the next version from existing GitHub *releases*, not tags, so a
+manually pushed tag is silently adopted when the version counter later
+reaches it — this is how the v0.2.0 release ended up pointing at code 80
+commits older than its release notes describe (and module-proxy caching
+makes that permanent). If a release must be forced, land a conventional
+`fix:`/`feat:` commit and let the workflow cut it.
 
 ## Version Numbers
 
@@ -190,8 +184,8 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 During initial development (0.x.y versions):
 
-- **MINOR** version: Breaking changes
-- **PATCH** version: New features and bug fixes
+- **MINOR** version: Breaking changes (`feat!:` / `BREAKING CHANGE:`) *and* new features (`feat:`) — the two are indistinguishable in the version number below 1.0.0
+- **PATCH** version: Bug fixes (`fix:`) only
 
 The workflow is configured with `allow-initial-development-versions: true` to handle this correctly.
 

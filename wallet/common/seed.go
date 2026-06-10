@@ -2,11 +2,10 @@ package common
 
 import (
 	"crypto/sha256"
+	"crypto/sha3"
 	"encoding/hex"
 	"fmt"
 	"strings"
-
-	"golang.org/x/crypto/sha3"
 )
 
 type Seed [SeedSize]byte
@@ -31,9 +30,7 @@ func (s Seed) HashSHA256() [32]byte {
 }
 
 func (s Seed) HashSHAKE256(size uint32) []byte {
-	output := make([]byte, size)
-	sha3.ShakeSum256(output, s[:])
-	return output
+	return sha3.SumSHAKE256(s[:], int(size))
 }
 
 func HexStrToSeed(hexStr string) (Seed, error) {

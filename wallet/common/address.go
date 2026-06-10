@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"crypto/sha3"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
-	"golang.org/x/crypto/sha3"
 )
 
 /*
@@ -29,7 +29,7 @@ func UnsafeGetAddress(pk []byte, desc descriptor.Descriptor) [AddressSize]byte {
 		panic("AddressSize must be <= 64")
 	}
 
-	sh := sha3.NewShake256()
+	sh := sha3.NewSHAKE256()
 	_, _ = sh.Write(desc.ToBytes())
 	_, _ = sh.Write(pk)
 
@@ -96,7 +96,7 @@ const hexLen = AddressSize * 2
 // lowercase hex body. Internal helper; assumes lowerHex is exactly hexLen
 // lowercase hex characters.
 func checksummedHex(lowerHex string) string {
-	sh := sha3.NewShake256()
+	sh := sha3.NewSHAKE256()
 	_, _ = sh.Write([]byte(lowerHex))
 	var hash [AddressSize]byte
 	_, _ = sh.Read(hash[:])

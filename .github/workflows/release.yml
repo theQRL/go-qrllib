@@ -24,7 +24,8 @@ jobs:
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
-    # Only run if all triggering workflows succeeded, on the main repo, and triggered by push
+    # Pre-filter only; the "all of Test, Lint and Security succeeded for
+    # this SHA" requirement is enforced by the gate step below.
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -33,22 +34,52 @@ jobs:
       contents: write       # tag the release commit and push the tag
       issues: write         # post the auto-generated release-notes comment on closed issues
       pull-requests: write  # post the same comment on the merged PRs
+      actions: read         # list workflow runs for the all-green release gate
     outputs:
       new_release_published: ${{ steps.semantic.outputs.version }}
       new_release_version: ${{ steps.semantic.outputs.version }}
     steps:
+      - name: Gate — require Test, Lint AND Security green for this SHA
+        id: gate
+        # workflow_run fires once per listed workflow; check all three
+        # workflows' latest completed push run for this SHA and proceed
+        # only when every one succeeded. Earlier firings skip cleanly.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          ready=true
+          for wf in test.yml lint.yml security.yml; do
+            conclusion=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}/runs?head_sha=${HEAD_SHA}&event=push&status=completed&per_page=1" \
+              --jq '.workflow_runs[0].conclusion // "pending"')
+            echo "${wf}: ${conclusion}"
+            if [ "${conclusion}" != "success" ]; then
+              ready=false
+            fi
+          done
+          echo "ready=${ready}" >> "$GITHUB_OUTPUT"
+          if [ "${ready}" != "true" ]; then
+            echo "Not all required workflows have completed successfully for ${HEAD_SHA}."
+            echo "Skipping release; the remaining workflows' completion events will re-trigger this job."
+          fi
+
       - name: Checkout
+        if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Go
+        if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: '1.25'
 
       - name: Semantic Release
+        if: steps.gate.outputs.ready == 'true'
         id: semantic
         uses: go-semantic-release/action@2e9dc4247a6004f8377781bef4cb9dad273a741f # v1.24.1
         with:
@@ -92,8 +123,9 @@ jobs:
       - name: Generate checksums
         run: |
           mkdir -p dist
-          sha256sum go.mod go.sum > dist/checksums-sha256.txt
-          sha512sum go.mod go.sum > dist/checksums-sha512.txt
+          # No go.sum — the module has zero dependencies.
+          sha256sum go.mod > dist/checksums-sha256.txt
+          sha512sum go.mod > dist/checksums-sha512.txt
           # Also create a checksums file for the entire source
           find . -name "*.go" -type f | sort | xargs sha256sum >> dist/source-checksums-sha256.txt
 
@@ -133,13 +165,11 @@ jobs:
           subject-path: dist/sbom-cyclonedx.json
           sbom-path: dist/sbom-cyclonedx.json
 
-      # Attest go.mod and go.sum directly
+      # Attest go.mod directly (go.sum no longer exists — zero dependencies)
       - name: Attest module files
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
-          subject-path: |
-            go.mod
-            go.sum
+          subject-path: go.mod
 
       # Upload artifacts to the release
       - name: Upload release artifacts
@@ -164,7 +194,7 @@ jobs:
     needs: release
     if: needs.release.outputs.new_release_published != ''
     permissions:
-      contents: read  # only need to read go.mod/go.sum to hash them
+      contents: read  # only need to read go.mod to hash it
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
@@ -176,9 +206,9 @@ jobs:
       - name: Generate subject hashes
         id: hash
         run: |
-          # Compute SHA256 hashes of go.mod and go.sum
+          # Compute SHA256 hash of go.mod (no go.sum — zero dependencies)
           set -euo pipefail
-          echo "hashes=$(sha256sum go.mod go.sum | base64 -w0)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(sha256sum go.mod | base64 -w0)" >> "$GITHUB_OUTPUT"
 
   # Generate SLSA provenance (Level 3)
   provenance:

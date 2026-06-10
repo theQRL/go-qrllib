@@ -8,11 +8,6 @@ These tests verify that go-qrllib's signature implementations are interoperable 
 
 ## Tests
 
-### Dilithium (Round 3)
-- Reference: https://github.com/pq-crystals/dilithium @ commit `ac743d5`
-- Tests bidirectional signature verification
-- Key sizes: PK=2592, SK=4896, Sig=4595 bytes
-
 ### ML-DSA-87 (FIPS 204)
 - Reference: https://github.com/pq-crystals/dilithium (current master)
 - Tests bidirectional signature verification with context parameter
@@ -108,10 +103,6 @@ ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so cross-verifica
 
 | File | Description |
 |------|-------------|
-| `dilithium_sign.go` | Generate go-qrllib Dilithium signature |
-| `dilithium_verify.go` | Verify reference Dilithium signature with go-qrllib |
-| `dilithium_sign_ref.c` | Generate pq-crystals Dilithium signature |
-| `dilithium_verify_ref.c` | Verify go-qrllib Dilithium signature with pq-crystals |
 | `mldsa87_sign.go` | Generate go-qrllib ML-DSA-87 signature |
 | `mldsa87_verify.go` | Verify reference ML-DSA-87 signature with go-qrllib |
 | `mldsa87_sign_ref.c` | Generate pq-crystals ML-DSA-87 signature |
@@ -129,18 +120,6 @@ ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so cross-verifica
 ## Running Locally
 
 ```bash
-# Dilithium
-git clone https://github.com/pq-crystals/dilithium.git /tmp/dilithium-ref
-cd /tmp/dilithium-ref && git checkout ac743d5
-cd /path/to/go-qrllib
-go run .github/cross-verify/dilithium_sign.go
-cd /tmp/dilithium-ref/ref
-gcc -DDILITHIUM_MODE=5 -I. -O2 -o /tmp/verify \
-    /path/to/go-qrllib/.github/cross-verify/dilithium_verify_ref.c \
-    sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
-    rounding.c symmetric-shake.c fips202.c randombytes.c
-/tmp/verify
-
 # ML-DSA-87
 git clone https://github.com/pq-crystals/dilithium.git /tmp/mldsa-ref
 cd /path/to/go-qrllib

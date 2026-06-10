@@ -15,7 +15,6 @@ go-qrllib provides post-quantum cryptographic signature schemes — plus an ML-K
 | Algorithm | Type | Standard | Use Case |
 |-----------|------|----------|----------|
 | **ML-DSA-87** | Lattice-based | FIPS 204 | Primary recommended algorithm |
-| **Dilithium** | Lattice-based | Pre-FIPS | Legacy compatibility |
 | **SPHINCS+-256s** | Hash-based | SPHINCS+ submission (pre-FIPS 205) — see SPHINCS+ notes | Stateless primitive; wallet path gated pending QRL's SLH-DSA parameter-set choice |
 | **XMSS** | Hash-based | Pre-standardisation; see XMSS notes | QRL v1 → v2 migration |
 | **ML-KEM-1024** | Lattice-based (KEM) | FIPS 203 | Key-encapsulation primitive (not a signature); `crypto/mlkem1024`, not wallet-integrated |
@@ -107,6 +106,10 @@ go get github.com/theQRL/go-qrllib
 ```
 
 Requires Go 1.25 or later.
+
+go-qrllib has **zero third-party dependencies**: every primitive (SHA-3/SHAKE,
+randomness, constant-time comparison) comes from the Go standard library
+(`crypto/sha3`, `crypto/rand`, `crypto/subtle`).
 
 ## Quick Start
 
@@ -250,11 +253,9 @@ across `@theqrl/wallet.js`, `go-qrllib`, and `rust-qrllib`.
 | Type | Thread-Safe? | Notes |
 |------|--------------|-------|
 | `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
-| `dilithium.Dilithium` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `sphincsplus_256s.SphincsPlus256s` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `xmss.XMSS` | **No** | NEVER use concurrently. Index management is not thread-safe. |
 | Package-level `Verify()` | Yes | Stateless, safe to call concurrently |
-| `dilithium.SignWithSecretKey()` | Yes | Stateless function, safe with different keys |
 
 ### Safe Concurrent Pattern
 
@@ -286,14 +287,13 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | Maximum security, don't trust lattice assumptions | SPHINCS+-256s primitive (wallet path gated, see notes) |
 | QRL blockchain transactions | ML-DSA-87 (via wallet layer) |
 | Legacy QRL address compatibility | XMSS (with extreme care) |
-| Signatures must be deterministic (e.g. RANDAO-style verifiable beacon contributions) | ML-DSA-87 via the `SignDeterministic(ctx, msg)` opt-in helper (FIPS 204 deterministic mode) — `Sign` itself is hedged by default as per FIPS 204. Dilithium also remains deterministic. |
+| Signatures must be deterministic (e.g. RANDAO-style verifiable beacon contributions) | ML-DSA-87 via the `SignDeterministic(ctx, msg)` opt-in helper (FIPS 204 deterministic mode) — `Sign` itself is hedged by default as per FIPS 204. |
 
 ### Key Sizes
 
 | Algorithm | Public Key | Secret Key | Signature |
 |-----------|------------|------------|-----------|
 | ML-DSA-87 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
-| Dilithium | 2,592 bytes | 4,896 bytes | 4,595 bytes |
 | SPHINCS+-256s | 64 bytes | 128 bytes | 29,792 bytes |
 | XMSS (h=10) | 64 bytes | ~2,500 bytes | ~2,500 bytes |
 
@@ -343,7 +343,6 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   for v1 mainnet address compatibility only. See
   [SECURITY.md](SECURITY.md#parameter-set-provenance) for the full provenance
   discussion.
-- **Dilithium**: CRYSTALS-Dilithium (pre-FIPS version)
 - **ML-KEM-1024**: FIPS 203 (Module-Lattice-Based Key-Encapsulation Mechanism). Provided as a
   key-establishment **primitive** in `crypto/mlkem1024`; it is **not** a signature scheme and is
   **not** integrated into the QRL wallet or address layer. The implementation tracks Go's
