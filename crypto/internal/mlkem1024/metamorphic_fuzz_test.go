@@ -11,12 +11,22 @@ import (
 )
 
 // FuzzMLKEM1024MetamorphicWrongKey: a ciphertext encapsulated to key A must not
-// decapsulate to A's shared secret under a different key B (no cross-key
-// leakage). When the fuzzed seeds collide (A == B) the property is skipped.
+// decapsulate to A's shared secret under a key B with a different encapsulation
+// key (no cross-key leakage). The skip-guard compares encapsulation keys, not
+// the full d||z seed: ML-KEM's decapsulation key is (d, z) where d derives the
+// whole keypair and z is only the implicit-rejection secret used on the FAILURE
+// path. Two keys that share d but differ in z therefore have distinct Bytes()
+// yet the same encapsulation key, and B legitimately recovers A's shared secret
+// from a valid ciphertext — that is the FO transform working as designed, not
+// leakage. The third f.Add seed below pins exactly that same-d/different-z case.
 func FuzzMLKEM1024MetamorphicWrongKey(f *testing.F) {
 	f.Add(bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32),
 		bytes.Repeat([]byte{3}, 32), bytes.Repeat([]byte{4}, 32), bytes.Repeat([]byte{5}, 32))
 	f.Add(make([]byte, 32), make([]byte, 32), make([]byte, 32), make([]byte, 32), make([]byte, 32))
+	// same d, different z: distinct Bytes() but identical encapsulation key —
+	// B must legitimately recover A's secret, and the guard must skip it.
+	f.Add(bytes.Repeat([]byte{6}, 32), bytes.Repeat([]byte{7}, 32),
+		bytes.Repeat([]byte{6}, 32), bytes.Repeat([]byte{8}, 32), bytes.Repeat([]byte{9}, 32))
 
 	f.Fuzz(func(t *testing.T, dA, zA, dB, zB, msg []byte) {
 		var da, za, db, zb, m [32]byte
@@ -34,11 +44,13 @@ func FuzzMLKEM1024MetamorphicWrongKey(f *testing.F) {
 		if err != nil {
 			t.Fatalf("wrong-key Decapsulate errored: %v", err)
 		}
-		if bytes.Equal(keyA.Bytes(), keyB.Bytes()) {
-			return // identical keys — A's secret is the correct result
+		// Skip when the encapsulation keys match (same d): B then shares A's
+		// decryption key, so recovering A's shared secret is correct, not leakage.
+		if bytes.Equal(keyA.EncapsulationKey().Bytes(), keyB.EncapsulationKey().Bytes()) {
+			return
 		}
 		if bytes.Equal(wrong, ss) {
-			t.Fatal("ciphertext decapsulated to A's shared secret under a different key B")
+			t.Fatal("ciphertext decapsulated to A's shared secret under a key B with a different encapsulation key")
 		}
 	})
 }
