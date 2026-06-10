@@ -2,6 +2,7 @@ package sphincsplus_256s
 
 import (
 	"crypto/sha3"
+
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
 )
 

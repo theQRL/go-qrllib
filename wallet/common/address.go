@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"crypto/sha3"
+
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
