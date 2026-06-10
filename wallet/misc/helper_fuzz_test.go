@@ -16,8 +16,8 @@ func FuzzMnemonicToBin(f *testing.F) {
 	f.Add("absorb bunny aback aback")
 	f.Add("absorb bunny aback aback aback aback")
 	f.Add("notaword notaword")
-	f.Add("absorb")                                           // Odd word count
-	f.Add("absorb bunny aback")                               // Odd word count
+	f.Add("absorb")                                            // Odd word count
+	f.Add("absorb bunny aback")                                // Odd word count
 	f.Add(strings.Repeat("absorb ", 34)[:len("absorb ")*34-1]) // 34 words
 
 	// Add a valid 34-word mnemonic (typical seed length)

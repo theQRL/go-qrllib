@@ -41,14 +41,15 @@ jobs:
 
       - name: Test
         # Note: SPHINCS+ wallet tests are slow and can take several minutes.
-        run: |
-          # shellcheck disable=SC2046
-          go clean -testcache && go test -v ./... -coverprofile=coverage.out -covermode=atomic | sed "s/PASS/$(printf '\033[32mPASS\033[0m')/g" | sed "s/FAIL/$(printf '\033[31mFAIL\033[0m')/g"
+        # No pipes here: they would mask go test's exit status (default shell has no pipefail).
+        run: go clean -testcache && go test -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Process coverage exclusions
         run: |
-          go install github.com/hexira/go-ignore-cov@latest
-          go-ignore-cov --file coverage.out
+          # Pinned; quantumcycle/go-ignore-cov is the maintained home of the
+          # former hexira/go-ignore-cov. Keep in sync with the Makefile.
+          go install github.com/quantumcycle/go-ignore-cov@v0.7.1
+          go-ignore-cov --file coverage.out --ignore-empty
 
       - name: Test with race detector
         timeout-minutes: 60
@@ -56,14 +57,22 @@ jobs:
         run: go test -race -short -v ./...
 
       - name: Run fuzz tests
+        # shell: bash for pipefail — fuzz failures and empty target lists must fail the job.
+        shell: bash
         run: |
+          set -euo pipefail
           # Run each fuzz test for 10 seconds
-          for pkg in ./crypto/dilithium ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./wallet/misc; do
+          for pkg in ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./wallet/misc; do
             echo "Fuzzing $pkg..."
-            for fuzz in $(go test "$pkg" -list 'Fuzz.*' 2>/dev/null | grep '^Fuzz'); do
+            targets=$(go test "$pkg" -list 'Fuzz.*' | grep '^Fuzz' || true)
+            if [ -z "$targets" ]; then
+              echo "ERROR: no fuzz targets found in $pkg (listing failed or targets were removed)"
+              exit 1
+            fi
+            while IFS= read -r fuzz; do
               echo "  Running $fuzz..."
-              go test "$pkg" -fuzz="^${fuzz}\$" -fuzztime=10s -v 2>&1 | tail -5
-            done
+              go test "$pkg" -fuzz="^${fuzz}\$" -fuzztime=10s
+            done <<< "$targets"
           done
 
       - name: Run metamorphic invariant sweep
@@ -76,7 +85,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: github.repository == 'theQRL/go-qrllib' && github.event_name == 'push'
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.out

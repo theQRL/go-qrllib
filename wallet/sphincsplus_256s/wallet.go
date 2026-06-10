@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s"
 	"github.com/theQRL/go-qrllib/wallet/common"
@@ -37,14 +38,22 @@ var experimental = false
 // SPHINCS+ wallet construction and verification while the type is gated
 // in production. Returns the previous value so callers can restore it.
 //
-// Production code MUST NOT call this. The supported activation path for
-// SLH-DSA (FIPS 205) goes through the IsIssuable / IsVerifiable switches
-// in [github.com/theQRL/go-qrllib/wallet/common/wallettype], not through
-// this helper. Ignoring this warning and calling this in a non-test context
-// will result in wallets and signatures that are not part of QRL's supported
-// production surface and may not be compatible with future activation
-// (which may carry parameter-set or layout differences).
+// Production code MUST NOT call this — calling it outside a `go test`
+// binary panics instead of silently un-gating a wallet type that is not
+// part of QRL's supported production surface. The supported activation
+// path for SLH-DSA (FIPS 205) goes through the IsIssuable /
+// IsVerifiable switches in
+// [github.com/theQRL/go-qrllib/wallet/common/wallettype], not through
+// this helper. Wallets and signatures created via this flag may not be
+// compatible with future activation (which may carry parameter-set or
+// layout differences).
 func EnableExperimentalForTesting(enabled bool) bool {
+	if !testing.Testing() {
+		//coverage:ignore
+		//rationale: testing.Testing() is true in every go test binary, so this
+		//branch is unreachable under test; it exists to panic on production misuse
+		panic("wallet/sphincsplus_256s: EnableExperimentalForTesting is test-only and must not be called from production code")
+	}
 	prev := experimental
 	experimental = enabled
 	return prev

@@ -131,7 +131,7 @@ func TestInferParameterSet_RejectsUnsupportedCombinations(t *testing.T) {
 		h    uint8
 	}{
 		{"SHAKE_128_h10", xmss.SHAKE_128, 10},
-		{"SHA2_256_h12", xmss.SHA2_256, 12},  // valid h but no RFC OID
+		{"SHA2_256_h12", xmss.SHA2_256, 12}, // valid h but no RFC OID
 		{"SHA2_256_h8", xmss.SHA2_256, 8},
 		{"SHAKE_256_h14", xmss.SHAKE_256, 14},
 	}

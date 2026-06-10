@@ -52,7 +52,6 @@ ACVP_VECTORS_DIR=/tmp/acvp-vectors go test -v -tags acvp -run TestACVP ./crypto/
 | Algorithm | ACVP Vectors Available? | Compatible? | Reason |
 |-----------|------------------------|-------------|--------|
 | **ML-DSA-87** | Yes (ML-DSA FIPS 204) | Yes | Direct match |
-| **Dilithium** | No | N/A | Pre-FIPS algorithm; ACVP only covers FIPS 204 (ML-DSA). Cross-verified against pq-crystals reference C implementation instead. |
 | **SPHINCS+** | No (SLH-DSA FIPS 205 only) | No | go-qrllib implements SPHINCS+ SHAKE-256s-**robust** (pre-FIPS submission). FIPS 205 (SLH-DSA) dropped the robust variant and only standardized the simple variant. Different thash construction means different outputs. Cross-verified against sphincsplus reference (consistent-basew branch) instead. |
 | **XMSS** | No | N/A | XMSS (RFC 8391) is not an ACVP-validated algorithm. One-directional cross-verification against xmss-reference instead. |
 

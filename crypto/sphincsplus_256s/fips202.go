@@ -1,14 +1,14 @@
 package sphincsplus_256s
 
 import (
-	"golang.org/x/crypto/sha3"
+	"crypto/sha3"
 )
 
 // Shake256 implements a non-incremental SHAKE256 XOF
 // output: destination buffer to fill (length determines output size)
 // input: input data to absorb
 func Shake256(output, input []byte) {
-	shake := sha3.NewShake256()
+	shake := sha3.NewSHAKE256()
 	_, err := shake.Write(input)
 	if err != nil {
 		//coverage:ignore
@@ -24,8 +24,8 @@ func Shake256(output, input []byte) {
 }
 
 // Shake256XOF returns a SHAKE256 XOF reader (incremental interface)
-func Shake256XOF(input []byte) sha3.ShakeHash {
-	shake := sha3.NewShake256()
+func Shake256XOF(input []byte) *sha3.SHAKE {
+	shake := sha3.NewSHAKE256()
 	_, err := shake.Write(input)
 	if err != nil {
 		//coverage:ignore

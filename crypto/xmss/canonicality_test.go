@@ -14,8 +14,8 @@ import (
 
 // Helper constants for test signature sizes
 const (
-	wotsKeySize   = 67 * 32 // WOTSParamLen * WOTSParamN = 2144
-	sigBaseSize   = 4 + 32 + wotsKeySize // index + R + wots = 2180
+	wotsKeySize = 67 * 32              // WOTSParamLen * WOTSParamN = 2144
+	sigBaseSize = 4 + 32 + wotsKeySize // index + R + wots = 2180
 )
 
 // getCanonicalityTestSignatureSize calculates expected signature size for a height.

@@ -2,7 +2,10 @@ package xmss
 
 import (
 	"crypto/rand"
+	"errors"
 	"testing"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 // Edge case tests for XMSS (TST-004)
@@ -14,7 +17,7 @@ import (
 // where signatureBaseSize = 4 + 32 + keySize
 // and keySize = WOTSParamLen * WOTSParamN = 67 * 32 = 2144
 func getTestSignatureSize(height Height) uint32 {
-	const keySize = 67 * 32      // WOTS key size
+	const keySize = 67 * 32           // WOTS key size
 	const baseSize = 4 + 32 + keySize // 4 (index) + 32 (R) + keySize
 	return baseSize + uint32(height)*32
 }
@@ -395,18 +398,17 @@ func TestEdgeCaseSeedVariations(t *testing.T) {
 		}
 	})
 
-	t.Run("short_seed", func(t *testing.T) {
+	// Short seeds were previously accepted and silently SHAKE256-expanded
+	// into a working (but entropy-starved) tree; they are now rejected at
+	// the API boundary.
+	t.Run("short_seed_rejected", func(t *testing.T) {
 		shortSeed := make([]byte, 16)
-		xmss, _ := InitializeTree(4, SHAKE_128, shortSeed)
-
-		sig, err := xmss.Sign(msg)
-		if err != nil {
-			t.Fatalf("Failed to sign with short seed: %v", err)
+		tree, err := InitializeTree(4, SHAKE_128, shortSeed)
+		if !errors.Is(err, cryptoerrors.ErrInvalidSeed) {
+			t.Fatalf("InitializeTree(16-byte seed) returned %v, want ErrInvalidSeed", err)
 		}
-
-		pk := append(xmss.GetRoot(), xmss.GetPKSeed()...)
-		if !Verify(xmss.GetHashFunction(), msg, sig, pk) {
-			t.Error("Failed to verify with short seed")
+		if tree != nil {
+			t.Error("InitializeTree(16-byte seed) returned non-nil XMSS on error")
 		}
 	})
 }

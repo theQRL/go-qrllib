@@ -75,4 +75,3 @@ func computeRoot(root, leaf []byte, leafIdx, idxOffset uint32,
 
 	tHash(root, buffer, 2, ctx, addr)
 }
-

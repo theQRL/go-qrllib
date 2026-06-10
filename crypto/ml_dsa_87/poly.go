@@ -1,8 +1,9 @@
 package ml_dsa_87
 
 import (
+	"crypto/sha3"
+
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
-	"golang.org/x/crypto/sha3"
 )
 
 type poly struct {
@@ -116,7 +117,7 @@ func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
 	bufLen := POLY_UNIFORM_N_BLOCKS * STREAM128_BLOCK_BYTES
 	var buf [POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES + 2]uint8
 
-	state := sha3.NewShake128()
+	state := sha3.NewSHAKE128()
 	if _, err := state.Write(seed[:]); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
@@ -204,7 +205,7 @@ func rejEta(a []int32, buf []uint8) uint32 {
 
 func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	var buf [POLY_UNIFORM_ETA_N_BLOCKS * STREAM256_BLOCK_BYTES]uint8
-	state := sha3.NewShake256()
+	state := sha3.NewSHAKE256()
 
 	if _, err := state.Write(seed[:]); err != nil {
 		//coverage:ignore
@@ -223,8 +224,6 @@ func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 	}
 
 	ctr := rejEta(a.coeffs[:], buf[:])
-	//coverage:ignore
-	//rationale: rejection sampling overflow loop executes ~50% of the time for ETA=2
 	for ctr < N {
 		if _, err := state.Read(buf[:STREAM256_BLOCK_BYTES]); err != nil {
 			//coverage:ignore
@@ -238,7 +237,7 @@ func polyUniformEta(a *poly, seed *[CRH_BYTES]uint8, nonce uint16) error {
 
 func polyUniformGamma1(a *poly, seed [CRH_BYTES]uint8, nonce uint16) {
 	var buf [POLY_UNIFORM_GAMMA1_N_BLOCKS * STREAM256_BLOCK_BYTES]uint8
-	state := sha3.NewShake256()
+	state := sha3.NewSHAKE256()
 
 	_, _ = state.Write(seed[:])
 	_, _ = state.Write([]uint8{uint8(nonce), uint8(nonce >> 8)})
@@ -255,7 +254,7 @@ func polyChallenge(c *poly, seed []uint8) error {
 		return cryptoerrors.ErrInvalidSeed
 	}
 	var buf [SHAKE256_RATE]uint8
-	state := sha3.NewShake256()
+	state := sha3.NewSHAKE256()
 	if _, err := state.Write(seed); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract

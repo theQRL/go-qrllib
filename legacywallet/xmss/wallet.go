@@ -195,6 +195,21 @@ func (w *XMSSWallet) Sign(message []uint8) ([]uint8, error) {
 	return w.xmss.Sign(message)
 }
 
+// Zeroize clears sensitive key material from memory: the wallet's
+// retained 48-byte seed and the underlying XMSS tree's secret key, seed
+// copy, and BDS traversal state. Call this when the wallet is no longer
+// needed — the same contract as the Zeroize methods on the v2 wallet
+// types. Best-effort under Go's memory model; see SECURITY.md
+// "Key Zeroization".
+func (w *XMSSWallet) Zeroize() {
+	for i := range w.seed {
+		w.seed[i] = 0
+	}
+	if w.xmss != nil {
+		w.xmss.Zeroize()
+	}
+}
+
 func Verify(message, signature []uint8, extendedPK [ExtendedPKSize]uint8) (result bool) {
 	height, err := xmss.GetHeightFromSigSize(uint32(len(signature)), xmss.WOTSParamW)
 	if err != nil {

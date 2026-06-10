@@ -3,7 +3,7 @@
 //
 // # API Difference: Context Parameter
 //
-// Unlike other signature packages in go-qrllib (Dilithium, SPHINCS+, XMSS),
+// Unlike the other signature packages in go-qrllib (SPHINCS+, XMSS),
 // ML-DSA-87 requires a context parameter (ctx) in Sign, Verify, SignAttached, and Open
 // functions. This is mandated by FIPS 204 for domain separation.
 //
@@ -14,7 +14,6 @@
 //   - QRL wallet uses ctx = ['Z', 'O', 'N', 'D'] for blockchain transactions
 //
 // Why other packages don't have context:
-//   - Dilithium: Pre-FIPS version of the algorithm (no context in original spec)
 //   - SPHINCS+: pre-FIPS hash-based signature (context not part of spec)
 //   - XMSS: RFC 8391 hash-based signature (uses hash function selector instead)
 //
@@ -66,12 +65,9 @@ package ml_dsa_87
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
-	"github.com/theQRL/go-qrllib/wallet/common"
-	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
 // MLDSA87 holds an ML-DSA-87 keypair. Signing is **always hedged**
@@ -96,7 +92,7 @@ func New() (*MLDSA87, error) {
 	if err != nil {
 		//coverage:ignore
 		//rationale: crypto/rand.Read only fails if system entropy source is broken
-		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.ML_DSA_87, err)
+		return nil, cryptoerrors.ErrSeedGeneration
 	}
 
 	if _, err := cryptoSignKeypair(&seed, &pk, &sk); err != nil {
@@ -105,7 +101,12 @@ func New() (*MLDSA87, error) {
 		return nil, err
 	}
 
-	return &MLDSA87{pk, sk, seed}, nil
+	d := &MLDSA87{pk, sk, seed}
+	// Wipe the constructor-local copies now that they live in the
+	// returned instance (the NewMLDSA87FromHexSeed pattern, TOB-QRLLIB-10).
+	zeroBytes(sk[:])
+	zeroBytes(seed[:])
+	return d, nil
 }
 
 func NewMLDSA87FromSeed(seed [SEED_BYTES]uint8) (*MLDSA87, error) {
@@ -118,7 +119,11 @@ func NewMLDSA87FromSeed(seed [SEED_BYTES]uint8) (*MLDSA87, error) {
 		return nil, err
 	}
 
-	return &MLDSA87{pk, sk, seed}, nil
+	d := &MLDSA87{pk, sk, seed}
+	// seed is a by-value parameter, so this wipes only the local copy.
+	zeroBytes(sk[:])
+	zeroBytes(seed[:])
+	return d, nil
 }
 
 func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
@@ -127,7 +132,9 @@ func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 	}
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.ML_DSA_87, err.Error())
+		// hex.DecodeString's error echoes input characters; return the
+		// sanitized sentinel instead.
+		return nil, cryptoerrors.ErrInvalidHexSeed
 	}
 	// The decoded seed is secret material; wipe the heap-allocated
 	// intermediate buffer once we no longer need it. The fixed-size
@@ -188,7 +195,7 @@ func (d *MLDSA87) SignAttached(ctx, message []uint8) ([]uint8, error) {
 
 // Sign the message with the given context, and return a detached signature.
 // The ctx parameter is required by FIPS 204 for domain separation (max 255 bytes).
-// Detached signatures are variable sized, but never larger than SIG_SIZE_PACKED.
+// ML-DSA-87 detached signatures are fixed-size: exactly CRYPTO_BYTES (4,627) bytes.
 //
 // Signing is hedged (FIPS 204 §3.4): the per-signature RND_BYTES are
 // drawn from crypto/rand, so two Sign calls with the same

@@ -269,3 +269,13 @@ func wipe(b []byte) {
 	}
 	runtime.KeepAlive(&b)
 }
+
+// wipeRing overwrites a ring element with zeros — the polynomial
+// counterpart of wipe. Wipes are unconditional and data-independent, so
+// they add no timing side channel.
+func wipeRing(r *ringElement) {
+	for i := range r {
+		r[i] = 0
+	}
+	runtime.KeepAlive(r)
+}

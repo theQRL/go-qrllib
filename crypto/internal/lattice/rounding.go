@@ -68,10 +68,10 @@ func UseHint(a int32, hint int) int32 {
 
 	// Convert to masks (0 or -1 which is all 1s)
 	hintNonZero := 1 - hintIsZero
-	mask0 := -hintIsZero           // all 1s if hint == 0
-	maskHintNZ := -hintNonZero     // all 1s if hint != 0
-	maskA0Pos := -a0Positive       // all 1s if a0 > 0
-	maskA0NotPos := ^maskA0Pos     // all 1s if a0 <= 0
+	mask0 := -hintIsZero       // all 1s if hint == 0
+	maskHintNZ := -hintNonZero // all 1s if hint != 0
+	maskA0Pos := -a0Positive   // all 1s if a0 > 0
+	maskA0NotPos := ^maskA0Pos // all 1s if a0 <= 0
 
 	// Final condition masks
 	maskPos := maskHintNZ & maskA0Pos    // all 1s if hint != 0 && a0 > 0

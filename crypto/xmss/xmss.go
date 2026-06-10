@@ -1,6 +1,8 @@
 package xmss
 
 import (
+	"fmt"
+
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
@@ -23,8 +25,8 @@ type XMSS struct {
 //
 // Returns an error if the hashFunction is not one of the recognised
 // values, if the height is outside the valid range (even values between
-// 2 and MaxHeight), or if the height/k parameters are invalid for BDS
-// traversal.
+// 2 and MaxHeight), if the seed is not exactly SeedSize (48) bytes, or
+// if the height/k parameters are invalid for BDS traversal.
 //
 // Callers that need RFC 8391 reference-implementation interop —
 // where the 96 bytes are supplied directly without QRL's SHAKE256
@@ -56,6 +58,13 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	// zero-rooted XMSS at signing time. (TOB-QRLLIB-2)
 	if !h.IsValid() {
 		return nil, cryptoerrors.ErrInvalidHeight
+	}
+
+	// Reject seeds that are not exactly SeedSize (48) bytes — SHAKE256
+	// would silently expand any length into a working tree carrying less
+	// entropy than the caller believes.
+	if len(seed) != SeedSize {
+		return nil, cryptoerrors.ErrInvalidSeed
 	}
 
 	height := uint32(h)
@@ -109,11 +118,17 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 		return nil, cryptoerrors.ErrKeyGeneration
 	}
 
+	// Retain a private copy of the seed (for GetSeed) rather than
+	// aliasing the caller's slice — mirrors InitializeTreeFromExpandedSeed.
+	// Zeroize wipes this copy, not the caller's buffer.
+	storedSeed := make([]uint8, len(seed))
+	copy(storedSeed, seed)
+
 	return &XMSS{
 		xmssParams,
 		hashFunction,
 		uint8(height),
-		seed,
+		storedSeed,
 		sk,
 		bdsState,
 	}, nil
@@ -253,7 +268,10 @@ func (x *XMSS) SetIndex(newIndex uint32) error {
 func (x *XMSS) Sign(message []uint8) ([]uint8, error) {
 	index := x.GetIndex()
 	if err := x.SetIndex(index); err != nil {
-		return nil, cryptoerrors.ErrSigningFailed
+		// Wrap rather than replace so callers can distinguish tree
+		// exhaustion (errors.Is(err, ErrOTSIndexTooHigh) — rotate the
+		// key) from other failures via the typed sentinel chain.
+		return nil, fmt.Errorf("%w: %w", cryptoerrors.ErrSigningFailed, err)
 	}
 
 	return xmssFastSignMessage(x.hashFunction, x.xmssParams, x.sk, x.bdsState, message)

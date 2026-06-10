@@ -23,7 +23,7 @@ func TestHeightFromDescriptorByte(t *testing.T) {
 		{"height 10", 0x05, Height(10), false},
 		{"height 20", 0x0A, Height(20), false},
 		{"height 30", 0x0F, Height(30), false},
-		{"height 2 with hash bits", 0x21, Height(2), false},  // SHAKE_256 + height 2
+		{"height 2 with hash bits", 0x21, Height(2), false},   // SHAKE_256 + height 2
 		{"height 10 with hash bits", 0x15, Height(10), false}, // SHAKE_128 + height 10
 		{"height 0 (invalid)", 0x00, 0, true},
 	}

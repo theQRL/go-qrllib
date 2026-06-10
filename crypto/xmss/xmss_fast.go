@@ -23,6 +23,13 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	if err := validateXMSSFastParams(xmssParams); err != nil {
 		return err
 	}
+	// Reject seeds that are not exactly SeedSize (48) bytes. SHAKE256
+	// happily expands any input length, so without this guard an empty
+	// or truncated seed silently produces an entropy-starved tree.
+	// Mirrors the InitializeTree boundary check.
+	if len(seed) != SeedSize {
+		return cryptoerrors.ErrInvalidSeed
+	}
 
 	// Expand the 48-byte caller-supplied seed into 3*n bytes of
 	// randomness (SK_SEED || SK_PRF || PUB_SEED). For the supported
@@ -222,6 +229,13 @@ func treeHashSetup(hashFunction HashFunction, node []uint8, index uint32, bdsSta
 		genLeafWOTS(hashFunction, stack[stackOffset*n:stackOffset*n+n], skSeed, xmssParams, pubSeed, &lTreeAddr, &otsAddr)
 		stackLevels[stackOffset] = 0
 		stackOffset++
+		// Faithful-port quirk (matches xmss-reference xmss_fast.c): at
+		// i==3 this reads the slot ONE ABOVE the just-pushed leaf —
+		// uninitialised in C, zero bytes in Go — and the value is then
+		// overwritten in the same iteration by the (i>>nodeH)==3 branch
+		// in the merge loop below. Kept byte-for-byte to preserve
+		// reference equivalence; do not "fix" without re-running the
+		// bidirectional cross-verify.
 		if h-k > 0 && i == 3 {
 			copy(bdsState.treeHash[0].node, stack[stackOffset*n:stackOffset*n+n])
 		}

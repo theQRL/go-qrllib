@@ -1,8 +1,8 @@
 package xmss
 
 import (
+	"bytes"
 	"errors"
-	"reflect"
 
 	"github.com/theQRL/go-qrllib/common"
 	"github.com/theQRL/go-qrllib/misc"
@@ -54,5 +54,5 @@ func IsValidXMSSAddress(address [AddressSize]uint8) bool {
 	var hashedKey [32]uint8
 	misc.SHA256(hashedKey[:], address[:DescriptorSize+32])
 
-	return reflect.DeepEqual(address[DescriptorSize+32:], hashedKey[28:])
+	return bytes.Equal(address[DescriptorSize+32:], hashedKey[28:])
 }

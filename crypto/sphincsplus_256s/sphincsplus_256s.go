@@ -3,13 +3,11 @@ package sphincsplus_256s
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"strings"
+	"testing"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/sphincsplus_256s/params"
-	"github.com/theQRL/go-qrllib/wallet/common"
-	"github.com/theQRL/go-qrllib/wallet/common/wallettype"
 )
 
 type SphincsPlus256s struct {
@@ -28,7 +26,7 @@ func New() (*SphincsPlus256s, error) {
 	if err != nil {
 		//coverage:ignore
 		//rationale: crypto/rand.Read only fails if system entropy source is broken
-		return nil, fmt.Errorf(common.ErrSeedGenerationFailure, wallettype.SPHINCSPLUS_256S, err)
+		return nil, cryptoerrors.ErrSeedGeneration
 	}
 
 	if err := cryptoSignKeypair(pk[:], sk[:], seed); err != nil {
@@ -59,7 +57,9 @@ func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
 	}
 	unsizedSeed, err := hex.DecodeString(hexSeed)
 	if err != nil {
-		return nil, fmt.Errorf(common.ErrDecodeHexSeed, wallettype.SPHINCSPLUS_256S, err.Error())
+		// hex.DecodeString's error echoes input characters; return the
+		// sanitized sentinel instead.
+		return nil, cryptoerrors.ErrInvalidHexSeed
 	}
 	if len(unsizedSeed) != CRYPTO_SEEDBYTES {
 		return nil, cryptoerrors.ErrInvalidSeed
@@ -73,9 +73,17 @@ func NewSphincsPlus256sFromHexSeed(hexSeed string) (*SphincsPlus256s, error) {
 // This is intended for testing only. Injecting a weak or constant generator
 // removes fault-attack protection from SPHINCS+ signatures.
 //
+// Calling this outside a `go test` binary panics.
+//
 // WARNING: This method is NOT safe for concurrent use with Sign.
 // The caller must ensure no signing operations are in progress.
 func (s *SphincsPlus256s) SetGenerateOptRand(generateOptRand func([]byte) error) {
+	if !testing.Testing() {
+		//coverage:ignore
+		//rationale: testing.Testing() is true in every go test binary, so this
+		//branch is unreachable under test; it exists to panic on production misuse
+		panic("sphincsplus_256s: SetGenerateOptRand is test-only and must not be called from production code")
+	}
 	s.generateOptRand = generateOptRand
 }
 
@@ -109,8 +117,8 @@ func (s *SphincsPlus256s) SignAttached(message []uint8) ([]uint8, error) {
 	return cryptoSign(message, s.sk[:], s.generateOptRand)
 }
 
-// Sign the message, and return a detached signature. Detached signatures are
-// variable sized, but never larger than SIG_SIZE_PACKED.
+// Sign the message, and return a detached signature. SPHINCS+-256s
+// detached signatures are fixed-size: exactly params.SPX_BYTES (29,792) bytes.
 func (s *SphincsPlus256s) Sign(message []uint8) ([params.SPX_BYTES]uint8, error) {
 	var signature [params.SPX_BYTES]uint8
 

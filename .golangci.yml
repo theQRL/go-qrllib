@@ -10,3 +10,8 @@ linters:
     - govet
     - ineffassign
     - staticcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

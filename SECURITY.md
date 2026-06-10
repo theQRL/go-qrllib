@@ -152,19 +152,6 @@ CI in `.github/cross-verify/` pins `xmss-reference` to commit
 bidirectional cross-verify aligns with the construction this library
 targets.
 
-### Dilithium (Pre-FIPS)
-
-| Property | Status |
-|----------|--------|
-| Post-quantum secure | Yes (Module-LWE assumption) |
-| EUF-CMA secure | Yes |
-| Deterministic signing | Default |
-| Stateless | Yes |
-| Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
-| Signature malleability | No (canonical encoding enforced) |
-
-**Note**: Dilithium is the pre-FIPS version. Prefer ML-DSA-87 for new applications.
-
 ---
 
 ### ML-KEM-1024 (FIPS 203)
@@ -229,16 +216,16 @@ letter.
 
 **Constant-time (no data-dependent branches):**
 
-- **Signature verification**: challenge comparison via `subtle.ConstantTimeCompare` (ML-DSA-87, Dilithium, SPHINCS+)
+- **Signature verification**: challenge comparison via `subtle.ConstantTimeCompare` (ML-DSA-87, SPHINCS+)
 - **NTT/inverse NTT**: fixed loop bounds, no data-dependent branches
-- **Polynomial norm checks**: branchless violation-flag accumulator: iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87 and Dilithium)
+- **Polynomial norm checks**: branchless violation-flag accumulator: iterates all N coefficients regardless of outcome, sign extraction via arithmetic shift (`polyChkNorm` in ML-DSA-87)
 - **Field decomposition**: `Power2Round`, `Decompose`, `MakeHint`, `UseHint` all use mask-based conditional selection with no branches on coefficient values (see `crypto/internal/lattice/rounding.go`)
 - **Public key equality**: `CryptoPublicKey.Equal` uses `subtle.ConstantTimeCompare`
 
 **Inherently variable-time (not secret-dependent):**
 
 - **Rejection sampling loop** in signing: the number of iterations before a valid signature is found varies per attempt. FIPS 204 Appendix C acknowledges this is not a side-channel concern: the rejection probability depends on public parameters and random nonces, not on the secret key
-- **SHAKE-256 / SHA-3 operations**: assumed constant-time for a given input length (provided by `golang.org/x/crypto/sha3`)
+- **SHAKE-256 / SHA-3 operations**: assumed constant-time for a given input length (provided by the Go standard library's `crypto/sha3`)
 
 **Go runtime caveats:**
 
@@ -248,7 +235,7 @@ The above properties describe the library's own code. The Go runtime may introdu
 
 All signature schemes enforce canonical encoding, verified by comprehensive negative tests:
 
-**ML-DSA-87 / Dilithium**:
+**ML-DSA-87**:
 - Hint indices stored in strictly increasing order
 - z coefficients bounded by `GAMMA1 - BETA`
 - Zero padding enforced in hint section
@@ -265,7 +252,6 @@ Non-canonical encodings are rejected by the verification functions. This is veri
 | Test File | Coverage |
 |-----------|----------|
 | [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
-| [`crypto/dilithium/canonicality_test.go`](crypto/dilithium/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
 | [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
 | [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
 
@@ -295,9 +281,12 @@ automatically zeroise their secret temporaries via deferred cleanup
 when they return. This reduces the window for secret intermediates
 persisting in freed memory:
 
-- **ML-DSA-87 / Dilithium signing** (`cryptoSignSignatureInternal`): `key`, `rhoPrime`, `s1`, `s2`, `t0`
+- **ML-DSA-87 signing** (`cryptoSignSignatureInternal`): `key`, `rhoPrime`, `s1`, `s2`, `t0`
 - **ML-DSA-87 key generation** (`cryptoSignKeypair`): `key`, `rhoPrime`, `s1`, `s1hat`, `s2`, `t0`
 - **ML-DSA-87 hex-seed parsing** (`NewMLDSA87FromHexSeed`): the heap-allocated `unsizedSeed` byte slice and the temporary fixed-size seed array
+- **ML-DSA-87 constructors** (`New`, `NewMLDSA87FromSeed`): the constructor-local `sk`/`seed` array copies are wiped once the returned instance owns them
+- **ML-DSA-87 SHAKE pool**: pooled SHAKE256 states are `Reset()` before being returned to the pool, so sponge state that absorbed secret material never lingers between uses
+- **ML-KEM-1024 K-PKE internals** (`pkeKeyGen`/`pkeEncrypt`/`pkeDecrypt`): seed/noise/message-derived polynomial intermediates (`gInput`, `G`, `e`, `y`, `e1`, `e2`, `mu`, `v`, `acc`) are wiped data-independently
 - **SPHINCS+**: `ctx.SkSeed`
 
 #### Guarantee boundary (best-effort under Go's memory model)
@@ -382,8 +371,6 @@ Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter v
 |----------|----------------|----------------------|-------------------|----------------------|
 | `crypto/ml_dsa_87.Verify` | returns `false` | returns `false` | returns `false` | returns `false` |
 | `crypto/ml_dsa_87.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | `(nil, ErrInvalidContext)` | `(nil, ErrInvalidSignature)` |
-| `crypto/dilithium.Verify` | returns `false` | returns `false` | n/a | returns `false` |
-| `crypto/dilithium.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
 | `crypto/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 | `crypto/sphincsplus_256s.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` | n/a | `(nil, ErrInvalidSignature)` |
 | `crypto/xmss.Verify` | n/a (slice; len-checked) | returns `false` | n/a | returns `false` |
@@ -399,7 +386,7 @@ Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk
 
 #### Information-leakage considerations
 
-The typed errors returned by `Open` describe (a) the caller's own input shape — nil pointer, oversized context, undersized signature buffer — or (b) the boolean verification outcome. **None is computed from secret material**, so no error path constitutes a verification oracle that could help an attacker forge signatures: the underlying ML-DSA / Dilithium / SPHINCS+ schemes are EUF-CMA secure, and an attacker with unlimited Verify queries learns nothing useful from a "valid input shape, invalid signature" error that they would not learn from `Verify` returning `false`.
+The typed errors returned by `Open` describe (a) the caller's own input shape — nil pointer, oversized context, undersized signature buffer — or (b) the boolean verification outcome. **None is computed from secret material**, so no error path constitutes a verification oracle that could help an attacker forge signatures: the underlying ML-DSA / SPHINCS+ schemes are EUF-CMA secure, and an attacker with unlimited Verify queries learns nothing useful from a "valid input shape, invalid signature" error that they would not learn from `Verify` returning `false`.
 
 The fast-fail vs slow-fail timing distinction (early input-shape errors vs full verification then `ErrInvalidSignature`) reveals only input-shape information that the attacker supplied themselves. Within the slow-fail path the constant-time-comparison properties documented above ensure no further timing leak based on secret state.
 
@@ -408,6 +395,13 @@ Callers forwarding these errors to untrusted clients should follow standard Go s
 ### Constructor preconditions (XMSS parameter validation)
 
 XMSS constructors additionally validate parameter-set identifiers at the API boundary. The contract is: every exported XMSS constructor MUST call `HashFunction.IsValid()` and `Height.IsValid()` on its caller-supplied values *before* deriving any key material; an invalid value MUST surface as a typed error (`cryptoerrors.ErrInvalidHashFunction` or `cryptoerrors.ErrInvalidHeight`) rather than producing a degenerate zero-rooted XMSS at signing time.
+
+Raw-seed constructors (`InitializeTree`, `XMSSFastGenKeyPair`)
+additionally enforce `len(seed) == 48` (`xmss.SeedSize`), returning
+`cryptoerrors.ErrInvalidSeed` otherwise — any other length would be
+silently SHAKE256-expanded into a working tree carrying less entropy
+than the caller believes. Regression tests live in
+`crypto/xmss/seed_validation_test.go`.
 
 | Constructor | HashFunction validated | Height validated |
 |-------------|------------------------|------------------|
@@ -430,15 +424,16 @@ Regression tests live in `crypto/xmss/hash_function_validation_test.go` and `leg
 
 ### Direct Dependencies
 
-| Dependency | Purpose | Security Notes |
-|------------|---------|----------------|
-| `golang.org/x/crypto` | SHA-3, SHAKE | Well-audited, maintained by Go team |
+**None.** go-qrllib has zero third-party dependencies: all cryptographic
+primitives come from the Go standard library (`crypto/sha3`, `crypto/rand`,
+`crypto/subtle`, `crypto/sha256`). `go.mod` contains no `require`
+directives and there is no `go.sum`.
 
 ### Supply Chain Security
 
+- Zero third-party modules — the supply-chain surface is the Go toolchain itself
 - `go mod verify` runs in CI to detect tampering
-- Dependabot monitors for vulnerable dependencies
-- Minimal dependency footprint
+- Dependabot monitors GitHub Actions (and any future module) updates
 - **Sigstore attestations** for all release artifacts
 - **SLSA Level 3 provenance** for build verification
 - **SBOM** published in SPDX and CycloneDX formats
@@ -452,9 +447,8 @@ All releases include cryptographic attestations and checksums for verification.
 ### Verifying with GitHub CLI
 
 ```bash
-# Verify attestations for go.mod and go.sum
+# Verify attestation for go.mod (go.sum no longer exists — zero dependencies)
 gh attestation verify go.mod --owner theQRL
-gh attestation verify go.sum --owner theQRL
 
 # Verify SBOM attestation
 gh attestation verify sbom-spdx.json --owner theQRL
@@ -468,7 +462,7 @@ Download and verify checksums from the release:
 # Download checksums file
 curl -LO https://github.com/theQRL/go-qrllib/releases/download/vX.Y.Z/checksums-sha256.txt
 
-# Verify go.mod and go.sum
+# Verify go.mod
 sha256sum -c checksums-sha256.txt
 ```
 
@@ -506,7 +500,7 @@ syft convert sbom-cyclonedx.json -o table
 
 | Artifact | Attestation Type | Purpose |
 |----------|-----------------|---------|
-| `go.mod`, `go.sum` | Build provenance | Verify module dependencies |
+| `go.mod` | Build provenance | Verify module definition (no dependencies, so no `go.sum`) |
 | `checksums-sha256.txt` | Build provenance | Integrity verification |
 | `sbom-spdx.json` | SBOM | Software composition |
 | `sbom-cyclonedx.json` | SBOM | Software composition |

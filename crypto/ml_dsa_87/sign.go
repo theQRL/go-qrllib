@@ -2,11 +2,11 @@ package ml_dsa_87
 
 import (
 	"crypto/rand"
+	"crypto/sha3"
 	"crypto/subtle"
 	"runtime"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
-	"golang.org/x/crypto/sha3"
 )
 
 // zeroBytes overwrites b with zeros. runtime.KeepAlive prevents the compiler
@@ -139,7 +139,7 @@ func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uin
 	packPk(pk, rho, &t1)
 
 	/* Compute tr = CRH(rho, t1) and write secret key */
-	sha3.ShakeSum256(tr[:], pk[:])
+	copy(tr[:], sha3.SumSHAKE256(pk[:], TR_BYTES))
 	packSk(sk, rho, tr, key, &t0, &s1, &s2)
 
 	return seed, nil
@@ -354,7 +354,7 @@ func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, p
 	}
 
 	/* Compute CRH(H(rho, t1), pre, msg) */
-	sha3.ShakeSum256(mu[:TR_BYTES], pk[:CRYPTO_PUBLIC_KEY_BYTES])
+	copy(mu[:TR_BYTES], sha3.SumSHAKE256(pk[:CRYPTO_PUBLIC_KEY_BYTES], TR_BYTES))
 	state := getShake256()
 	defer putShake256(state)
 	if _, err := state.Write(mu[:TR_BYTES]); err != nil {
