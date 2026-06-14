@@ -10,6 +10,30 @@ linters:
     - govet
     - ineffassign
     - staticcheck
+    # gosec runs here as the single source of truth (the standalone gosec
+    # CI job was removed in favour of this). .github/ is dot-excluded from
+    # ./... by the Go toolchain, so the cross-verify harnesses' exec/file
+    # ops never reach gosec — no -exclude-dir needed.
+    - gosec
+    - nilerr
+    - asasalint
+
+  exclusions:
+    rules:
+      # G404 (weak RNG) is fine in tests; skip gosec on test files entirely.
+      - path: '.*_test\.go'
+        linters:
+          - gosec
+      # G115/G602: bounds/overflow are mathematically guaranteed by the
+      # algorithm constraints (fixed N=256, NIST-specified bit widths).
+      - linters: [gosec]
+        text: "G115"
+      - linters: [gosec]
+        text: "G602"
+      # G304: file-path-from-variable only occurs in the test vector loaders,
+      # already covered by the test-file rule above; kept for defence in depth.
+      - linters: [gosec]
+        text: "G304"
 
 formatters:
   enable:

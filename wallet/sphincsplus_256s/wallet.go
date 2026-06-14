@@ -312,8 +312,7 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	var pk2 [PKSize]uint8
-	copy(pk2[:], pk[:])
+	pk2 := (*[PKSize]uint8)(pk)
 
-	return sphincsplus_256s.Verify(domainSeparatedMessage(d.ToDescriptor(), message), sig, &pk2)
+	return sphincsplus_256s.Verify(domainSeparatedMessage(d.ToDescriptor(), message), sig, pk2)
 }
