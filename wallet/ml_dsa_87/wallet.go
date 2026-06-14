@@ -229,8 +229,7 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	var pk2 [ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8
-	copy(pk2[:], pk[:])
+	pk2 := (*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(pk)
 
-	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, &pk2)
+	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, pk2)
 }

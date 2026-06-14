@@ -26,24 +26,10 @@ jobs:
       - name: Run govulncheck
         run: govulncheck ./...
 
-  gosec:
-    name: gosec
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: '1.25.x'
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-      - name: Run gosec
-        # -tests=false: exclude test files (G404 weak RNG is acceptable in tests)
-        # -exclude=G602,G115: exclude false positives in crypto code where bounds/overflow
-        #   are mathematically guaranteed by algorithm constraints
-        run: gosec -exclude-dir=.github -tests=false -exclude=G602,G115 ./...
+  # gosec runs as part of the Lint workflow's golangci-lint (a pinned
+  # version, single source of truth — see .golangci.yml). The former
+  # standalone gosec job here was removed to avoid running it twice with
+  # drifting exclusion lists. Releases still gate on both Lint and Security.
 
   nancy:
     name: nancy
