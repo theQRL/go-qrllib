@@ -71,7 +71,10 @@ jobs:
             fi
             while IFS= read -r fuzz; do
               echo "  Running $fuzz..."
-              go test "$pkg" -fuzz="^${fuzz}\$" -fuzztime=10s
+              # Unit tests already ran above. Skip rerunning them for every fuzz
+              # target and use one fuzz worker to avoid worker-shutdown timeouts
+              # on resource-constrained CI runners.
+              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime=10s
             done <<< "$targets"
           done
 
