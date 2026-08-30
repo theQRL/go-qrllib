@@ -61,7 +61,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Run each fuzz test for 10 seconds
+          # Use a fixed iteration budget so CI does not cancel a slow crypto
+          # operation mid-call and report a fuzz-worker context deadline.
           for pkg in ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./wallet/misc; do
             echo "Fuzzing $pkg..."
             targets=$(go test "$pkg" -list 'Fuzz.*' | grep '^Fuzz' || true)
@@ -71,7 +72,9 @@ jobs:
             fi
             while IFS= read -r fuzz; do
               echo "  Running $fuzz..."
-              go test "$pkg" -fuzz="^${fuzz}\$" -fuzztime=10s
+              # Unit tests already ran above. Skip rerunning them for every fuzz
+              # target. A fixed budget is deterministic across runner speeds.
+              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime=100x
             done <<< "$targets"
           done
 
