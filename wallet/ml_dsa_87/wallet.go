@@ -200,6 +200,16 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
+// SignDeterministic produces an ML-DSA-87 signature over message using the
+// descriptor-bound signing context and FIPS 204 deterministic mode.
+//
+// Use this only when deterministic signatures are required by a protocol or
+// test fixture. General wallet signing should use [Wallet.Sign], which remains
+// hedged by default.
+func (w *Wallet) SignDeterministic(message []uint8) ([SigSize]uint8, error) {
+	return w.d.SignDeterministic(common.SigningContext(w.desc.ToDescriptor()), message)
+}
+
 // Zeroize clears sensitive key material from memory.
 // This should be called when the Wallet is no longer needed.
 func (w *Wallet) Zeroize() {
