@@ -240,11 +240,32 @@ QRL v2 addresses are displayed as a `"Q"` prefix followed by 128 hex characters
 - `common.IsValidAddress(s)` — permissive: accepts all-lowercase, all-uppercase, or correctly-checksummed mixed-case. Mixed-case with a bad checksum is rejected.
 - `common.IsValidChecksumAddress(s)` — strict: only true when `s` matches the canonical checksummed form character-for-character (uppercase `"Q"` required; uniform-case forms containing letters return `false`).
 
+Both validators apply the exact 129-character rule to the string as given. No
+input normalization is performed, so surrounding whitespace and a lowercase
+`"q"` prefix are rejected. Trimming hand-entered text is an input-layer
+concern; pass the normalized string in. Front ends built on `@theqrl/wallet.js`
+accept a documented superset here — the emitted forms are identical.
+
 **Algorithm:** the case-selection nibbles are drawn from `SHAKE-256` of the
 UTF-8 bytes of the 128-character lowercase hex body (no `Q` prefix), with
 `dkLen = AddressSize`, giving exactly one nibble per hex character. For each
 `a`-`f` letter, uppercase iff the corresponding nibble is `≥ 8`. Identical
 across `@theqrl/wallet.js`, `go-qrllib`, and `rust-qrllib`.
+
+### Extended Seed Text Form
+
+`(w *Wallet) GetHexSeed()` and `common.ExtendedSeed.ToHex()` emit the canonical
+form: lowercase `"0x"` followed by 102 lowercase hex characters (104 characters
+total). Every hex extended-seed entry point in the library accepts that form
+unchanged — `common.NewExtendedSeedFromHexString` and each wallet package's
+`NewWalletFromHexExtendedSeed`. An optional `"0x"`/`"0X"` prefix is removed
+before the exact-length check, and uppercase hex is accepted; whitespace and
+separator characters are not. No input normalization beyond the prefix is
+performed; trimming hand-entered text is an input-layer concern.
+
+Descriptor validity is a separate check applied after decoding, so
+`common.NewExtendedSeedFromHexString` still rejects a SPHINCS+ extended seed —
+that type is not a valid common descriptor until SLH-DSA activation.
 
 ---
 

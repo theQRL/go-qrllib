@@ -430,7 +430,11 @@ func TestExtendedSeedIsolation(t *testing.T) {
 	}
 }
 
-// TestHexSeedRoundTrip verifies hex seed encoding/decoding works for both algorithms.
+// TestHexSeedRoundTrip verifies hex seed encoding/decoding works for both
+// algorithms. GetHexSeed emits the canonical "0x" + 102 hex form, and every
+// hex extended-seed entry point must accept that form unmodified — the
+// wallet constructor and common.NewExtendedSeedFromHexString alike. Callers
+// must never have to trim the prefix themselves.
 func TestHexSeedRoundTrip(t *testing.T) {
 	t.Run("ML-DSA-87", func(t *testing.T) {
 		original, err := ml_dsa_wallet.NewWallet()
@@ -442,7 +446,7 @@ func TestHexSeedRoundTrip(t *testing.T) {
 			t.Fatalf("GetHexSeed() error: %v", err)
 		}
 
-		recovered, err := ml_dsa_wallet.NewWalletFromHexExtendedSeed(hexSeed[2:]) // trim 0x
+		recovered, err := ml_dsa_wallet.NewWalletFromHexExtendedSeed(hexSeed)
 		if err != nil {
 			t.Fatalf("failed to recover from hex seed: %v", err)
 		}
@@ -450,8 +454,25 @@ func TestHexSeedRoundTrip(t *testing.T) {
 		if original.GetAddress() != recovered.GetAddress() {
 			t.Error("recovered wallet address should match original")
 		}
+
+		extSeed, err := common.NewExtendedSeedFromHexString(hexSeed)
+		if err != nil {
+			t.Fatalf("common.NewExtendedSeedFromHexString(GetHexSeed()) failed: %v", err)
+		}
+		originalExtSeed, err := original.GetExtendedSeed()
+		if err != nil {
+			t.Fatalf("GetExtendedSeed() error: %v", err)
+		}
+		if extSeed != originalExtSeed {
+			t.Error("extended seed parsed from hex should match original")
+		}
 	})
 
+	// SPHINCS+ exercises the wallet constructor only. common's extended-seed
+	// parsers validate the descriptor, and the SPHINCSPLUS_256S descriptor is
+	// deliberately not valid until SLH-DSA activation (descriptor.IsValid), so
+	// a SPHINCS+ extended seed is expected to be rejected there for descriptor
+	// reasons rather than accepted.
 	t.Run("SPHINCS+", func(t *testing.T) {
 		original, err := sphincs_wallet.NewWallet()
 		if err != nil {
@@ -462,13 +483,17 @@ func TestHexSeedRoundTrip(t *testing.T) {
 			t.Fatalf("GetHexSeed() error: %v", err)
 		}
 
-		recovered, err := sphincs_wallet.NewWalletFromHexExtendedSeed(hexSeed[2:])
+		recovered, err := sphincs_wallet.NewWalletFromHexExtendedSeed(hexSeed)
 		if err != nil {
 			t.Fatalf("failed to recover from hex seed: %v", err)
 		}
 
 		if original.GetAddress() != recovered.GetAddress() {
 			t.Error("recovered wallet address should match original")
+		}
+
+		if _, err := common.NewExtendedSeedFromHexString(hexSeed); err == nil {
+			t.Error("common.NewExtendedSeedFromHexString should reject a SPHINCS+ descriptor")
 		}
 	})
 }
