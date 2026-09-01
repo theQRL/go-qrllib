@@ -27,6 +27,19 @@ jobs:
           # Pinned; keep in sync with `make tools`.
           version: v2.12.2
 
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # ubuntu-latest ships Node, so no setup-node step is needed. Globs and
+      # rules come from .markdownlint-cli2.jsonc; the version is pinned and
+      # kept in sync with MARKDOWNLINT_CLI2_VERSION in the Makefile.
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2@0.23.2
+
   shadow:
     name: shadow
     runs-on: ubuntu-latest
