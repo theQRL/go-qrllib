@@ -32,7 +32,11 @@
 //   - ML-DSA-87 and SPHINCS+-256s (byte form):
 //     SHAKE256(Descriptor || PK)[:64] (64 bytes total)
 //
-// Addresses are validated using [IsValidAddress]. For address generation:
+// Addresses are validated using [IsValidAddress]. Both [IsValidAddress] and
+// [IsValidChecksumAddress] apply the exact 129-character rule to the string as
+// given: no normalization is performed, so surrounding whitespace and a
+// lowercase "q" prefix are rejected. Trimming hand-entered text is an
+// input-layer concern. For address generation:
 //
 //   - Use [GetAddress] for untrusted inputs (validates descriptor and pk length)
 //   - Use [UnsafeGetAddress] only when the descriptor and public key have already
@@ -43,6 +47,18 @@
 //	if !common.IsValidAddress(addr) {
 //	    return errors.New("invalid QRL address")
 //	}
+//
+// # Extended Seed Text Form
+//
+// [ExtendedSeed.ToHex] emits the canonical text form: lowercase "0x" followed
+// by 2*ExtendedSeedSize lowercase hex characters. This is the only form the
+// library emits, and it is what the wallet packages' GetHexSeed returns.
+//
+// [NewExtendedSeedFromHexString] accepts that form unchanged. It removes an
+// optional "0x"/"0X" prefix before applying the exact-length check — checking
+// the length first would reject the library's own canonical output as a length
+// error — and accepts uppercase hex. Whitespace and separator characters are
+// rejected; normalizing hand-entered text is an input-layer concern.
 //
 // # Seed Derivation
 //

@@ -125,6 +125,110 @@ func TestNewExtendedSeedFromHexString_Valid(t *testing.T) {
 	}
 }
 
+// validExtendedSeedHex returns the unprefixed canonical hex body of a valid
+// ML-DSA-87 extended seed, alongside the bytes it encodes.
+func validExtendedSeedHex(t *testing.T) (string, []byte) {
+	t.Helper()
+
+	descBytes := descriptor.GetDescriptorBytes(wallettype.ML_DSA_87, [2]byte{0x00, 0x00})
+	extSeedBytes := make([]byte, ExtendedSeedSize)
+	copy(extSeedBytes[:descriptor.DescriptorSize], descBytes[:])
+	for i := descriptor.DescriptorSize; i < ExtendedSeedSize; i++ {
+		extSeedBytes[i] = byte(i)
+	}
+	return hex.EncodeToString(extSeedBytes), extSeedBytes
+}
+
+// TestNewExtendedSeedFromHexString_AcceptedForms locks the accepted text
+// superset: the canonical "0x"-prefixed form this library emits, the "0X"
+// spelling, uppercase hex, and the unprefixed body. The prefix must be
+// removed before the length check, otherwise the canonical form fails as a
+// length error.
+func TestNewExtendedSeedFromHexString_AcceptedForms(t *testing.T) {
+	hexBody, extSeedBytes := validExtendedSeedHex(t)
+
+	tests := []struct {
+		name   string
+		hexStr string
+	}{
+		{"unprefixed", hexBody},
+		{"0x prefix (canonical)", "0x" + hexBody},
+		{"0X prefix", "0X" + hexBody},
+		{"uppercase hex", strings.ToUpper(hexBody)},
+		{"0x prefix with uppercase hex", "0x" + strings.ToUpper(hexBody)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			extSeed, err := NewExtendedSeedFromHexString(tt.hexStr)
+			if err != nil {
+				t.Fatalf("NewExtendedSeedFromHexString failed: %v", err)
+			}
+			if !bytes.Equal(extSeed[:], extSeedBytes) {
+				t.Error("extended seed bytes mismatch")
+			}
+		})
+	}
+}
+
+// TestNewExtendedSeedFromHexString_RejectedForms locks the other side of the
+// superset: prefix removal is the only normalization, so whitespace and
+// separator characters stay rejected.
+func TestNewExtendedSeedFromHexString_RejectedForms(t *testing.T) {
+	hexBody, _ := validExtendedSeedHex(t)
+
+	tests := []struct {
+		name   string
+		hexStr string
+	}{
+		{"leading whitespace", " 0x" + hexBody},
+		{"trailing whitespace", "0x" + hexBody + "\n"},
+		{"whitespace between prefix and body", "0x " + hexBody},
+		{"interior whitespace", "0x" + hexBody[:10] + " " + hexBody[10:]},
+		{"interior separator", "0x" + hexBody[:10] + ":" + hexBody[10:]},
+		{"prefix only", "0x"},
+		{"doubled prefix", "0x0x" + hexBody},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewExtendedSeedFromHexString(tt.hexStr); err == nil {
+				t.Error("expected error for non-canonical input")
+			}
+		})
+	}
+}
+
+// TestExtendedSeed_ToHexRoundTrip is the round-trip lock: whatever ToHex
+// emits must parse back through NewExtendedSeedFromHexString unmodified.
+func TestExtendedSeed_ToHexRoundTrip(t *testing.T) {
+	_, extSeedBytes := validExtendedSeedHex(t)
+
+	original, err := NewExtendedSeedFromBytes(extSeedBytes)
+	if err != nil {
+		t.Fatalf("NewExtendedSeedFromBytes failed: %v", err)
+	}
+
+	hexStr := original.ToHex()
+	if want := "0x" + hex.EncodeToString(extSeedBytes); hexStr != want {
+		t.Errorf("ToHex() = %s, want %s", hexStr, want)
+	}
+	if hexStr != strings.ToLower(hexStr) {
+		t.Errorf("ToHex() must emit lowercase, got %s", hexStr)
+	}
+	if len(hexStr) != 2+2*ExtendedSeedSize {
+		t.Errorf("ToHex() length = %d, want %d", len(hexStr), 2+2*ExtendedSeedSize)
+	}
+
+	parsed, err := NewExtendedSeedFromHexString(hexStr)
+	if err != nil {
+		t.Fatalf("NewExtendedSeedFromHexString(ToHex()) failed: %v", err)
+	}
+	if parsed != original {
+		t.Error("ToHex/NewExtendedSeedFromHexString round-trip changed the extended seed")
+	}
+}
+
 func TestNewExtendedSeedFromHexString_InvalidLength(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -133,6 +237,8 @@ func TestNewExtendedSeedFromHexString_InvalidLength(t *testing.T) {
 		{"too short", strings.Repeat("00", ExtendedSeedSize-1)},
 		{"too long", strings.Repeat("00", ExtendedSeedSize+1)},
 		{"empty", ""},
+		{"too short with 0x prefix", "0x" + strings.Repeat("00", ExtendedSeedSize-1)},
+		{"too long with 0x prefix", "0x" + strings.Repeat("00", ExtendedSeedSize+1)},
 	}
 
 	for _, tt := range tests {
