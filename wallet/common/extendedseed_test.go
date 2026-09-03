@@ -187,7 +187,14 @@ func TestNewExtendedSeedFromHexString_RejectedForms(t *testing.T) {
 		{"interior whitespace", "0x" + hexBody[:10] + " " + hexBody[10:]},
 		{"interior separator", "0x" + hexBody[:10] + ":" + hexBody[10:]},
 		{"prefix only", "0x"},
-		{"doubled prefix", "0x0x" + hexBody},
+		// Every doubling, not just the same-case one: chained TrimPrefix
+		// calls would strip "0X0x" but not "0x0x", so covering one spelling
+		// hides the other. Exactly one prefix is removed, matching the
+		// wallet-level constructors.
+		{"doubled prefix 0x0x", "0x0x" + hexBody},
+		{"doubled prefix 0X0x", "0X0x" + hexBody},
+		{"doubled prefix 0x0X", "0x0X" + hexBody},
+		{"doubled prefix 0X0X", "0X0X" + hexBody},
 	}
 
 	for _, tt := range tests {

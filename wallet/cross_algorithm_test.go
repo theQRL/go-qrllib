@@ -431,10 +431,14 @@ func TestExtendedSeedIsolation(t *testing.T) {
 }
 
 // TestHexSeedRoundTrip verifies hex seed encoding/decoding works for both
-// algorithms. GetHexSeed emits the canonical "0x" + 102 hex form, and every
-// hex extended-seed entry point must accept that form unmodified — the
-// wallet constructor and common.NewExtendedSeedFromHexString alike. Callers
-// must never have to trim the prefix themselves.
+// algorithms. GetHexSeed emits the canonical "0x" + 102 hex form, and no
+// caller should ever have to trim the prefix themselves.
+//
+// The acceptance claim is scoped to descriptor-valid seeds: for those, every
+// hex extended-seed entry point must accept the emitted form unmodified — the
+// wallet constructor and common.NewExtendedSeedFromHexString alike. SPHINCS+
+// is the deliberate exception, and it fails on the descriptor rather than on
+// the text form; see the note on that subtest.
 func TestHexSeedRoundTrip(t *testing.T) {
 	t.Run("ML-DSA-87", func(t *testing.T) {
 		original, err := ml_dsa_wallet.NewWallet()

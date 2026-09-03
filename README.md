@@ -165,9 +165,9 @@ valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
 The example below uses the raw SPHINCS+-256s primitive directly. The QRL
 wallet layer for SPHINCS+/SLH-DSA is intentionally not currently issuable:
 the implementation here is the SPHINCS+ submission (pre-FIPS 205), and QRL
-has not yet committed to a specific SLH-DSA parameter set under FIPS 205,
-so activating the wallet path now would commit users to a parameter set
-that may change. See the SPHINCS+ notes in [Standards
+has not yet committed to one of the twelve SLH-DSA parameter sets FIPS 205
+specifies, so activating the wallet path now would commit users to a choice
+QRL has not made. See the SPHINCS+ notes in [Standards
 Compliance](#standards-compliance).
 
 ```go

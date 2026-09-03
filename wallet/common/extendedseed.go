@@ -3,7 +3,6 @@ package common
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 )
@@ -52,10 +51,12 @@ func NewExtendedSeedFromBytes(extendedSeedBytes []byte) (ExtendedSeed, error) {
 // canonical form emitted by [ExtendedSeed.ToHex] (and by the wallet packages'
 // GetHexSeed) parses back through this constructor to the identical bytes.
 // Stripping before the length check rather than after is the whole point:
-// checking first rejects the canonical form as a length error. Uppercase hex
-// is accepted; whitespace and separator characters are not.
+// checking first rejects the canonical form as a length error. Exactly one
+// prefix is removed, so a doubled "0X0x" is rejected here just as it is by the
+// wallet-level constructors. Uppercase hex is accepted; whitespace and
+// separator characters are not.
 func NewExtendedSeedFromHexString(extendedSeedStr string) (ExtendedSeed, error) {
-	extendedSeedStr = strings.TrimPrefix(strings.TrimPrefix(extendedSeedStr, "0X"), "0x")
+	extendedSeedStr = trimHexPrefix(extendedSeedStr)
 
 	if len(extendedSeedStr) != 2*ExtendedSeedSize {
 		return ExtendedSeed{}, fmt.Errorf("invalid length of extendedSeedStr %d, expected %d", len(extendedSeedStr), 2*ExtendedSeedSize)

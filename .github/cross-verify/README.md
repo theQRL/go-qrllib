@@ -110,11 +110,17 @@ predates RFC 8391 (Aug 2018), and the package is maintained as a v1 → v2
 migration shim so QRL v1 mainnet addresses remain parseable, verifiable, and
 signable. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205,
 formerly SPHINCS+) is reserved as a wallet type in the QRL descriptor format but
-is not currently issuable. The implementation here remains the pre-FIPS-205
-SPHINCS+ submission, and finalized parameter set under FIPS 205 remains to be
-determined.  Committing to a specific SLH-DSA parameter set under FIPS 205, and
-so activating the wallet path now, would commit users to a parameter set that
-may change.
+is not currently issuable.
+
+FIPS 205 itself is settled: NIST finalized it in August 2024, and it specifies
+twelve parameter sets (SHA2 and SHAKE, at 128/192/256 bits, each in a fast `f`
+and small `s` variant). What is undetermined is QRL's choice among them, not
+the standard. The implementation cross-verified here is the pre-FIPS-205
+SPHINCS+ submission at `SHAKE-256s-robust`, and FIPS 205 standardizes only the
+simple instantiation — so this parameter set is not one of the twelve.
+Activating the wallet path therefore means first selecting a standardized
+parameter set and updating the implementation to match; doing it now would
+commit users to a choice QRL has not made.
 
 ### ML-KEM-1024 (FIPS 203) — vs Go stdlib `crypto/mlkem`
 
