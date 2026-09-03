@@ -29,7 +29,7 @@ doesn't yet handle), pin to a specific commit and bump deliberately.
 ## What's Tested
 
 | Vector file | Source | Description |
-|-------------|--------|-------------|
+| --- | --- | --- |
 | `mldsa_87_verify_test.json` | upstream `testvectors_v1/` | ~175 ML-DSA-87 verification edge cases across ~25 keypairs: malleability, truncated/extended signatures, wrong-length public keys, context-string variants, and similar boundary conditions. |
 
 `mldsa_87_sign_seed_test.json` and `mldsa_87_sign_noseed_test.json`
@@ -50,7 +50,7 @@ test because the derandomised encapsulation vectors need the test-only
    `WYCHEPROOF_VECTORS_DIR`):
 
    | Vector file | What it exercises |
-   |-------------|-------------------|
+   | --- | --- |
    | `mlkem_1024_keygen_seed_test.json` | seed (`d‖z`) → encapsulation-key derivation (100 vectors) |
    | `mlkem_1024_encaps_test.json` | derandomised encapsulation (`ek`,`m` → `c`,`K`) and encapsulation-key validation, incl. `ModulusOverflow` rejections (~270 vectors) |
    | `mlkem_1024_test.json` | decapsulation (`seed`,`c` → `K`), incl. implicit-rejection and `Strcmp` constant-time-comparison edge cases, plus structural rejections (~190 vectors) |
@@ -67,7 +67,8 @@ test because the derandomised encapsulation vectors need the test-only
 
 NIST ACVP functional vectors (KeyGen / Encaps / Decaps / key-checks) and the
 CCTV accumulated 10,000-iteration hash already run in the normal test suite
-(`crypto/internal/mlkem1024/acvp_test.go`, `crypto/mlkem1024/mlkem1024_test.go`),
+(`crypto/internal/mlkem1024/acvp_test.go`,
+`crypto/mlkem1024/mlkem1024_test.go`),
 so they are not duplicated here.
 
 Run locally:
@@ -85,7 +86,7 @@ WYCHEPROOF_VECTORS_DIR=/tmp/wycheproof/testvectors_v1 \
 Wycheproof's `result` field has three values:
 
 | Value | go-qrllib expectation |
-|-------|----------------------|
+| --- | --- |
 | `valid` | `Verify` must return `true`. Test fails if it doesn't. |
 | `invalid` | `Verify` must return `false`. Test fails if it returns `true`. |
 | `acceptable` | Either outcome is permitted by the spec — typically used for malleability cases where the standard allows either reading. We log the observed outcome but do not fail. |
