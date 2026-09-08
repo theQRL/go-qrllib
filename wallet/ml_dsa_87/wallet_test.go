@@ -273,6 +273,43 @@ func TestWallet_Sign(t *testing.T) {
 	}
 }
 
+func TestWallet_SignDeterministic(t *testing.T) {
+	for creatorName, creator := range walletCreators {
+		for _, tc := range walletTestCases {
+			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
+				w := creator(t, tc)
+				message := []byte(tc.message)
+
+				got1, err := w.SignDeterministic(message)
+				if err != nil {
+					t.Fatalf("SignDeterministic() error: %v", err)
+				}
+				got2, err := w.SignDeterministic(message)
+				if err != nil {
+					t.Fatalf("SignDeterministic() second call error: %v", err)
+				}
+				if got1 != got2 {
+					t.Fatal("SignDeterministic() produced different signatures for the same message")
+				}
+
+				pk := w.GetPK()
+				desc := w.GetDescriptor().ToDescriptor()
+				if !Verify(message, got1[:], &pk, desc) {
+					t.Fatal("SignDeterministic() produced a signature that did not verify")
+				}
+
+				want, err := w.d.SignDeterministic(common.SigningContext(desc), message)
+				if err != nil {
+					t.Fatalf("underlying SignDeterministic() error: %v", err)
+				}
+				if got1 != want {
+					t.Fatal("wallet SignDeterministic() does not match the underlying descriptor-bound signer")
+				}
+			})
+		}
+	}
+}
+
 func TestVerify(t *testing.T) {
 	for _, tc := range walletTestCases {
 		t.Run(tc.name, func(t *testing.T) {
