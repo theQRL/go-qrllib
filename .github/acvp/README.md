@@ -1,19 +1,27 @@
 # NIST ACVP Test Vector Verification
 
-This directory contains tooling for testing go-qrllib's ML-DSA-87 implementation against official NIST ACVP (Automated Cryptographic Validation Protocol) test vectors.
+This directory contains tooling for testing go-qrllib's ML-DSA-87 implementation
+against official NIST ACVP (Automated Cryptographic Validation Protocol) test
+vectors.
 
 ## How It Works
 
-The GitHub Action (`.github/workflows/acvp.yml`) clones the NIST ACVP-Server repository at its latest commit and extracts the ML-DSA test vectors at runtime. Vectors are never vendored — they always come directly from NIST's repository.
+The GitHub Action (`.github/workflows/acvp.yml`) clones the NIST ACVP-Server
+repository at its latest commit and extracts the ML-DSA test vectors at runtime.
+Vectors are never vendored — they always come directly from NIST's repository.
 
-1. **Clone**: Sparse checkout of `github.com/usnistgov/ACVP-Server` (only the ML-DSA JSON files)
-2. **Merge**: `merge_vectors.py` combines the ACVP `prompt.json` (inputs) and `expectedResults.json` (expected outputs) into simplified test vector files, filtered to ML-DSA-87
-3. **Test**: `acvp_test.go` runs the vectors through go-qrllib's internal key generation and signing functions, comparing byte-exact output
+1. **Clone**: Sparse checkout of `github.com/usnistgov/ACVP-Server` (only the
+   ML-DSA JSON files)
+2. **Merge**: `merge_vectors.py` combines the ACVP `prompt.json` (inputs) and
+   `expectedResults.json` (expected outputs) into simplified test vector files,
+   filtered to ML-DSA-87
+3. **Test**: `acvp_test.go` runs the vectors through go-qrllib's internal key
+   generation and signing functions, comparing byte-exact output
 
 ## What's Tested
 
 | Test | Vectors | Description |
-|------|---------|-------------|
+| --- | --- | --- |
 | `TestACVPKeyGen` | 25 | Seed -> (pk, sk) matches NIST expected output |
 | `TestACVPSigGen` | 15 | sk + message + context -> signature matches NIST expected output |
 
@@ -50,7 +58,7 @@ ACVP_VECTORS_DIR=/tmp/acvp-vectors go test -v -tags acvp -run TestACVP ./crypto/
 ## Why Not the Other Algorithms?
 
 | Algorithm | ACVP Vectors Available? | Compatible? | Reason |
-|-----------|------------------------|-------------|--------|
+| --- | --- | --- | --- |
 | **ML-DSA-87** | Yes (ML-DSA FIPS 204) | Yes | Direct match |
 | **SPHINCS+** | No (SLH-DSA FIPS 205 only) | No | go-qrllib implements SPHINCS+ SHAKE-256s-**robust** (pre-FIPS submission). FIPS 205 (SLH-DSA) dropped the robust variant and only standardized the simple variant. Different thash construction means different outputs. Cross-verified against sphincsplus reference (consistent-basew branch) instead. |
 | **XMSS** | No | N/A | XMSS (RFC 8391) is not an ACVP-validated algorithm. One-directional cross-verification against xmss-reference instead. |
@@ -62,4 +70,5 @@ The NIST ACVP-Server stores vectors in two files per algorithm:
 - `prompt.json` — Test inputs (seed, message, sk, context)
 - `expectedResults.json` — Expected outputs (pk, sk, signature)
 
-These are linked by `tcId` within test groups. `merge_vectors.py` joins them and filters to the requested parameter set.
+These are linked by `tcId` within test groups. `merge_vectors.py` joins them and
+filters to the requested parameter set.

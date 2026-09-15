@@ -1,8 +1,12 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint
+.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint markdownlint markdownlint-fix
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
 GO_IGNORE_COV := $(shell which go-ignore-cov 2>/dev/null || echo "$(HOME)/go/bin/go-ignore-cov")
+
+# markdownlint-cli2 runs via npx; pinned so local and CI agree.
+# Keep in sync with .github/workflows/lint.yml.
+MARKDOWNLINT_CLI2_VERSION ?= 0.23.2
 
 # Fuzz test duration (default: 10s per target)
 FUZZ_TIME ?= 10s
@@ -22,6 +26,20 @@ lint:
 actionlint:
 	@echo "Running actionlint..."
 	@actionlint .github/workflows/*.yml
+
+# Run markdownlint (lint Markdown files)
+# Globs and rules come from .markdownlint-cli2.jsonc, so no arguments here.
+# Requires Node (npx); no global install needed.
+markdownlint:
+	@echo "Running markdownlint-cli2..."
+	@npx --yes markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION)
+
+# Auto-fix the fixable subset of markdownlint findings (list style, blank
+# lines, table pipes, bare URLs). Line length and code-fence languages are
+# not auto-fixable and still need a human.
+markdownlint-fix:
+	@echo "Running markdownlint-cli2 --fix..."
+	@npx --yes markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION) --fix
 
 # Run shadow (detect shadowed variables)
 shadow:
@@ -187,6 +205,7 @@ tools:
 	@go install github.com/sonatype-nexus-community/nancy@latest
 	@go install github.com/quantumcycle/go-ignore-cov@v0.7.1
 	@echo "Note: Install actionlint separately: https://github.com/rhysd/actionlint#install"
+	@echo "Note: markdownlint-cli2 runs via npx (no install needed); requires Node."
 
 # Run govulncheck (vulnerability scanner for Go code)
 govulncheck:
@@ -223,6 +242,8 @@ help:
 	@echo "  check        - Run all checks (lint + test)"
 	@echo "  lint         - Run golangci-lint"
 	@echo "  actionlint   - Lint GitHub Actions workflow files"
+	@echo "  markdownlint - Lint Markdown files (npx, pinned)"
+	@echo "  markdownlint-fix - Auto-fix the fixable markdownlint findings"
 	@echo "  shadow       - Run shadow (detect shadowed variables)"
 	@echo "  ineffassign  - Run ineffassign (detect ineffectual assignments)"
 	@echo "  staticanalysis - Run all static analysis (shadow + ineffassign)"

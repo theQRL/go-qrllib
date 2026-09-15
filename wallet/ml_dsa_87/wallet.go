@@ -136,12 +136,16 @@ func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
 	return extendedSeed, nil
 }
 
+// GetHexSeed returns the extended seed in its canonical text form: lowercase
+// "0x" followed by 102 lowercase hex characters. The result is accepted by
+// both [NewWalletFromHexExtendedSeed] and
+// [github.com/theQRL/go-qrllib/wallet/common.NewExtendedSeedFromHexString].
 func (w *Wallet) GetHexSeed() (string, error) {
 	eSeed, err := w.GetExtendedSeed()
 	if err != nil {
 		return "", err
 	}
-	return "0x" + hex.EncodeToString(eSeed[:]), nil
+	return eSeed.ToHex(), nil
 }
 
 func (w *Wallet) GetMnemonic() (string, error) {

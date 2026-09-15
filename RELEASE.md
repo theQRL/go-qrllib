@@ -1,10 +1,13 @@
 # Release Process
 
-This project uses [go-semantic-release](https://github.com/go-semantic-release/semantic-release) to automate version management and package releases.
+This project uses
+[go-semantic-release](https://github.com/go-semantic-release/semantic-release)
+to automate version management and package releases.
 
 ## How It Works
 
-When commits are pushed to the `main` branch, the GitHub Actions workflow automatically:
+When commits are pushed to the `main` branch, the GitHub Actions workflow
+automatically:
 
 1. Analyzes commit messages since the last release
 2. Determines the next version number based on the changes
@@ -14,11 +17,12 @@ When commits are pushed to the `main` branch, the GitHub Actions workflow automa
 
 ## Commit Message Format
 
-Semantic release uses the **Conventional Commits** specification to determine version bumps:
+Semantic release uses the **Conventional Commits** specification to determine
+version bumps:
 
 ### Format
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -30,12 +34,15 @@ Semantic release uses the **Conventional Commits** specification to determine ve
 
 - **`fix:`** - Patches a bug (PATCH version bump: 1.0.0 → 1.0.1)
 - **`feat:`** - Introduces a new feature (MINOR version bump: 1.0.0 → 1.1.0)
-- **`BREAKING CHANGE:`** in footer or `!` after type - Breaking change (MAJOR version bump: 1.0.0 → 2.0.0)
+- **`BREAKING CHANGE:`** in footer or `!` after type - Breaking change (MAJOR
+  version bump: 1.0.0 → 2.0.0)
 - **`docs:`** - Documentation changes only (no version bump)
 - **`chore:`** - Maintenance tasks (no version bump)
 - **`test:`** - Adding or updating tests (no version bump)
-- **`refactor:`** - Code changes that neither fix bugs nor add features (no version bump)
-- **`perf:`** - Performance improvements (no version bump by default — only `fix:`, `feat:`, and breaking changes trigger releases)
+- **`refactor:`** - Code changes that neither fix bugs nor add features (no
+  version bump)
+- **`perf:`** - Performance improvements (no version bump by default — only
+  `fix:`, `feat:`, and breaking changes trigger releases)
 - **`ci:`** - CI/CD changes (no version bump)
 - **`build:`** - Build system changes (no version bump)
 - **`style:`** - Code style changes (no version bump)
@@ -44,27 +51,27 @@ Semantic release uses the **Conventional Commits** specification to determine ve
 
 #### Patch Release (1.0.0 → 1.0.1)
 
-```
+```text
 fix: resolve nil pointer in ml_dsa_87 signature verification
 
 The cryptoSignVerify function was not properly handling nil public keys,
 causing a panic. This change adds proper validation.
 ```
 
-```
+```text
 fix(crypto): correct byte order in key serialization
 ```
 
 #### Minor Release (1.0.0 → 1.1.0)
 
-```
+```text
 feat: add NewMLDSA87FromSecretKey function
 
 This allows creating an MLDSA87 instance directly from a secret key
 without requiring the original seed.
 ```
 
-```
+```text
 feat(wallet): support for ML-DSA-87 wallet generation
 ```
 
@@ -72,7 +79,7 @@ feat(wallet): support for ML-DSA-87 wallet generation
 
 Using `BREAKING CHANGE:` in the footer:
 
-```
+```text
 feat: update to FIPS 204 final standard
 
 BREAKING CHANGE: The ML-DSA-87 algorithm has been updated to comply
@@ -82,7 +89,7 @@ previous versions are incompatible.
 
 Using `!` after the type:
 
-```
+```text
 feat!: rename package from qrllib to go-qrllib
 
 The main package has been renamed to align with Go module naming
@@ -91,19 +98,19 @@ conventions. All import paths must be updated.
 
 #### No Release
 
-```
+```text
 docs: update README with installation instructions
 ```
 
-```
+```text
 chore: update dependencies
 ```
 
-```
+```text
 test: add integration tests for sphincsplus
 ```
 
-```
+```text
 ci: add code coverage reporting
 ```
 
@@ -132,10 +139,10 @@ explicitly reachable via two equivalent public paths for protocols
 that need it (RANDAO-style verifiable beacon contributions,
 test-vector reproduction):
 
-  - `MLDSA87.SignDeterministic(ctx, msg)` — thin convenience helper
+- `MLDSA87.SignDeterministic(ctx, msg)` — thin convenience helper
     that signs with `rnd = 0^32`. Recommended entry point when the
     deterministic property is itself a protocol requirement.
-  - `crypto.Signer.Sign(deterministicReader, …)` — useful when
+- `crypto.Signer.Sign(deterministicReader, …)` — useful when
     integrating with code that drives randomness through Go's
     `crypto.Signer` interface; pass an `io.Reader` returning 32
     deterministic bytes (e.g. `bytes.NewReader(make([]byte, 32))`).
@@ -184,14 +191,18 @@ This project follows [Semantic Versioning](https://semver.org/):
 
 During initial development (0.x.y versions):
 
-- **MINOR** version: Breaking changes (`feat!:` / `BREAKING CHANGE:`) *and* new features (`feat:`) — the two are indistinguishable in the version number below 1.0.0
+- **MINOR** version: Breaking changes (`feat!:` / `BREAKING CHANGE:`) *and* new
+  features (`feat:`) — the two are indistinguishable in the version number below
+  1.0.0
 - **PATCH** version: Bug fixes (`fix:`) only
 
-The workflow is configured with `allow-initial-development-versions: true` to handle this correctly.
+The workflow is configured with `allow-initial-development-versions: true` to
+handle this correctly.
 
 ## Changelog
 
-The changelog is automatically generated in the GitHub release notes based on commit messages. To get well-formatted release notes:
+The changelog is automatically generated in the GitHub release notes based on
+commit messages. To get well-formatted release notes:
 
 - Write clear, descriptive commit messages
 - Use the appropriate commit type
@@ -205,9 +216,10 @@ The changelog is automatically generated in the GitHub release notes based on co
 
 ## Skipping Releases
 
-To skip the release process for a commit, add `[skip ci]` or `[ci skip]` to the commit message:
+To skip the release process for a commit, add `[skip ci]` or `[ci skip]` to the
+commit message:
 
-```
+```text
 docs: update contributing guidelines [skip ci]
 ```
 
@@ -218,20 +230,23 @@ docs: update contributing guidelines [skip ci]
 3. **Detailed bodies**: Explain the what and why, not the how
 4. **Reference issues**: Link to relevant GitHub issues
 5. **Breaking changes**: Always document in the footer with `BREAKING CHANGE:`
-6. **Scope usage**: Use consistent scopes like `(crypto)`, `(wallet)`, `(xmss)` for clarity
+6. **Scope usage**: Use consistent scopes like `(crypto)`, `(wallet)`, `(xmss)`
+   for clarity
 
 ## Troubleshooting
 
 ### No release was created
 
 - Check that commits follow the conventional format
-- Verify that commit types warrant a release (`fix:`, `feat:`, or `BREAKING CHANGE:`)
+- Verify that commit types warrant a release (`fix:`, `feat:`, or `BREAKING
+  CHANGE:`)
 - Review the GitHub Actions logs for errors
 
 ### Wrong version bump
 
 - Review commit messages - ensure types are correct
-- For breaking changes, verify `BREAKING CHANGE:` is in the footer or `!` is used
+- For breaking changes, verify `BREAKING CHANGE:` is in the footer or `!` is
+  used
 - Check that the base branch is correct
 
 ### Release failed

@@ -139,6 +139,26 @@ func TestIsValidAddress(t *testing.T) {
 			addr:     "Q" + strings.Repeat("ab", AddressSize-1) + " a",
 			expected: false,
 		},
+		// Surrounding whitespace is rejected at the core boundary: the
+		// length check applies to the string as given. Trimming user input
+		// is an input-layer concern (wallet.js does it there), and a core
+		// validator that trimmed silently would let a non-canonical string
+		// reach storage and comparison.
+		{
+			name:     "invalid - leading whitespace",
+			addr:     " " + validAddr,
+			expected: false,
+		},
+		{
+			name:     "invalid - trailing whitespace",
+			addr:     validAddr + " ",
+			expected: false,
+		},
+		{
+			name:     "invalid - trailing newline",
+			addr:     validAddr + "\n",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -192,6 +212,8 @@ func TestIsValidChecksumAddress(t *testing.T) {
 		{name: "rejects non-hex", addr: "Q" + strings.Repeat("g", 128), expected: false},
 		{name: "digit-only is valid (no checksum information)", addr: "Q" + strings.Repeat("0123456789", 12) + "01234567", expected: true},
 		{name: "all-zero is valid", addr: "Q" + strings.Repeat("0", 128), expected: true},
+		{name: "strict: rejects leading whitespace", addr: " " + v.checksummed, expected: false},
+		{name: "strict: rejects trailing whitespace", addr: v.checksummed + " ", expected: false},
 	}
 
 	for _, tt := range tests {

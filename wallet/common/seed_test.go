@@ -170,6 +170,26 @@ func TestHexStrToSeed_With0xPrefix(t *testing.T) {
 	}
 }
 
+// TestHexStrToSeed_DoubledPrefix locks the single-strip rule: exactly one
+// "0x"/"0X" is removed, so a doubled prefix is rejected here just as it is by
+// the wallet-level constructors. Chained TrimPrefix calls used to strip
+// "0X0x" and accept the result.
+func TestHexStrToSeed_DoubledPrefix(t *testing.T) {
+	var seed Seed
+	for i := range seed {
+		seed[i] = byte(i)
+	}
+	body := hex.EncodeToString(seed[:])
+
+	for _, prefix := range []string{"0x0x", "0X0x", "0x0X", "0X0X"} {
+		t.Run(prefix, func(t *testing.T) {
+			if _, err := HexStrToSeed(prefix + body); err == nil {
+				t.Errorf("HexStrToSeed(%q + body) should reject a doubled prefix", prefix)
+			}
+		})
+	}
+}
+
 func TestHexStrToSeed_InvalidHex(t *testing.T) {
 	invalidHex := strings.Repeat("zz", SeedSize)
 	_, err := HexStrToSeed(invalidHex)

@@ -1,0 +1,32 @@
+// markdownlint configuration for go-qrllib.
+//
+// Scope: everything markdownlint checks affects how a document renders or
+// how consistently it reads. Rules that would require reformatting content
+// with no rendering effect are tuned rather than switched off, so the gate
+// stays meaningful instead of becoming noise people learn to ignore.
+{
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules"],
+  "config": {
+    "default": true,
+
+    // Prose wraps at 80 columns. Tables and code blocks are exempt: a hex
+    // vector, a long URL, or an aligned table cannot be wrapped without
+    // changing what it means, and MD013's non-strict mode already exempts a
+    // single unbreakable token that overflows on its own.
+    "MD013": {
+      "line_length": 80,
+      "tables": false,
+      "code_blocks": false
+    },
+
+    // Tables are compact: one space of padding, no column alignment. The
+    // default "any" style picks whichever style a table is closest to, which
+    // for our widest tables is "aligned" — that would pad short cells out to
+    // the width of a 200-character one. Compact keeps the source readable and
+    // is auto-fixable.
+    "MD060": {
+      "style": "compact"
+    }
+  }
+}

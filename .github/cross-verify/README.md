@@ -1,27 +1,37 @@
 # Cross-Implementation Verification
 
-This directory contains helper files for cross-implementation verification tests run by GitHub Actions.
+This directory contains helper files for cross-implementation verification tests
+run by GitHub Actions.
 
 ## Overview
 
-These tests verify that go-qrllib's signature implementations are interoperable with the authoritative reference implementations. The ML-KEM-1024 KEM is additionally cross-verified against the Go standard library's FIPS 203-validated `crypto/mlkem`.
+These tests verify that go-qrllib's signature implementations are interoperable
+with the authoritative reference implementations. The ML-KEM-1024 KEM is
+additionally cross-verified against the Go standard library's FIPS 203-validated
+`crypto/mlkem`.
 
 ## Tests
 
 ### ML-DSA-87 (FIPS 204)
-- Reference: https://github.com/pq-crystals/dilithium (current master)
+
+- Reference: <https://github.com/pq-crystals/dilithium> (current master)
 - Tests bidirectional signature verification with context parameter
 - Key sizes: PK=2592, SK=4896, Sig=4627 bytes
 
 ### SPHINCS+ (SHAKE-256s-robust)
-- Reference: https://github.com/sphincs/sphincsplus @ branch `consistent-basew`
+
+- Reference: <https://github.com/sphincs/sphincsplus> @ branch
+  `consistent-basew`
 - Parameters: PARAMS=sphincs-shake-256s THASH=robust
 - Tests bidirectional signature verification
 - Key sizes: PK=64, SK=128, Seed=96, Sig=29792 bytes
-- Note: Uses `consistent-basew` branch which has the corrected FORS index decoding (see [NIST PQC Forum discussion](https://groups.google.com/a/list.nist.gov/g/pqc-forum/c/88tuvtb7nN4/m/DA1QCoJWBAAJ))
+- Note: Uses `consistent-basew` branch which has the corrected FORS index
+  decoding (see [NIST PQC Forum
+  discussion](https://groups.google.com/a/list.nist.gov/g/pqc-forum/c/88tuvtb7nN4/m/DA1QCoJWBAAJ))
 
 ### XMSS (SHA2_10_256) - Bidirectional via the rfc8391 sub-package
-- Reference: https://github.com/XMSS/xmss-reference @ commit `7793c40`
+
+- Reference: <https://github.com/XMSS/xmss-reference> @ commit `7793c40`
 - Parameters: XMSS-SHA2_10_256 (OID 0x00000001), height=10, n=32, w=16
 - Tests **bidirectional** verification using the
   [`crypto/xmss/rfc8391`](../../crypto/xmss/rfc8391/) sub-package on the
@@ -44,11 +54,20 @@ These tests verify that go-qrllib's signature implementations are interoperable 
 
 #### Why a sub-package was needed for the reverse direction
 
-go-qrllib's primary `xmss.InitializeTree` entry point produces signatures whose **wire format matches RFC 8391** (the forward direction `xmss_sign.go → xmss_verify_ref.c` has always worked), but a 48-byte seed handed to it does NOT produce the same keypair the reference would derive from a literal 96-byte seed. Two QRL-specific conventions caused this:
+go-qrllib's primary `xmss.InitializeTree` entry point produces signatures whose
+**wire format matches RFC 8391** (the forward direction `xmss_sign.go →
+xmss_verify_ref.c` has always worked), but a 48-byte seed handed to it does NOT
+produce the same keypair the reference would derive from a literal 96-byte seed.
+Two QRL-specific conventions caused this:
 
-1. **Seed expansion**: `xmss.InitializeTree` SHAKE256-expands a 48-byte seed into the 96 bytes (SK_SEED || SK_PRF || PUB_SEED) the construction needs. The RFC 8391 reference implementation takes those 96 bytes directly with no expansion step.
+1. **Seed expansion**: `xmss.InitializeTree` SHAKE256-expands a 48-byte seed
+   into the 96 bytes (SK_SEED || SK_PRF || PUB_SEED) the construction needs. The
+   RFC 8391 reference implementation takes those 96 bytes directly with no
+   expansion step.
 
-2. **Public-key prefix**: QRL's extended-PK format prefixes the 32-byte root and 32-byte pub_seed with a 3-byte QRL descriptor. RFC 8391 prefixes them with a 4-byte parameter-set OID.
+2. **Public-key prefix**: QRL's extended-PK format prefixes the 32-byte root and
+   32-byte pub_seed with a 3-byte QRL descriptor. RFC 8391 prefixes them with a
+   4-byte parameter-set OID.
 
 The [`crypto/xmss/rfc8391`](../../crypto/xmss/rfc8391/) sub-package
 addresses both. `rfc8391.NewKeyPair(p, expandedSeed *[96]uint8)` takes
@@ -58,9 +77,9 @@ between go-qrllib's internal representation and the RFC byte layout.
 
 #### Forward direction: go-qrllib → reference
 
-* `xmss_sign.go` (Go) generates a keypair via the QRL `xmss.InitializeTree`
+- `xmss_sign.go` (Go) generates a keypair via the QRL `xmss.InitializeTree`
   entry point, signs, writes pk + sig + msg to `/tmp/`.
-* `xmss_verify_ref.c` (C) reads the artefacts, prepends an RFC 8391
+- `xmss_verify_ref.c` (C) reads the artefacts, prepends an RFC 8391
   OID to the pk, calls `xmss_sign_open()`. **Already worked before this
   PR; signature byte layout matches at the wire level.**
 
@@ -86,23 +105,46 @@ between go-qrllib's internal representation and the RFC byte layout.
   check is the actual bidirectional-equivalence proof; signature
   verification is then a straightforward consequence.
 
-**Note**: XMSS in this library is a legacy algorithm: QRL's XMSS implementation predates RFC 8391 (Aug 2018), and the package is maintained as a v1 → v2 migration shim so QRL v1 mainnet addresses remain parseable, verifiable, and signable. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205, formerly SPHINCS+) is reserved as a wallet type in the QRL descriptor format but is not currently issuable. The implementation here remains the pre-FIPS-205 SPHINCS+ submission, and finalized parameter set under FIPS 205 remains to be determined.  Committing to a specific SLH-DSA parameter set under FIPS 205, and so activating the wallet path now, would commit users to a parameter set that may change.
+**Note**: XMSS in this library is a legacy algorithm: QRL's XMSS implementation
+predates RFC 8391 (Aug 2018), and the package is maintained as a v1 → v2
+migration shim so QRL v1 mainnet addresses remain parseable, verifiable, and
+signable. For new applications, use ML-DSA-87 (FIPS 204). SLH-DSA (FIPS 205,
+formerly SPHINCS+) is reserved as a wallet type in the QRL descriptor format but
+is not currently issuable.
+
+FIPS 205 itself is settled: NIST finalized it in August 2024, and it specifies
+twelve parameter sets (SHA2 and SHAKE, at 128/192/256 bits, each in a fast `f`
+and small `s` variant). What is undetermined is QRL's choice among them, not
+the standard. The implementation cross-verified here is the pre-FIPS-205
+SPHINCS+ submission at `SHAKE-256s-robust`, and FIPS 205 standardizes only the
+simple instantiation — so this parameter set is not one of the twelve.
+Activating the wallet path therefore means first selecting a standardized
+parameter set and updating the implementation to match; doing it now would
+commit users to a choice QRL has not made.
 
 ### ML-KEM-1024 (FIPS 203) — vs Go stdlib `crypto/mlkem`
 
-ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so cross-verification checks **shared-secret agreement** rather than signature interoperability. The reference is an independent Go implementation — the standard library's FIPS 203-validated `crypto/mlkem` — so no C reference is cloned or compiled; the check runs in-process.
+ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so
+cross-verification checks **shared-secret agreement** rather than signature
+interoperability. The reference is an independent Go implementation — the
+standard library's FIPS 203-validated `crypto/mlkem` — so no C reference is
+cloned or compiled; the check runs in-process.
 
-- Reference: Go standard library [`crypto/mlkem`](https://pkg.go.dev/crypto/mlkem) (FIPS 203)
+- Reference: Go standard library
+  [`crypto/mlkem`](https://pkg.go.dev/crypto/mlkem) (FIPS 203)
 - `mlkem1024_crossverify.go` runs 1000 fresh keys and asserts:
-  1. the same 64-byte seed (`d || z`) derives an identical encapsulation key in both implementations;
-  2. a stdlib-produced ciphertext decapsulates to the same shared secret under go-qrllib; and
-  3. a go-qrllib-produced ciphertext decapsulates to the same shared secret under the stdlib.
+  1. the same 64-byte seed (`d || z`) derives an identical encapsulation key in
+     both implementations;
+  2. a stdlib-produced ciphertext decapsulates to the same shared secret under
+     go-qrllib; and
+  3. a go-qrllib-produced ciphertext decapsulates to the same shared secret
+     under the stdlib.
 - Key sizes: EK=1568, seed=64, ciphertext=1568, shared secret=32 bytes
 
 ## Files
 
 | File | Description |
-|------|-------------|
+| --- | --- |
 | `mldsa87_sign.go` | Generate go-qrllib ML-DSA-87 signature |
 | `mldsa87_verify.go` | Verify reference ML-DSA-87 signature with go-qrllib |
 | `mldsa87_sign_ref.c` | Generate pq-crystals ML-DSA-87 signature |

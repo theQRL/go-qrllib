@@ -67,14 +67,14 @@ jobs:
 
       - name: Checkout
         if: steps.gate.outputs.ready == 'true'
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Go
         if: steps.gate.outputs.ready == 'true'
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25'
 
@@ -99,13 +99,13 @@ jobs:
       attestations: write  # write SLSA / SBOM attestations to the repo's attestation store
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.25'
 
@@ -131,14 +131,14 @@ jobs:
 
       # Generate SBOM using Syft
       - name: Generate SBOM (SPDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           format: spdx-json
           output-file: dist/sbom-spdx.json
           artifact-name: sbom-spdx.json
 
       - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           format: cyclonedx-json
           output-file: dist/sbom-cyclonedx.json
@@ -146,7 +146,7 @@ jobs:
 
       # Attest checksums with GitHub attestations (Sigstore-backed)
       - name: Attest checksums
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/checksums-sha256.txt
@@ -167,7 +167,7 @@ jobs:
 
       # Attest go.mod directly (go.sum no longer exists — zero dependencies)
       - name: Attest module files
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: go.mod
 
@@ -199,7 +199,7 @@ jobs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
