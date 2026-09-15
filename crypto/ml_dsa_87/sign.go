@@ -346,6 +346,21 @@ func cryptoSignVerifyInternal(sig [CRYPTO_BYTES]uint8, m []uint8, pre []uint8, p
 	var t1, w1, h polyVecK
 
 	unpackPk(&rho, &t1, pk)
+
+	// Reject the universally-forgeable all-zero-t1 public key (finding H1).
+	// With t1 = 0 the reconstructed commitment
+	//   w1' = UseHint(h, A·z - c·2^d·t1)
+	// no longer depends on the challenge c, so a signature can be forged
+	// from public data alone (set z = 0, h = 0, c~ = H(mu || w1Encode(0))).
+	// This is the ML-DSA analogue of rejecting the BLS infinity public key.
+	// The check lives here, at the lowest verify chokepoint, because the
+	// exported Verify/Open take a raw key pointer with no constructor, so a
+	// caller can reach this path without going through the wallet import
+	// guards.
+	if polyVecKIsZero(&t1) {
+		return false, cryptoerrors.ErrInvalidPublicKey
+	}
+
 	if unpackSig(&c, &z, &h, sig) != 0 {
 		return false, nil
 	}

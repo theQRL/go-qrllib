@@ -18,6 +18,11 @@ const (
 	ErrInvalidPKSize                     = "%s invalid pkBytes size %d, expected %d"
 	ErrInvalidSeedLength                 = "%s invalid seed length %d, expected %d"
 	ErrInvalidExtendedSeedLength         = "%s invalid extended seed length %d, expected %d"
+	// ErrZeroT1PublicKey is returned when a public key's t1 region is all
+	// zero. Such a key is universally forgeable (finding H1) and is rejected
+	// at construction, mirroring the core verify-time guard in
+	// crypto/ml_dsa_87 and the BLS infinity-public-key rejection.
+	ErrZeroT1PublicKey = "%s public key t1 is all zero and is universally forgeable"
 )
 
 // Sentinel errors for wallet-type gating. Compare with errors.Is.

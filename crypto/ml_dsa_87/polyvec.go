@@ -190,6 +190,21 @@ func polyVecKCAddQ(v *polyVecK) {
 	}
 }
 
+// polyVecKIsZero reports whether every coefficient of v is zero. Used to
+// reject the universally-forgeable all-zero-t1 public key during
+// verification (finding H1). The branchless OR-accumulate keeps the style
+// uniform with the rest of the package; after polyT1Unpack every
+// coefficient is in [0, 2^10), so the accumulator is zero iff v is zero.
+func polyVecKIsZero(v *polyVecK) bool {
+	var acc int32
+	for i := 0; i < K; i++ {
+		for j := 0; j < N; j++ {
+			acc |= v.vec[i].coeffs[j]
+		}
+	}
+	return acc == 0
+}
+
 func polyVecKPackW1(r []uint8, w1 *polyVecK) error {
 	if len(r) != K*POLY_W1_PACKED_BYTES {
 		//coverage:ignore
