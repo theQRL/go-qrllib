@@ -20,7 +20,7 @@ const (
 	ErrInvalidExtendedSeedLength         = "%s invalid extended seed length %d, expected %d"
 	// ErrZeroT1PublicKey wraps cryptoerrors.ErrZeroT1PublicKey with the
 	// wallet type. Returned by BytesToPK / HexStrToPK for a public key
-	// whose t1 region is all zero; such a key is universally forgeable.
+	// whose t1 region is all zero, a shape key generation never produces.
 	ErrZeroT1PublicKey = "%s public key rejected: %w"
 )
 

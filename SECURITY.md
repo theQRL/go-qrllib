@@ -65,7 +65,7 @@ This library assumes:
 | Stateless | Yes |
 | Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
 | Signature malleability | No (canonical encoding enforced) |
-| Public-key validation | **Enforced at construction.** `Verify`/`Open` take a `*PublicKey` obtainable only via `ParsePublicKey` or `MLDSA87.PublicKey`, both of which reject the universally forgeable all-zero-`t1` key (with `t1 = 0` the verifier's commitment no longer depends on the challenge, so anyone can sign any message from public data). The FIPS 204 primitive itself is deliberately left unvalidating — Algorithm 8 has no key-validity precondition and the C2SP/wycheproof `ZeroPublicKey` vectors (tcId 66, 174) require such keys to verify — so the library stays conformant while the exported API cannot be handed an unvalidated key. The zero value `PublicKey{}` is inert. See `.github/wycheproof/README.md`. |
+| Public-key validation | `Verify`/`Open` take a `*PublicKey`, obtainable only from `ParsePublicKey` or `MLDSA87.PublicKey`; both reject an all-zero `t1`, a shape key generation never produces and under which the verifier would accept a signature anyone can compute. The FIPS 204 primitive is unchanged: Algorithm 8 has no key check and Wycheproof tcId 66 and 174 require that shape to verify. The rule is a minimum; keys with very small `t1` are not caught (`TestValidatePublicKey_KnownGap_SmallT1NotRejected`, tracked follow-up). The zero value `PublicKey{}` is rejected. See `.github/wycheproof/README.md`. |
 
 **Security Level**: NIST Level 5 (equivalent to AES-256)
 
@@ -471,8 +471,8 @@ nil-PK guard as defense-in-depth and surface the same typed sentinels.
 otherwise unvalidated `*PublicKey` — one not produced by `ParsePublicKey` or
 `MLDSA87.PublicKey`: `Verify` returns `false`, `Open` returns
 `(nil, ErrInvalidPublicKey)`. `ParsePublicKey` itself returns
-`ErrInvalidPublicKey` for a wrong-length input and `ErrZeroT1PublicKey` for the
-forgeable all-zero-`t1` key. Regression tests: `publickey_test.go`
+`ErrInvalidPublicKey` for a wrong-length input and `ErrZeroT1PublicKey` for an
+all-zero `t1`. Regression tests: `publickey_test.go`
 (`TestPublicKey_ZeroValueRejected`, `TestParsePublicKey_*`).
 
 Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk

@@ -104,12 +104,12 @@ component is all zero (tcId 66, and tcId 174–239). Upstream's note on the
 > The public key contains a zero vector. This makes it trivial to forge
 > signatures, but that's none of the verification algorithm's business.
 
-tcId 66 and 174 are `valid` and **must verify**. FIPS 204 Algorithm 8 has
+tcId 66 and 174 are `valid` and must verify. FIPS 204 Algorithm 8 has
 no key-validity precondition, so the primitive under
 `crypto/ml_dsa_87.Verify` accepts them; adding a zero-`t1` rejection inside
 the primitive would fail these vectors and make it non-conformant.
 
-Rejecting such keys is a *key-validation* policy, kept separate from the
+Rejecting such keys is a key-validation step kept separate from the
 primitive:
 
 - `crypto/ml_dsa_87.Verify` / `Open` take a `*PublicKey`, which outside

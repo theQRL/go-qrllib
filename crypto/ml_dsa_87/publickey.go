@@ -16,15 +16,14 @@ import (
 //
 // The FIPS 204 Algorithm 8 primitive underneath performs no key
 // validation, as the standard specifies. In-package tests construct a
-// PublicKey directly to exercise it on arbitrary inputs — the
-// C2SP/wycheproof ZeroPublicKey vectors require an all-zero-t1 key to
-// verify. That path is intentionally unreachable from other packages.
+// PublicKey directly to exercise it on arbitrary inputs, including the
+// all-zero-t1 keys the C2SP/wycheproof ZeroPublicKey vectors require it to
+// accept. That path is unreachable from other packages.
 //
-// The zero value PublicKey{} is NOT a usable key. Go always allows a zero
-// value to be declared, and its zero bytes are exactly the forgeable
-// all-zero-t1 key, so the type carries an unexported validity marker that
-// only the validating constructors set; [Verify] and [Open] reject a key
-// without it.
+// The zero value PublicKey{} is not a usable key. Go always allows a zero
+// value to be declared, and its bytes are exactly the all-zero-t1 shape, so
+// the type carries an unexported validity marker that only the validating
+// constructors set; [Verify] and [Open] reject a key without it.
 //
 // PublicKey follows the [crypto.PublicKey] Equal convention and is what
 // [CryptoSigner.Public] returns.
@@ -37,8 +36,7 @@ type PublicKey struct {
 
 // ParsePublicKey decodes a packed public key (rho || t1) and validates it.
 // It returns [cryptoerrors.ErrInvalidPublicKey] for a wrong-length input
-// and [cryptoerrors.ErrZeroT1PublicKey] for the universally forgeable
-// all-zero-t1 key.
+// and [cryptoerrors.ErrZeroT1PublicKey] for an all-zero t1.
 func ParsePublicKey(b []byte) (*PublicKey, error) {
 	if len(b) != CRYPTO_PUBLIC_KEY_BYTES {
 		return nil, cryptoerrors.ErrInvalidPublicKey

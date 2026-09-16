@@ -4,36 +4,32 @@ import (
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
-// ValidatePublicKey reports whether pk is safe to use as a verification key.
+// ValidatePublicKey checks a packed public key before it is used for
+// verification. It returns [cryptoerrors.ErrPublicKeyNil] for a nil key and
+// [cryptoerrors.ErrZeroT1PublicKey] when the t1 region (every byte after
+// rho) is all zero. Any other well-formed key passes.
 //
-// This is NOT part of FIPS 204. Algorithm 8 (ML-DSA.Verify) has no
-// key-validity precondition and the primitive under [Verify] / [Open] does
-// not perform it, so the primitive stays conformant and keeps passing the
-// C2SP/wycheproof ZeroPublicKey vectors (mldsa_87_verify_test.json tcId 66
-// and 174), which require a valid signature under an all-zero-t1 key to
-// verify. See .github/wycheproof/README.md.
+// Key generation never produces an all-zero t1, so this only ever rejects a
+// crafted key. It is rejected because, with t1 = 0, the value the verifier
+// reconstructs no longer depends on the challenge, and a signature that
+// anyone can compute from the key alone verifies for every message. This is
+// the key the C2SP/wycheproof ZeroPublicKey vectors are built on.
 //
-// ValidatePublicKey implements the separate "assurance of public key
-// validity" step (NIST SP 800-89). It is applied by [ParsePublicKey] and by
-// key generation — the only ways to obtain a [PublicKey] from outside this
-// package — so every key that reaches [Verify] / [Open] has passed it by
-// construction. Callers need not invoke it directly; it is exported for
-// fail-fast checks on raw bytes, as in the wallet layer's BytesToPK.
+// The check is separate from [Verify] and [Open] on purpose. FIPS 204
+// Algorithm 8 has no key-validity step, and Wycheproof requires a
+// conformant verifier to accept those vectors (tcId 66 and 174), so the
+// primitive stays as the standard specifies and validation runs once, in
+// [ParsePublicKey] and in key generation, the only ways to obtain a
+// [PublicKey]. It is exported for callers that want the same check on raw
+// bytes, as the wallet layer's BytesToPK does.
 //
-// It currently rejects exactly one class of key: t1 == 0. With t1 = 0 the
-// verifier's reconstructed commitment
-//
-//	w1' = UseHint(h, A·z − c·2^d·t1)
-//
-// no longer depends on the challenge c, so the triple
-// (z = 0, h = 0, c~ = H(mu || w1Encode(0))) is a valid signature for any
-// message under any such key, computable from public data alone. This is
-// the ML-DSA analogue of the BLS infinity public key. Because q is prime
-// and 2^d·t1 < q for every packed coefficient, 2^d·t1 ≡ 0 (mod q) only
-// when t1 = 0, so exact zero is the only key with this property.
-//
-// Returns [cryptoerrors.ErrPublicKeyNil] if pk is nil and
-// [cryptoerrors.ErrZeroT1PublicKey] if the t1 region is all zero.
+// The rule is a minimum, not a full description of which crafted keys are
+// weak. A key whose t1 is small enough that HighBits(c·2^d·t1) is zero for
+// the message's challenge also verifies such a signature and passes this
+// check. Honest keys are nowhere near that region. Tightening the rule is a
+// tracked follow-up across the QRL implementations; see
+// TestValidatePublicKey_KnownGap_SmallT1NotRejected.
+
 func ValidatePublicKey(pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) error {
 	if pk == nil {
 		return cryptoerrors.ErrPublicKeyNil

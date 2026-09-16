@@ -19,7 +19,7 @@ type PK [PKSize]byte
 
 // BytesToPK parses a packed ML-DSA-87 public key. It rejects a key of the
 // wrong length and a key whose t1 region is all zero (see
-// [ml_dsa_87.ValidatePublicKey]); the latter is universally forgeable.
+// [ml_dsa_87.ValidatePublicKey]).
 func BytesToPK(pkBytes []byte) (PK, error) {
 	var pk PK
 

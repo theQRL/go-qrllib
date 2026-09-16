@@ -159,8 +159,8 @@ if err != nil {
 valid := ml_dsa_87.Verify(ctx, message, signature, signer.PublicKey())
 
 // Verify with a key received as bytes. ParsePublicKey is the only way to
-// turn bytes into a key Verify accepts: it rejects wrong lengths and the
-// universally forgeable all-zero-t1 key, so validation cannot be skipped.
+// turn bytes into a key Verify accepts; it checks the length and rejects
+// an all-zero t1, a shape key generation never produces.
 pk, err := ml_dsa_87.ParsePublicKey(pkBytes)
 if err != nil {
     log.Fatal(err) // ErrInvalidPublicKey or ErrZeroT1PublicKey

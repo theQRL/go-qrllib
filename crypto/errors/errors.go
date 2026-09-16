@@ -21,8 +21,8 @@ var (
 	ErrSecretKeyZeroized = errors.New("secret key is zeroized")
 	ErrKeyGeneration     = errors.New("key generation failed")
 	// ErrZeroT1PublicKey is returned by key validation when an ML-DSA
-	// public key's t1 component is all zero. Such a key is universally
-	// forgeable and must never be accepted from an untrusted source.
+	// public key's t1 component is all zero, a shape key generation never
+	// produces and the verifier must not be handed.
 	ErrZeroT1PublicKey = errors.New("public key t1 is all zero")
 )
 

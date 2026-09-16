@@ -278,10 +278,9 @@ func (w *Wallet) Zeroize() {
 // Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
 //
 // The key is passed through [ml_dsa_87.ParsePublicKey], which applies
-// [ml_dsa_87.ValidatePublicKey] — so a key whose t1 region is all zero,
-// which is universally forgeable, is rejected. This runs on every call
-// because PK is a plain array type and can be constructed without going
-// through [BytesToPK].
+// [ml_dsa_87.ValidatePublicKey], so a key whose t1 region is all zero is
+// rejected. This runs on every call because PK is a plain array type and
+// can be constructed without going through [BytesToPK].
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if pk == nil {
 		return false

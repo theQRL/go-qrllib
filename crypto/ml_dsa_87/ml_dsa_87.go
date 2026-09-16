@@ -55,30 +55,20 @@
 // when non-nil, its bytes drive `RND_BYTES`; when nil, `crypto/rand`
 // is used.
 //
-// # Public Keys and Validation
+// # Public Keys
 //
-// [Verify] and [Open] take a *[PublicKey], not raw bytes. Outside this
-// package a PublicKey can only be obtained from [ParsePublicKey] (for
-// bytes received from elsewhere) or [MLDSA87.PublicKey] (for a keypair
-// you hold). Both apply [ValidatePublicKey], so every key the primitive
-// can be handed has already been validated — by construction, not by
-// convention. The zero value PublicKey{} is inert and is rejected.
+// [Verify] and [Open] take a *[PublicKey] rather than raw bytes. Outside
+// this package one can only be obtained from [ParsePublicKey], for bytes
+// received from elsewhere, or [MLDSA87.PublicKey], for a keypair you hold.
+// Both run [ValidatePublicKey], so a key that reaches the verifier has
+// already been checked. The zero value PublicKey{} is rejected.
 //
-// Validation currently rejects one class of key: t1 == 0. Such a key is
-// universally forgeable — with t1 = 0 the verifier's reconstructed
-// commitment no longer depends on the challenge, so anyone can produce
-// a signature for any message from public data alone (the ML-DSA
-// analogue of the BLS infinity public key).
-//
-// The FIPS 204 Algorithm 8 primitive itself performs no key validation,
-// as the standard specifies; the C2SP/wycheproof ZeroPublicKey vectors
-// require a conformant verifier to accept signatures under such a key,
-// and this package does (see .github/wycheproof/README.md). Keeping the
-// check at construction rather than inside Verify is what lets the
-// library be both conformant and safe. Other QRL implementations
-// (rust-qrllib, qrypto.js/wallet.js) apply the same rule at their key
-// boundaries so a signature is valid or invalid consistently across
-// clients.
+// Validation rejects one key shape, an all-zero t1, which key generation
+// never produces. The FIPS 204 primitive underneath does not check keys,
+// as the standard specifies, and the C2SP/wycheproof vectors require it to
+// accept that shape (tcId 66 and 174); see [ValidatePublicKey] for why it
+// is rejected at construction instead, and for the limits of the rule.
+// rust-qrllib and qrypto.js/wallet.js apply the same rule.
 //
 // # Thread Safety
 //
@@ -317,7 +307,7 @@ func Open(ctx, signatureMessage []uint8, pk *PublicKey) ([]uint8, error) {
 	}
 	if !pk.valid {
 		// Zero-value PublicKey{}: never passed through a validating
-		// constructor. Its bytes are the forgeable all-zero-t1 key.
+		// constructor, and its bytes are the all-zero-t1 shape.
 		return nil, cryptoerrors.ErrInvalidPublicKey
 	}
 	return cryptoSignOpen(signatureMessage, ctx, &pk.packed)
@@ -330,14 +320,13 @@ func Open(ctx, signatureMessage []uint8, pk *PublicKey) ([]uint8, error) {
 // Verify is a conformant implementation of FIPS 204 Algorithm 8 and does
 // no key validation itself. pk is a [PublicKey], which outside this
 // package can only be obtained through [ParsePublicKey] or
-// [MLDSA87.PublicKey], so validation is guaranteed by construction rather
-// than by convention; a zero-value PublicKey{} is rejected outright. See
-// [ValidatePublicKey] for what is rejected and why it is kept out of the
-// primitive.
+// [MLDSA87.PublicKey], so it has already been checked; a zero-value
+// PublicKey{} is rejected. See [ValidatePublicKey] for what the check
+// rejects and why it is kept out of the primitive.
 func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *PublicKey) bool {
 	if pk == nil || !pk.valid {
-		// nil, or the zero value PublicKey{} which never passed through a
-		// validating constructor and whose bytes are the forgeable key.
+		// nil, or the zero value PublicKey{}, which never passed through a
+		// validating constructor.
 		return false
 	}
 	result, err := cryptoSignVerify(signature, message, ctx, &pk.packed)
