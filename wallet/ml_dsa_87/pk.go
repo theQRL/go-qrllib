@@ -27,32 +27,16 @@ func BytesToPK(pkBytes []byte) (PK, error) {
 		return pk, fmt.Errorf(common.ErrInvalidPKSize, wallettype.ML_DSA_87, len(pkBytes), PKSize)
 	}
 
-	// Reject the universally-forgeable all-zero-t1 public key at
-	// construction (finding H1). This is fail-fast defense in depth; the
-	// authoritative guard is in crypto/ml_dsa_87's verify path, since a PK
-	// can also be built without going through this constructor.
-	if hasZeroT1(pkBytes) {
-		return pk, fmt.Errorf(common.ErrZeroT1PublicKey, wallettype.ML_DSA_87)
-	}
-
 	copy(pk[:], pkBytes)
 
+	// Fail fast on import for keys that ValidatePublicKey rejects (today,
+	// the universally-forgeable all-zero-t1 key). This is defense in depth:
+	// PK is a plain array type, so [Verify] re-runs the same validation on
+	// every call for keys built without this constructor.
 	if err := ml_dsa_87.ValidatePublicKey((*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)); err != nil {
 		return PK{}, fmt.Errorf(common.ErrZeroT1PublicKey, wallettype.ML_DSA_87, err)
 	}
 	return pk, nil
-}
-
-// hasZeroT1 reports whether the t1 region of a packed ML-DSA-87 public key
-// (every byte after the rho prefix) is all zero. Callers must ensure
-// pkBytes is at least PKSize bytes long. The branchless OR-accumulate keeps
-// the check independent of where the first non-zero byte falls.
-func hasZeroT1(pkBytes []byte) bool {
-	var acc byte
-	for _, b := range pkBytes[ml_dsa_87.SEED_BYTES:] {
-		acc |= b
-	}
-	return acc == 0
 }
 
 func HexStrToPK(hexStr string) (PK, error) {
