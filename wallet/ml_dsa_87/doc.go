@@ -54,10 +54,12 @@
 // [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
 // "Signing Mode" section for the full discussion.
 //
-// [Wallet.SignDeterministic] is available for protocol flows and test fixtures
-// that require byte-identical signatures for the same wallet and message. It
-// uses the same descriptor-bound context as [Wallet.Sign], but delegates to the
-// crypto package's FIPS 204 deterministic signing mode.
+// [Wallet.SignDeterministic] is available for protocol flows and test
+// fixtures that require byte-identical signatures for the same wallet
+// and message. It binds the same descriptor-derived context as
+// [Wallet.Sign] and delegates to the crypto package's FIPS 204 §3.5
+// deterministic mode, so the two are interchangeable at verification
+// time. Prefer [Wallet.Sign] unless determinism is itself a requirement.
 //
 // # Address Format
 //

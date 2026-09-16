@@ -103,3 +103,27 @@ func ExampleVerify() {
 	// Valid: true
 	// After tampering: false
 }
+
+func ExampleWallet_SignDeterministic() {
+	// Deterministic signing: same wallet + same message → identical bytes.
+	// Restoring from a fixed extended seed makes this example reproducible.
+	wallet, _ := ml_dsa_87.NewWalletFromHexExtendedSeed(
+		"010000f29f58aff0b00de2844f7e20bd9eeaacc379150043beeb328335817512b29fbb7184da84a092f842b2a06d72a24a5d28")
+
+	message := []byte("ML-DSA-87 test message for signing")
+	sig1, _ := wallet.SignDeterministic(message)
+	sig2, _ := wallet.SignDeterministic(message)
+	fmt.Println("Identical:", sig1 == sig2)
+
+	// Deterministic signatures verify exactly like hedged ones.
+	pk := wallet.GetPK()
+	desc := wallet.GetDescriptor().ToDescriptor()
+	fmt.Println("Valid:", ml_dsa_87.Verify(message, sig1[:], &pk, desc))
+
+	// The bytes are a stable function of (seed, descriptor, message).
+	fmt.Printf("Prefix: %x\n", sig1[:8])
+	// Output:
+	// Identical: true
+	// Valid: true
+	// Prefix: c9b6a7ff67fe8017
+}
