@@ -95,6 +95,36 @@ Wrong-length signatures and wrong-length public keys are rejected at
 the API boundary (go-qrllib's `Verify` takes fixed-size arrays); the
 test runner mirrors that and treats them as `Verify`-returns-false.
 
+## ZeroPublicKey Vectors and Key Validation
+
+Two groups in `mldsa_87_verify_test.json` use a public key whose `t1`
+component is all zero (tcId 66, and tcId 174–239). Upstream's note on the
+`ZeroPublicKey` flag reads:
+
+> The public key contains a zero vector. This makes it trivial to forge
+> signatures, but that's none of the verification algorithm's business.
+
+tcId 66 and 174 are `valid` and **must verify**. FIPS 204 Algorithm 8 has
+no key-validity precondition, so `crypto/ml_dsa_87.Verify` accepts them;
+adding a zero-`t1` rejection inside `Verify` would fail these vectors and
+make the primitive non-conformant.
+
+Rejecting such keys is a *key-validation* policy, kept separate from the
+primitive:
+
+- `crypto/ml_dsa_87.ValidatePublicKey` is the exported check. It is not
+  called by `Verify` / `Open`.
+- `wallet/ml_dsa_87.BytesToPK` and `wallet/ml_dsa_87.Verify` both call
+  it, so every wallet-layer path rejects the key.
+- Any consumer that calls the primitive directly with untrusted key
+  bytes (e.g. a consensus precompile) must call `ValidatePublicKey`
+  itself.
+
+The remaining 64 vectors in group 25 (tcId 175–239) are `invalid`
+c~-byte-flip cases under the same key. Keeping the primitive conformant
+also keeps those vectors meaningful; a verify-time key rejection would
+short-circuit before the signature is parsed and pass them vacuously.
+
 ## Running Locally
 
 ```bash

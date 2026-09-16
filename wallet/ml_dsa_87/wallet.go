@@ -204,6 +204,28 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
+// SignDeterministic produces an ML-DSA-87 signature over message using
+// the descriptor-bound signing context and the FIPS 204 §3.5
+// deterministic mode (per-signature RND_BYTES = 32 zero bytes). Two
+// calls over the same message from the same wallet produce byte-identical
+// signatures.
+//
+// Use this only when the deterministic property is itself a protocol or
+// test-fixture requirement — for example, reproducible signatures in
+// node test suites, or RANDAO-style contributions where every signer must
+// produce the same bytes for the same input. General wallet signing
+// should use [Wallet.Sign], which stays hedged by default (TOB-QRLLIB-6).
+//
+// The signing context is identical to [Wallet.Sign], so a deterministic
+// signature verifies under [Verify] with the same public key and
+// descriptor, and a hedged and a deterministic signature over the same
+// message are interchangeable at verification time. See the
+// [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
+// "Signing Mode" section for the full discussion.
+func (w *Wallet) SignDeterministic(message []uint8) ([SigSize]uint8, error) {
+	return w.d.SignDeterministic(common.SigningContext(w.desc.ToDescriptor()), message)
+}
+
 // Zeroize clears sensitive key material from memory.
 // This should be called when the Wallet is no longer needed.
 func (w *Wallet) Zeroize() {
@@ -216,6 +238,13 @@ func (w *Wallet) Zeroize() {
 // Verify reports whether the signature is a valid ML-DSA-87 signature
 // over message under pk and the descriptor-bound signing context.
 // Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
+//
+// Verify also rejects any public key that fails
+// [ml_dsa_87.ValidatePublicKey] — today, a key whose t1 region is all
+// zero, which is universally forgeable. This check lives here rather than
+// in the FIPS 204 primitive so that [ml_dsa_87.Verify] stays conformant;
+// it is applied on every call because PK is a plain array type and can
+// be constructed without going through [BytesToPK].
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if pk == nil {
 		return false
@@ -234,6 +263,10 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	copy(sig[:], signature)
 
 	pk2 := (*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(pk)
+
+	if err := ml_dsa_87.ValidatePublicKey(pk2); err != nil {
+		return false
+	}
 
 	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, pk2)
 }

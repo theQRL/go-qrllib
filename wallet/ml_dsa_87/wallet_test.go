@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	mldsa "github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
 )
@@ -254,7 +255,8 @@ func TestWallet_Sign(t *testing.T) {
 	// public key and descriptor, i.e. the produced sig is valid for THIS
 	// (message, key, descriptor) tuple. The stored reference sig is
 	// independently exercised by TestVerify (which doesn't depend on
-	// reproducing it).
+	// reproducing it) and reproduced byte-for-byte by
+	// TestWallet_SignDeterministic.
 	for creatorName, creator := range walletCreators {
 		for _, tc := range walletTestCases {
 			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
@@ -471,5 +473,168 @@ func TestWallet_Zeroize(t *testing.T) {
 	}
 	if !allZero {
 		t.Error("Seed was not zeroed after Zeroize()")
+	}
+}
+
+// TestWallet_SignDeterministic covers the deterministic signing path across
+// every wallet constructor and stored test case. Each stored wantSignature
+// was captured when wallet signing was deterministic by default, so
+// SignDeterministic must reproduce it byte-for-byte: this pins both the
+// descriptor-bound signing context and the FIPS 204 §3.5 zero-RND mode
+// against vectors that predate the method.
+//
+// The wallet method is a single delegation; its only error source is
+// cryptoSignSignatureWithRnd rejecting len(ctx) > 255, and the wallet
+// context (prefix || version || descriptor) is fixed-size, so the error
+// return is unreachable through this API.
+func TestWallet_SignDeterministic(t *testing.T) {
+	for creatorName, creator := range walletCreators {
+		for _, tc := range walletTestCases {
+			t.Run(fmt.Sprintf("%s_%s", creatorName, tc.name), func(t *testing.T) {
+				w := creator(t, tc)
+				message := []byte(tc.message)
+
+				got1, err := w.SignDeterministic(message)
+				if err != nil {
+					t.Fatalf("SignDeterministic() error: %v", err)
+				}
+				got2, err := w.SignDeterministic(message)
+				if err != nil {
+					t.Fatalf("SignDeterministic() second call error: %v", err)
+				}
+				if got1 != got2 {
+					t.Fatal("SignDeterministic() produced different signatures for the same message")
+				}
+
+				if hex.EncodeToString(got1[:]) != tc.wantSignature {
+					t.Fatalf("SignDeterministic() does not reproduce the stored deterministic-era vector for %q", tc.name)
+				}
+
+				pk := w.GetPK()
+				desc := w.GetDescriptor().ToDescriptor()
+				if !Verify(message, got1[:], &pk, desc) {
+					t.Fatal("SignDeterministic() produced a signature that did not verify")
+				}
+
+				want, err := w.d.SignDeterministic(common.SigningContext(desc), message)
+				if err != nil {
+					t.Fatalf("underlying SignDeterministic() error: %v", err)
+				}
+				if got1 != want {
+					t.Fatal("wallet SignDeterministic() does not match the underlying descriptor-bound signer")
+				}
+			})
+		}
+	}
+}
+
+// TestWallet_SignDeterministic_HedgedInterop checks that hedged and
+// deterministic signatures over the same message differ in bytes but are
+// interchangeable at verification time.
+func TestWallet_SignDeterministic_HedgedInterop(t *testing.T) {
+	w, err := NewWallet()
+	if err != nil {
+		t.Fatalf("NewWallet: %v", err)
+	}
+	message := []byte("hedged vs deterministic")
+	pk := w.GetPK()
+	desc := w.GetDescriptor().ToDescriptor()
+
+	hedged, err := w.Sign(message)
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	det, err := w.SignDeterministic(message)
+	if err != nil {
+		t.Fatalf("SignDeterministic: %v", err)
+	}
+	// A hedged signature draws 32 random RND bytes; colliding with the
+	// all-zero RND of deterministic mode has probability 2^-256.
+	if hedged == det {
+		t.Fatal("hedged Sign() produced the deterministic signature; RND is not being mixed in")
+	}
+	if !Verify(message, hedged[:], &pk, desc) {
+		t.Fatal("hedged signature did not verify")
+	}
+	if !Verify(message, det[:], &pk, desc) {
+		t.Fatal("deterministic signature did not verify")
+	}
+}
+
+// TestWallet_SignDeterministic_ContextBound checks that the deterministic
+// signature is bound to the wallet's descriptor context, message, and key:
+// it must not verify at the crypto layer without the descriptor context,
+// nor for a different message, nor under another wallet's public key.
+func TestWallet_SignDeterministic_ContextBound(t *testing.T) {
+	w, err := NewWallet()
+	if err != nil {
+		t.Fatalf("NewWallet: %v", err)
+	}
+	other, err := NewWallet()
+	if err != nil {
+		t.Fatalf("NewWallet (other): %v", err)
+	}
+	message := []byte("context-bound deterministic signature")
+	pk := w.GetPK()
+	otherPK := other.GetPK()
+	desc := w.GetDescriptor().ToDescriptor()
+
+	sig, err := w.SignDeterministic(message)
+	if err != nil {
+		t.Fatalf("SignDeterministic: %v", err)
+	}
+	if !Verify(message, sig[:], &pk, desc) {
+		t.Fatal("control: signature must verify under its own (pk, descriptor)")
+	}
+
+	// Without the descriptor-derived context the same bytes must fail at
+	// the FIPS 204 layer: the context is part of the signed message prefix.
+	rawPK := (*[mldsa.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)
+	if mldsa.Verify(nil, message, sig, rawPK) {
+		t.Fatal("signature verified with an empty context; descriptor binding is missing")
+	}
+	if !mldsa.Verify(common.SigningContext(desc), message, sig, rawPK) {
+		t.Fatal("control: signature must verify at the crypto layer with the descriptor context")
+	}
+
+	if Verify([]byte("a different message"), sig[:], &pk, desc) {
+		t.Fatal("signature verified for a different message")
+	}
+	if Verify(message, sig[:], &otherPK, desc) {
+		t.Fatal("signature verified under another wallet's public key")
+	}
+}
+
+// TestWallet_SignDeterministic_AfterZeroize mirrors TestWallet_Zeroize for
+// the deterministic path: once the wallet is zeroized, SignDeterministic no
+// longer produces signatures that verify under the wallet's public key.
+func TestWallet_SignDeterministic_AfterZeroize(t *testing.T) {
+	w, err := NewWallet()
+	if err != nil {
+		t.Fatalf("NewWallet: %v", err)
+	}
+	message := []byte("sign, zeroize, sign again")
+	pk := w.GetPK()
+	desc := w.GetDescriptor().ToDescriptor()
+
+	before, err := w.SignDeterministic(message)
+	if err != nil {
+		t.Fatalf("SignDeterministic before Zeroize: %v", err)
+	}
+	if !Verify(message, before[:], &pk, desc) {
+		t.Fatal("control: pre-Zeroize signature must verify")
+	}
+
+	w.Zeroize()
+
+	after, err := w.SignDeterministic(message)
+	if err != nil {
+		t.Fatalf("SignDeterministic after Zeroize returned an error: %v", err)
+	}
+	if after == before {
+		t.Fatal("SignDeterministic after Zeroize reproduced the pre-Zeroize signature; key material was not cleared")
+	}
+	if Verify(message, after[:], &pk, desc) {
+		t.Fatal("SignDeterministic after Zeroize produced a signature that verifies under the original public key")
 	}
 }
