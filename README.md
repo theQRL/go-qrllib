@@ -155,9 +155,17 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Verify
-pk := signer.GetPK()
-valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
+// Verify with your own key
+valid := ml_dsa_87.Verify(ctx, message, signature, signer.PublicKey())
+
+// Verify with a key received as bytes. ParsePublicKey is the only way to
+// turn bytes into a key Verify accepts: it rejects wrong lengths and the
+// universally forgeable all-zero-t1 key, so validation cannot be skipped.
+pk, err := ml_dsa_87.ParsePublicKey(pkBytes)
+if err != nil {
+    log.Fatal(err) // ErrInvalidPublicKey or ErrZeroT1PublicKey
+}
+valid = ml_dsa_87.Verify(ctx, message, signature, pk)
 ```
 
 ### SPHINCS+-256s (primitive; wallet path gated)
@@ -311,7 +319,7 @@ that type is not a valid common descriptor until SLH-DSA activation.
 
 | Type | Thread-Safe? | Notes |
 | --- | --- | --- |
-| `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
+| `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `PublicKey()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
 | `sphincsplus_256s.SphincsPlus256s` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `xmss.XMSS` | **No** | NEVER use concurrently. Index management is not thread-safe. |
 | Package-level `Verify()` | Yes | Stateless, safe to call concurrently |

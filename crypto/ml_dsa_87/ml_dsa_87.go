@@ -55,11 +55,37 @@
 // when non-nil, its bytes drive `RND_BYTES`; when nil, `crypto/rand`
 // is used.
 //
+// # Public Keys and Validation
+//
+// [Verify] and [Open] take a *[PublicKey], not raw bytes. Outside this
+// package a PublicKey can only be obtained from [ParsePublicKey] (for
+// bytes received from elsewhere) or [MLDSA87.PublicKey] (for a keypair
+// you hold). Both apply [ValidatePublicKey], so every key the primitive
+// can be handed has already been validated — by construction, not by
+// convention. The zero value PublicKey{} is inert and is rejected.
+//
+// Validation currently rejects one class of key: t1 == 0. Such a key is
+// universally forgeable — with t1 = 0 the verifier's reconstructed
+// commitment no longer depends on the challenge, so anyone can produce
+// a signature for any message from public data alone (the ML-DSA
+// analogue of the BLS infinity public key).
+//
+// The FIPS 204 Algorithm 8 primitive itself performs no key validation,
+// as the standard specifies; the C2SP/wycheproof ZeroPublicKey vectors
+// require a conformant verifier to accept signatures under such a key,
+// and this package does (see .github/wycheproof/README.md). Keeping the
+// check at construction rather than inside Verify is what lets the
+// library be both conformant and safe. Other QRL implementations
+// (rust-qrllib, qrypto.js/wallet.js) apply the same rule at their key
+// boundaries so a signature is valid or invalid consistently across
+// clients.
+//
 // # Thread Safety
 //
-// An MLDSA87 instance is safe for concurrent reads (GetPK, GetSK, GetSeed),
-// but Sign and SignAttached should not be called concurrently on the same instance.
-// The package-level Verify and Open functions are safe for concurrent use.
+// An MLDSA87 instance is safe for concurrent reads (GetPK, PublicKey, GetSK,
+// GetSeed), but Sign and SignAttached should not be called concurrently on
+// the same instance. PublicKey values are immutable once constructed. The
+// package-level Verify and Open functions are safe for concurrent use.
 package ml_dsa_87
 
 import (
