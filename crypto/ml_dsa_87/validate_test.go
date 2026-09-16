@@ -153,12 +153,12 @@ func TestVerify_AcceptsZeroT1ForgeryByDesign(t *testing.T) {
 
 			// FIPS 204 Algorithm 8: the forgery verifies. Do not "fix" this
 			// here; it would fail wycheproof tcId 66 / 174.
-			if !Verify(tc.ctx, tc.msg, sig, pk) {
+			if !Verify(tc.ctx, tc.msg, sig, rawPK(*pk)) {
 				t.Fatal("Verify rejected a zero-t1 forgery; the primitive is no longer " +
 					"FIPS 204 conformant and will fail the wycheproof ZeroPublicKey vectors")
 			}
 			sealed := append(append([]uint8{}, sig[:]...), tc.msg...)
-			if got, err := Open(tc.ctx, sealed, pk); err != nil || string(got) != string(tc.msg) {
+			if got, err := Open(tc.ctx, sealed, rawPK(*pk)); err != nil || string(got) != string(tc.msg) {
 				t.Fatalf("Open rejected a zero-t1 forgery (err=%v); see Verify note", err)
 			}
 
@@ -181,14 +181,14 @@ func TestVerify_ZeroT1ForgeryControl(t *testing.T) {
 	ctx := []uint8("ZOND")
 	msg := []uint8("control message")
 
-	if Verify(ctx, msg, forgeZeroT1Sig(t, &pk, ctx, msg), &pk) {
+	if Verify(ctx, msg, forgeZeroT1Sig(t, &pk, ctx, msg), rawPK(pk)) {
 		t.Fatal("control: zero-t1 forgery recipe verified under a real key")
 	}
 	genuine, err := d.Sign(ctx, msg)
 	if err != nil {
 		t.Fatalf("setup: Sign: %v", err)
 	}
-	if !Verify(ctx, msg, genuine, &pk) {
+	if !Verify(ctx, msg, genuine, rawPK(pk)) {
 		t.Fatal("control: genuine signature must verify")
 	}
 }

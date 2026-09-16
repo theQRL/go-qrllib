@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// Self-verify
-	if !ml_dsa_87.Verify(ctx, msg, sig, &pk) {
+	if !ml_dsa_87.Verify(ctx, msg, sig, d.PublicKey()) {
 		fmt.Fprintln(os.Stderr, "Self-verification failed!")
 		os.Exit(1)
 	}

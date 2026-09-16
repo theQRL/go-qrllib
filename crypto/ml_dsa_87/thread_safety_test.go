@@ -37,7 +37,7 @@ func TestThreadSafetyConcurrentVerify(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
-			if !Verify(ctx, msg, sig, &pk) {
+			if !Verify(ctx, msg, sig, rawPK(pk)) {
 				errors <- nil // Use nil to indicate verification failure
 			}
 		}()
@@ -82,7 +82,7 @@ func TestThreadSafetyConcurrentSign(t *testing.T) {
 			}
 
 			pk := mldsa.GetPK()
-			if !Verify(ctx, msg, sig, &pk) {
+			if !Verify(ctx, msg, sig, rawPK(pk)) {
 				errors <- "Verification failed"
 				return
 			}
@@ -176,7 +176,7 @@ func TestThreadSafetyConcurrentSignAttachedOpen(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			opened, err := Open(ctx, sealedMsgs[idx], &pk)
+			opened, err := Open(ctx, sealedMsgs[idx], rawPK(pk))
 			if err != nil {
 				t.Errorf("Concurrent open failed: %v", err)
 			}
@@ -253,7 +253,7 @@ func TestThreadSafetySameInstanceSign(t *testing.T) {
 				return
 			}
 
-			if !Verify(ctx, msg, sig, &pk) {
+			if !Verify(ctx, msg, sig, rawPK(pk)) {
 				t.Error("Verification failed")
 			}
 		}(i)

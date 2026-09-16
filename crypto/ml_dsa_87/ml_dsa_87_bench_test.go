@@ -70,7 +70,7 @@ func BenchmarkVerify(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			b.Fatal("verification failed")
 		}
 	}
@@ -112,7 +112,7 @@ func BenchmarkOpen(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		opened, err := Open(ctx, sealed, &pk)
+		opened, err := Open(ctx, sealed, rawPK(pk))
 		if err != nil || opened == nil {
 			b.Fatalf("open failed: %v", err)
 		}

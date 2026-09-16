@@ -7,18 +7,18 @@ import (
 // ValidatePublicKey reports whether pk is safe to use as a verification key.
 //
 // This is NOT part of FIPS 204. Algorithm 8 (ML-DSA.Verify) has no
-// key-validity precondition, and [Verify] / [Open] deliberately do not call
-// this function, so that they remain conformant implementations and keep
-// passing the C2SP/wycheproof ZeroPublicKey vectors (mldsa_87_verify_test.json
-// tcId 66 and 174), which require a valid signature under an all-zero-t1 key
-// to verify. See .github/wycheproof/README.md.
+// key-validity precondition and the primitive under [Verify] / [Open] does
+// not perform it, so the primitive stays conformant and keeps passing the
+// C2SP/wycheproof ZeroPublicKey vectors (mldsa_87_verify_test.json tcId 66
+// and 174), which require a valid signature under an all-zero-t1 key to
+// verify. See .github/wycheproof/README.md.
 //
 // ValidatePublicKey implements the separate "assurance of public key
-// validity" step (NIST SP 800-89). Any caller that accepts a public key from
-// an untrusted source — a wallet import, a consensus precompile, a deposit —
-// MUST call this before [Verify] or [Open]. The wallet layer
-// ([github.com/theQRL/go-qrllib/wallet/ml_dsa_87]) does so on every
-// import and every verification.
+// validity" step (NIST SP 800-89). It is applied by [ParsePublicKey] and by
+// key generation — the only ways to obtain a [PublicKey] from outside this
+// package — so every key that reaches [Verify] / [Open] has passed it by
+// construction. Callers need not invoke it directly; it is exported for
+// fail-fast checks on raw bytes, as in the wallet layer's BytesToPK.
 //
 // It currently rejects exactly one class of key: t1 == 0. With t1 = 0 the
 // verifier's reconstructed commitment

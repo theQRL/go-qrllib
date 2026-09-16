@@ -277,12 +277,11 @@ func (w *Wallet) Zeroize() {
 // over message under pk and the descriptor-bound signing context.
 // Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
 //
-// Verify also rejects any public key that fails
-// [ml_dsa_87.ValidatePublicKey] — today, a key whose t1 region is all
-// zero, which is universally forgeable. This check lives here rather than
-// in the FIPS 204 primitive so that [ml_dsa_87.Verify] stays conformant;
-// it is applied on every call because PK is a plain array type and can
-// be constructed without going through [BytesToPK].
+// The key is passed through [ml_dsa_87.ParsePublicKey], which applies
+// [ml_dsa_87.ValidatePublicKey] — so a key whose t1 region is all zero,
+// which is universally forgeable, is rejected. This runs on every call
+// because PK is a plain array type and can be constructed without going
+// through [BytesToPK].
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if pk == nil {
 		return false
@@ -300,11 +299,10 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	pk2 := (*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(pk)
-
-	if err := ml_dsa_87.ValidatePublicKey(pk2); err != nil {
+	k, err := ml_dsa_87.ParsePublicKey(pk[:])
+	if err != nil {
 		return false
 	}
 
-	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, pk2)
+	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, k)
 }

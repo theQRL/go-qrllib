@@ -28,7 +28,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 
 	// Verify empty message
 	pk := mldsa.GetPK()
-	if !Verify(ctx, emptyMsg, sig, &pk) {
+	if !Verify(ctx, emptyMsg, sig, rawPK(pk)) {
 		t.Error("Failed to verify signature on empty message")
 	}
 
@@ -38,7 +38,7 @@ func TestEdgeCaseZeroLengthMessage(t *testing.T) {
 		t.Fatalf("Failed to sign attached empty message: %v", err)
 	}
 
-	opened, err := Open(ctx, sealed, &pk)
+	opened, err := Open(ctx, sealed, rawPK(pk))
 	if err != nil {
 		t.Errorf("Open returned error: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestEdgeCaseNilMessage(t *testing.T) {
 
 	// Verify nil message
 	pk := mldsa.GetPK()
-	if !Verify(ctx, nilMsg, sig, &pk) {
+	if !Verify(ctx, nilMsg, sig, rawPK(pk)) {
 		t.Error("Failed to verify signature on nil message")
 	}
 }
@@ -102,7 +102,7 @@ func TestEdgeCaseLargeMessage(t *testing.T) {
 			}
 
 			pk := mldsa.GetPK()
-			if !Verify(ctx, largeMsg, sig, &pk) {
+			if !Verify(ctx, largeMsg, sig, rawPK(pk)) {
 				t.Errorf("Failed to verify signature on %d byte message", size)
 			}
 		})
@@ -122,7 +122,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 
 	t.Run("all_zeros_signature", func(t *testing.T) {
 		var zeroSig [CRYPTO_BYTES]uint8
-		if Verify(ctx, msg, zeroSig, &pk) {
+		if Verify(ctx, msg, zeroSig, rawPK(pk)) {
 			t.Error("All-zeros signature should not verify")
 		}
 	})
@@ -132,7 +132,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 		for i := range onesSig {
 			onesSig[i] = 0xFF
 		}
-		if Verify(ctx, msg, onesSig, &pk) {
+		if Verify(ctx, msg, onesSig, rawPK(pk)) {
 			t.Error("All-ones signature should not verify")
 		}
 	})
@@ -140,7 +140,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 	t.Run("random_signature", func(t *testing.T) {
 		var randomSig [CRYPTO_BYTES]uint8
 		_, _ = rand.Read(randomSig[:])
-		if Verify(ctx, msg, randomSig, &pk) {
+		if Verify(ctx, msg, randomSig, rawPK(pk)) {
 			t.Error("Random signature should not verify")
 		}
 	})
@@ -155,7 +155,7 @@ func TestEdgeCaseInvalidSignature(t *testing.T) {
 		for i := 0; i < len(sig); i += len(sig) / 10 { // Test every 10%
 			corruptedSig := sig
 			corruptedSig[i] ^= 0xFF
-			if Verify(ctx, msg, corruptedSig, &pk) {
+			if Verify(ctx, msg, corruptedSig, rawPK(pk)) {
 				t.Errorf("Corrupted signature at byte %d should not verify", i)
 			}
 		}
@@ -193,7 +193,7 @@ func TestEdgeCaseMalformedSignatureHints(t *testing.T) {
 		malformedSig[hintStart+0] = 10
 		malformedSig[hintStart+1] = 10 // Not strictly increasing!
 
-		if Verify(ctx, msg, malformedSig, &pk) {
+		if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 			t.Error("Signature with non-increasing hint indices should not verify")
 		}
 	})
@@ -204,7 +204,7 @@ func TestEdgeCaseMalformedSignatureHints(t *testing.T) {
 		malformedSig[hintStart+0] = 20
 		malformedSig[hintStart+1] = 10 // Decreasing!
 
-		if Verify(ctx, msg, malformedSig, &pk) {
+		if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 			t.Error("Signature with decreasing hint indices should not verify")
 		}
 	})
@@ -218,7 +218,7 @@ func TestEdgeCaseMalformedSignatureHints(t *testing.T) {
 		// But put non-zero data in the hint indices area
 		malformedSig[hintStart+0] = 0xFF // Should be zero if no hints
 
-		if Verify(ctx, msg, malformedSig, &pk) {
+		if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 			t.Error("Signature with non-zero hint padding should not verify")
 		}
 	})
@@ -240,7 +240,7 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 
 	t.Run("all_zeros_pk", func(t *testing.T) {
 		var zeroPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
-		if Verify(ctx, msg, sig, &zeroPK) {
+		if Verify(ctx, msg, sig, rawPK(zeroPK)) {
 			t.Error("All-zeros public key should not verify")
 		}
 	})
@@ -248,7 +248,7 @@ func TestEdgeCaseInvalidPublicKey(t *testing.T) {
 	t.Run("random_pk", func(t *testing.T) {
 		var randomPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
 		_, _ = rand.Read(randomPK[:])
-		if Verify(ctx, msg, sig, &randomPK) {
+		if Verify(ctx, msg, sig, rawPK(randomPK)) {
 			t.Error("Random public key should not verify")
 		}
 	})
@@ -280,13 +280,13 @@ func TestEdgeCaseContextVariations(t *testing.T) {
 				t.Fatalf("Failed to sign with context %d: %v", i, err)
 			}
 
-			if !Verify(ctx, msg, sig, &pk) {
+			if !Verify(ctx, msg, sig, rawPK(pk)) {
 				t.Errorf("Failed to verify with context %d", i)
 			}
 
 			// Verify with wrong context should fail
 			wrongCtx := append(ctx, 0xFF)
-			if Verify(wrongCtx, msg, sig, &pk) {
+			if Verify(wrongCtx, msg, sig, rawPK(pk)) {
 				t.Errorf("Verification should fail with wrong context %d", i)
 			}
 		})
@@ -360,20 +360,20 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 	ctx := []byte{}
 
 	t.Run("nil_input", func(t *testing.T) {
-		if msg, _ := Open(ctx, nil, &pk); msg != nil {
+		if msg, _ := Open(ctx, nil, rawPK(pk)); msg != nil {
 			t.Error("Open(nil) should return nil")
 		}
 	})
 
 	t.Run("empty_input", func(t *testing.T) {
-		if msg, _ := Open(ctx, []byte{}, &pk); msg != nil {
+		if msg, _ := Open(ctx, []byte{}, rawPK(pk)); msg != nil {
 			t.Error("Open([]) should return nil")
 		}
 	})
 
 	t.Run("too_short_input", func(t *testing.T) {
 		short := make([]byte, CRYPTO_BYTES-1)
-		if msg, _ := Open(ctx, short, &pk); msg != nil {
+		if msg, _ := Open(ctx, short, rawPK(pk)); msg != nil {
 			t.Error("Open(short) should return nil")
 		}
 	})
@@ -382,7 +382,7 @@ func TestEdgeCaseOpenFunction(t *testing.T) {
 		// Create a attached-signature message with invalid signature
 		invalidSealed := make([]byte, CRYPTO_BYTES+10)
 		_, _ = rand.Read(invalidSealed)
-		if msg, _ := Open(ctx, invalidSealed, &pk); msg != nil {
+		if msg, _ := Open(ctx, invalidSealed, rawPK(pk)); msg != nil {
 			t.Error("Open with invalid signature should return nil")
 		}
 	})
@@ -405,7 +405,7 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Error("Failed to verify with zero seed keypair")
 		}
 	})
@@ -428,7 +428,7 @@ func TestEdgeCaseSeedBoundaries(t *testing.T) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Error("Failed to verify with max seed keypair")
 		}
 	})

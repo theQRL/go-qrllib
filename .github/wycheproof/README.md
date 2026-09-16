@@ -105,20 +105,23 @@ component is all zero (tcId 66, and tcId 174–239). Upstream's note on the
 > signatures, but that's none of the verification algorithm's business.
 
 tcId 66 and 174 are `valid` and **must verify**. FIPS 204 Algorithm 8 has
-no key-validity precondition, so `crypto/ml_dsa_87.Verify` accepts them;
-adding a zero-`t1` rejection inside `Verify` would fail these vectors and
-make the primitive non-conformant.
+no key-validity precondition, so the primitive under
+`crypto/ml_dsa_87.Verify` accepts them; adding a zero-`t1` rejection inside
+the primitive would fail these vectors and make it non-conformant.
 
 Rejecting such keys is a *key-validation* policy, kept separate from the
 primitive:
 
-- `crypto/ml_dsa_87.ValidatePublicKey` is the exported check. It is not
-  called by `Verify` / `Open`.
-- `wallet/ml_dsa_87.BytesToPK` and `wallet/ml_dsa_87.Verify` both call
-  it, so every wallet-layer path rejects the key.
-- Any consumer that calls the primitive directly with untrusted key
-  bytes (e.g. a consensus precompile) must call `ValidatePublicKey`
-  itself.
+- `crypto/ml_dsa_87.Verify` / `Open` take a `*PublicKey`, which outside
+  the package can only be obtained from `ParsePublicKey` or
+  `MLDSA87.PublicKey`. Both apply `ValidatePublicKey`, so every key a
+  caller can hand to the primitive has already been validated — by
+  construction, not by convention.
+- The primitive itself does no key validation. This harness is an
+  in-package test and builds `PublicKey` directly to exercise it on the
+  ZeroPublicKey vectors; that path is unreachable from other packages.
+- `wallet/ml_dsa_87.BytesToPK` additionally rejects on import, for
+  fail-fast behaviour.
 
 The remaining 65 vectors in group 25 (tcId 175–239) are `invalid`
 c~-byte-flip cases under the same key. Keeping the primitive conformant

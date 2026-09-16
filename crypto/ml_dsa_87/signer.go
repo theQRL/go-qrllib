@@ -2,7 +2,6 @@ package ml_dsa_87
 
 import (
 	"crypto"
-	"crypto/subtle"
 	"errors"
 	"io"
 )
@@ -16,24 +15,6 @@ type SignerOpts struct {
 
 func (o *SignerOpts) HashFunc() crypto.Hash { return 0 }
 
-// CryptoPublicKey wraps the ML-DSA-87 public key for crypto.PublicKey compatibility.
-type CryptoPublicKey struct {
-	key [CRYPTO_PUBLIC_KEY_BYTES]uint8
-}
-
-func (pk *CryptoPublicKey) Equal(x crypto.PublicKey) bool {
-	other, ok := x.(*CryptoPublicKey)
-	if !ok {
-		return false
-	}
-	return subtle.ConstantTimeCompare(pk.key[:], other.key[:]) == 1
-}
-
-// Bytes returns a copy of the raw public key bytes.
-func (pk *CryptoPublicKey) Bytes() [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
-	return pk.key
-}
-
 // CryptoSigner wraps an MLDSA87 instance to implement crypto.Signer.
 type CryptoSigner struct {
 	d *MLDSA87
@@ -44,9 +25,9 @@ func NewCryptoSigner(d *MLDSA87) *CryptoSigner {
 	return &CryptoSigner{d: d}
 }
 
+// Public implements crypto.Signer. The returned value is a *[PublicKey].
 func (s *CryptoSigner) Public() crypto.PublicKey {
-	pk := s.d.GetPK()
-	return &CryptoPublicKey{key: pk}
+	return s.d.PublicKey()
 }
 
 // Sign implements crypto.Signer. The opts parameter must be *SignerOpts

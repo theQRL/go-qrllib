@@ -42,9 +42,9 @@ func TestCryptoSignerInterface(t *testing.T) {
 
 	// Public key round-trip
 	pub := signer.Public()
-	cpk, ok := pub.(*CryptoPublicKey)
+	cpk, ok := pub.(*PublicKey)
 	if !ok {
-		t.Fatal("Public() did not return *CryptoPublicKey")
+		t.Fatal("Public() did not return *PublicKey")
 	}
 	if cpk.Bytes() != d.GetPK() {
 		t.Error("Public key mismatch between CryptoSigner and underlying MLDSA87")
@@ -74,7 +74,7 @@ func TestCryptoSignerSignVerify(t *testing.T) {
 	pk := d.GetPK()
 	var sigArr [CRYPTO_BYTES]uint8
 	copy(sigArr[:], sig)
-	if !Verify(ctx, msg, sigArr, &pk) {
+	if !Verify(ctx, msg, sigArr, rawPK(pk)) {
 		t.Error("Signature verification failed")
 	}
 }
@@ -98,7 +98,7 @@ func TestCryptoSignerNilOpts(t *testing.T) {
 	pk := d.GetPK()
 	var sigArr [CRYPTO_BYTES]uint8
 	copy(sigArr[:], sig)
-	if !Verify(nil, msg, sigArr, &pk) {
+	if !Verify(nil, msg, sigArr, rawPK(pk)) {
 		t.Error("Signature with nil opts failed verification with empty context")
 	}
 }
@@ -131,10 +131,10 @@ func TestCryptoSignerEmptyContext(t *testing.T) {
 	var sigArr1, sigArr2 [CRYPTO_BYTES]uint8
 	copy(sigArr1[:], sig1)
 	copy(sigArr2[:], sig2[:])
-	if !Verify(nil, msg, sigArr1, &pk) {
+	if !Verify(nil, msg, sigArr1, rawPK(pk)) {
 		t.Error("CryptoSigner signature with empty context did not verify")
 	}
-	if !Verify(nil, msg, sigArr2, &pk) {
+	if !Verify(nil, msg, sigArr2, rawPK(pk)) {
 		t.Error("Direct Sign signature with empty context did not verify")
 	}
 }
@@ -172,10 +172,10 @@ func TestCryptoSignerHedged(t *testing.T) {
 	var sigArr1, sigArr2 [CRYPTO_BYTES]uint8
 	copy(sigArr1[:], sig1)
 	copy(sigArr2[:], sig2)
-	if !Verify(opts.Context, msg, sigArr1, &pk) {
+	if !Verify(opts.Context, msg, sigArr1, rawPK(pk)) {
 		t.Error("First hedged signature failed verification")
 	}
-	if !Verify(opts.Context, msg, sigArr2, &pk) {
+	if !Verify(opts.Context, msg, sigArr2, rawPK(pk)) {
 		t.Error("Second hedged signature failed verification")
 	}
 }
@@ -200,12 +200,12 @@ func TestCryptoSignerWrongContext(t *testing.T) {
 	copy(sigArr[:], sig)
 
 	// Verify with wrong context should fail
-	if Verify([]byte("context-b"), msg, sigArr, &pk) {
+	if Verify([]byte("context-b"), msg, sigArr, rawPK(pk)) {
 		t.Error("Signature verified with wrong context")
 	}
 }
 
-func TestCryptoPublicKeyEqual(t *testing.T) {
+func TestPublicKeyEqual(t *testing.T) {
 	d1, err := New()
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestCryptoPublicKeyEqual(t *testing.T) {
 	pk1Again := s1.Public()
 	pk2 := s2.Public()
 
-	cpk1 := pk1.(*CryptoPublicKey)
+	cpk1 := pk1.(*PublicKey)
 
 	if !cpk1.Equal(pk1Again) {
 		t.Error("Same public key should be equal to itself")
@@ -258,7 +258,7 @@ func TestCryptoSignerTypedNilOpts(t *testing.T) {
 	pk := d.GetPK()
 	var sigArr [CRYPTO_BYTES]uint8
 	copy(sigArr[:], sig)
-	if !Verify(nil, msg, sigArr, &pk) {
+	if !Verify(nil, msg, sigArr, rawPK(pk)) {
 		t.Error("Signature with typed nil *SignerOpts failed verification with empty context")
 	}
 }
@@ -340,7 +340,7 @@ func TestCryptoSignerCallerSuppliedRand(t *testing.T) {
 	pk := d.GetPK()
 	var sigArr [CRYPTO_BYTES]uint8
 	copy(sigArr[:], sig1)
-	if !Verify(opts.Context, msg, sigArr, &pk) {
+	if !Verify(opts.Context, msg, sigArr, rawPK(pk)) {
 		t.Error("Caller-rnd-driven signature failed verification under its own pk")
 	}
 

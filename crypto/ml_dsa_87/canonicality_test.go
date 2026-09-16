@@ -58,7 +58,7 @@ func TestCanonicalityTruncatedSignatures(t *testing.T) {
 
 			// Use Open which handles variable-length attached-signature messages
 			sealed := append(truncated, msg...)
-			if recovered, _ := Open(ctx, sealed, &pk); recovered != nil {
+			if recovered, _ := Open(ctx, sealed, rawPK(pk)); recovered != nil {
 				t.Errorf("Truncated signature at %d bytes should not verify", tc.length)
 			}
 		})
@@ -83,7 +83,7 @@ func TestCanonicalityExtendedSignatures(t *testing.T) {
 	}
 
 	// Verify the valid signature works
-	if !Verify(ctx, msg, validSig, &pk) {
+	if !Verify(ctx, msg, validSig, rawPK(pk)) {
 		t.Fatal("Valid signature should verify")
 	}
 
@@ -92,7 +92,7 @@ func TestCanonicalityExtendedSignatures(t *testing.T) {
 	t.Run("last_byte_corruption", func(t *testing.T) {
 		corruptedSig := validSig
 		corruptedSig[CRYPTO_BYTES-1] ^= 0x01
-		if Verify(ctx, msg, corruptedSig, &pk) {
+		if Verify(ctx, msg, corruptedSig, rawPK(pk)) {
 			t.Error("Corrupted last byte should invalidate signature")
 		}
 	})
@@ -130,7 +130,7 @@ func TestCanonicalityHintIndexOutOfBounds(t *testing.T) {
 			malformedSig[hintStart+OMEGA+i] = 1
 		}
 		// The malformed signature should not verify
-		if Verify(ctx, msg, malformedSig, &pk) {
+		if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 			t.Error("Malformed signature with modified hints should not verify")
 		}
 	})
@@ -164,7 +164,7 @@ func TestCanonicalityCumulativeCountDecreasing(t *testing.T) {
 		malformedSig[hintStart+1] = 20
 		malformedSig[hintStart+2] = 30
 
-		if Verify(ctx, msg, malformedSig, &pk) {
+		if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 			t.Error("Signature with decreasing cumulative count should not verify")
 		}
 	})
@@ -221,7 +221,7 @@ func TestCanonicalityCumulativeCountExceedsOmega(t *testing.T) {
 			// Set cumulative count exceeding OMEGA
 			malformedSig[hintStart+OMEGA+0] = tc.count
 
-			if Verify(ctx, msg, malformedSig, &pk) {
+			if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 				t.Errorf("Signature with cumulative count %d (> OMEGA=%d) should not verify", tc.count, OMEGA)
 			}
 		})
@@ -276,7 +276,7 @@ func TestCanonicalityHintIndicesNotStrictlyIncreasing(t *testing.T) {
 				malformedSig[hintStart+i] = 0
 			}
 
-			if Verify(ctx, msg, malformedSig, &pk) {
+			if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 				t.Errorf("Signature with non-increasing hint indices %v should not verify", tc.indices)
 			}
 		})
@@ -322,7 +322,7 @@ func TestCanonicalityNonZeroPadding(t *testing.T) {
 			// Add non-zero value in padding area
 			malformedSig[hintStart+tc.paddingPos] = tc.paddingValue
 
-			if Verify(ctx, msg, malformedSig, &pk) {
+			if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 				t.Errorf("Signature with non-zero padding at position %d should not verify", tc.paddingPos)
 			}
 		})
@@ -353,7 +353,7 @@ func TestCanonicalityChallengeMalformation(t *testing.T) {
 			malformedSig := validSig
 			malformedSig[pos] ^= 0xFF
 
-			if Verify(ctx, msg, malformedSig, &pk) {
+			if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 				t.Errorf("Signature with corrupted challenge at byte %d should not verify", pos)
 			}
 		})
@@ -392,7 +392,7 @@ func TestCanonicalityZVectorCorruption(t *testing.T) {
 			malformedSig := validSig
 			malformedSig[pos] ^= 0xFF
 
-			if Verify(ctx, msg, malformedSig, &pk) {
+			if Verify(ctx, msg, malformedSig, rawPK(pk)) {
 				t.Errorf("Signature with corrupted z-vector at byte %d should not verify", pos)
 			}
 		})
@@ -412,7 +412,7 @@ func TestCanonicalityAllZeroSignature(t *testing.T) {
 
 	var zeroSig [CRYPTO_BYTES]uint8
 
-	if Verify(ctx, msg, zeroSig, &pk) {
+	if Verify(ctx, msg, zeroSig, rawPK(pk)) {
 		t.Error("All-zero signature should not verify")
 	}
 }
@@ -433,7 +433,7 @@ func TestCanonicalityAllOnesSignature(t *testing.T) {
 		onesSig[i] = 0xFF
 	}
 
-	if Verify(ctx, msg, onesSig, &pk) {
+	if Verify(ctx, msg, onesSig, rawPK(pk)) {
 		t.Error("All-ones signature should not verify")
 	}
 }
@@ -454,7 +454,7 @@ func TestCanonicalityRandomSignatures(t *testing.T) {
 		var randomSig [CRYPTO_BYTES]uint8
 		_, _ = rand.Read(randomSig[:])
 
-		if Verify(ctx, msg, randomSig, &pk) {
+		if Verify(ctx, msg, randomSig, rawPK(pk)) {
 			t.Errorf("Random signature %d should not verify", i)
 		}
 	}
@@ -487,7 +487,7 @@ func TestCanonicalityValidSignatureVerifies(t *testing.T) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Errorf("Valid signature for message %d should verify", i)
 		}
 	}
@@ -519,10 +519,10 @@ func TestCanonicalitySignatureUniqueness(t *testing.T) {
 	}
 
 	// Both signatures must verify under the same key.
-	if !Verify(ctx, msg, sig1, &pk) {
+	if !Verify(ctx, msg, sig1, rawPK(pk)) {
 		t.Error("First signature should verify")
 	}
-	if !Verify(ctx, msg, sig2, &pk) {
+	if !Verify(ctx, msg, sig2, rawPK(pk)) {
 		t.Error("Second signature should verify")
 	}
 

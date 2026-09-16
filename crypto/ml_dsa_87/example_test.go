@@ -26,8 +26,8 @@ func Example() {
 	}
 
 	// Verify the signature
-	pk := m.GetPK()
-	valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
+	pk := m.PublicKey()
+	valid := ml_dsa_87.Verify(ctx, message, signature, pk)
 	fmt.Println("Signature valid:", valid)
 	// Output: Signature valid: true
 }
@@ -94,15 +94,15 @@ func ExampleVerify() {
 	message := []byte("verify me")
 	signature, _ := m.Sign(ctx, message)
 
-	pk := m.GetPK()
+	pk := m.PublicKey()
 
 	// Verify requires the same context used during signing
-	valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
+	valid := ml_dsa_87.Verify(ctx, message, signature, pk)
 	fmt.Println("Valid signature:", valid)
 
 	// Wrong context fails verification
 	wrongCtx := []byte("wrong-context")
-	valid = ml_dsa_87.Verify(wrongCtx, message, signature, &pk)
+	valid = ml_dsa_87.Verify(wrongCtx, message, signature, pk)
 	fmt.Println("Wrong context:", valid)
 	// Output:
 	// Valid signature: true
@@ -144,8 +144,8 @@ func ExampleOpen() {
 	signed, _ := m.SignAttached(ctx, original)
 
 	// Open verifies and returns the recovered message
-	pk := m.GetPK()
-	message, err := ml_dsa_87.Open(ctx, signed, &pk)
+	pk := m.PublicKey()
+	message, err := ml_dsa_87.Open(ctx, signed, pk)
 	if err != nil {
 		fmt.Println("Verification failed:", err)
 		return

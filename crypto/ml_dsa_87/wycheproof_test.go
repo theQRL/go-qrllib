@@ -141,7 +141,12 @@ func TestWycheproofVerify(t *testing.T) {
 				default:
 					var sigArr [CRYPTO_BYTES]uint8
 					copy(sigArr[:], sig)
-					ok = Verify(ctx, msg, sigArr, &pk)
+					// Deliberately NOT ParsePublicKey: these vectors test FIPS 204
+					// Algorithm 8, which has no key-validity precondition, and the
+					// ZeroPublicKey groups (tcId 66, 174) require an all-zero-t1
+					// key to verify. Only in-package code can build a PublicKey
+					// this way.
+					ok = Verify(ctx, msg, sigArr, &PublicKey{packed: pk, valid: true})
 				}
 
 				switch tc.Result {

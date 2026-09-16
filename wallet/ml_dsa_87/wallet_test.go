@@ -589,11 +589,14 @@ func TestWallet_SignDeterministic_ContextBound(t *testing.T) {
 
 	// Without the descriptor-derived context the same bytes must fail at
 	// the FIPS 204 layer: the context is part of the signed message prefix.
-	rawPK := (*[mldsa.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)
-	if mldsa.Verify(nil, message, sig, rawPK) {
+	k, err := mldsa.ParsePublicKey(pk[:])
+	if err != nil {
+		t.Fatalf("ParsePublicKey: %v", err)
+	}
+	if mldsa.Verify(nil, message, sig, k) {
 		t.Fatal("signature verified with an empty context; descriptor binding is missing")
 	}
-	if !mldsa.Verify(common.SigningContext(desc), message, sig, rawPK) {
+	if !mldsa.Verify(common.SigningContext(desc), message, sig, k) {
 		t.Fatal("control: signature must verify at the crypto layer with the descriptor context")
 	}
 

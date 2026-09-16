@@ -101,6 +101,16 @@ func New() (*MLDSA87, error) {
 		return nil, err
 	}
 
+	// Uphold the PublicKey validation invariant at generation time. A
+	// generated key with t1 == 0 has probability ~2^-20480.
+	if err := ValidatePublicKey(&pk); err != nil {
+		//coverage:ignore
+		//rationale: t1 == 0 from key generation is a ~2^-20480 event; unreachable
+		zeroBytes(sk[:])
+		zeroBytes(seed[:])
+		return nil, cryptoerrors.ErrKeyGeneration
+	}
+
 	d := &MLDSA87{pk, sk, seed}
 	// Wipe the constructor-local copies now that they live in the
 	// returned instance (the NewMLDSA87FromHexSeed pattern, TOB-QRLLIB-10).
@@ -117,6 +127,16 @@ func NewMLDSA87FromSeed(seed [SEED_BYTES]uint8) (*MLDSA87, error) {
 		//coverage:ignore
 		//rationale: cryptoSignKeypair only fails if sha3 operations fail, which never happens
 		return nil, err
+	}
+
+	// Uphold the PublicKey validation invariant at generation time. A
+	// generated key with t1 == 0 has probability ~2^-20480.
+	if err := ValidatePublicKey(&pk); err != nil {
+		//coverage:ignore
+		//rationale: t1 == 0 from key generation is a ~2^-20480 event; unreachable
+		zeroBytes(sk[:])
+		zeroBytes(seed[:])
+		return nil, cryptoerrors.ErrKeyGeneration
 	}
 
 	d := &MLDSA87{pk, sk, seed}
@@ -262,31 +282,39 @@ func (d *MLDSA87) SignDeterministic(ctx, message []uint8) ([CRYPTO_BYTES]uint8, 
 // need to distinguish failure modes can use `msg, _ := Open(...)` and
 // check `msg != nil`.
 //
-// Like [Verify], Open performs no key validation beyond the nil check
-// (FIPS 204 Algorithm 8 conformance). Callers that accept public keys
-// from an untrusted source MUST call [ValidatePublicKey] first.
-func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
+// pk is a validated [PublicKey]. Key validation happens in
+// [ParsePublicKey] / key generation, never here, so the primitive stays a
+// conformant FIPS 204 Algorithm 8 implementation.
+func Open(ctx, signatureMessage []uint8, pk *PublicKey) ([]uint8, error) {
 	if pk == nil {
 		return nil, cryptoerrors.ErrPublicKeyNil
 	}
-	return cryptoSignOpen(signatureMessage, ctx, pk)
+	if !pk.valid {
+		// Zero-value PublicKey{}: never passed through a validating
+		// constructor. Its bytes are the forgeable all-zero-t1 key.
+		return nil, cryptoerrors.ErrInvalidPublicKey
+	}
+	return cryptoSignOpen(signatureMessage, ctx, &pk.packed)
 }
 
 // Verify checks the signature against the message and public key with the given context.
 // The ctx parameter must match the context used during signing (FIPS 204 requirement).
 // Returns false if pk is nil rather than panicking. (TOB-QRLLIB-11)
 //
-// Verify is a conformant implementation of FIPS 204 Algorithm 8 and
-// performs no key validation beyond the nil check: in particular it
-// accepts signatures under an all-zero-t1 public key, as the
-// C2SP/wycheproof ZeroPublicKey vectors require. Callers that accept
-// public keys from an untrusted source MUST call [ValidatePublicKey]
-// first; the wallet layer does so.
-func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
-	if pk == nil {
+// Verify is a conformant implementation of FIPS 204 Algorithm 8 and does
+// no key validation itself. pk is a [PublicKey], which outside this
+// package can only be obtained through [ParsePublicKey] or
+// [MLDSA87.PublicKey], so validation is guaranteed by construction rather
+// than by convention; a zero-value PublicKey{} is rejected outright. See
+// [ValidatePublicKey] for what is rejected and why it is kept out of the
+// primitive.
+func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *PublicKey) bool {
+	if pk == nil || !pk.valid {
+		// nil, or the zero value PublicKey{} which never passed through a
+		// validating constructor and whose bytes are the forgeable key.
 		return false
 	}
-	result, err := cryptoSignVerify(signature, message, ctx, pk)
+	result, err := cryptoSignVerify(signature, message, ctx, &pk.packed)
 	if err != nil {
 		return false
 	}
