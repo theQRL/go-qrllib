@@ -120,7 +120,7 @@ primitive:
   bytes (e.g. a consensus precompile) must call `ValidatePublicKey`
   itself.
 
-The remaining 64 vectors in group 25 (tcId 175–239) are `invalid`
+The remaining 65 vectors in group 25 (tcId 175–239) are `invalid`
 c~-byte-flip cases under the same key. Keeping the primitive conformant
 also keeps those vectors meaningful; a verify-time key rejection would
 short-circuit before the signature is parsed and pass them vacuously.

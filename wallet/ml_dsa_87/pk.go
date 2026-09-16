@@ -35,6 +35,8 @@ func BytesToPK(pkBytes []byte) (PK, error) {
 	return pk, nil
 }
 
+// HexStrToPK is [BytesToPK] for a hex-encoded public key (no 0x prefix).
+// It applies the same length and key-validation checks.
 func HexStrToPK(hexStr string) (PK, error) {
 	pkBytes, err := hex.DecodeString(hexStr)
 	if err != nil {

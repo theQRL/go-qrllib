@@ -74,6 +74,8 @@ func zeroT1PK(rho uint8) *[CRYPTO_PUBLIC_KEY_BYTES]uint8 {
 	return &pk
 }
 
+// TestValidatePublicKey_RejectsZeroT1 checks that an all-zero t1 region is
+// rejected regardless of the rho bytes.
 func TestValidatePublicKey_RejectsZeroT1(t *testing.T) {
 	for _, rho := range []uint8{0x00, 0xab, 0xff} {
 		err := ValidatePublicKey(zeroT1PK(rho))
@@ -83,12 +85,16 @@ func TestValidatePublicKey_RejectsZeroT1(t *testing.T) {
 	}
 }
 
+// TestValidatePublicKey_NilPK checks that a nil key returns ErrPublicKeyNil
+// rather than panicking.
 func TestValidatePublicKey_NilPK(t *testing.T) {
 	if err := ValidatePublicKey(nil); !errors.Is(err, cryptoerrors.ErrPublicKeyNil) {
 		t.Fatalf("nil pk: err = %v, want ErrPublicKeyNil", err)
 	}
 }
 
+// TestValidatePublicKey_AcceptsRealKey is the control: a freshly generated
+// key passes validation.
 func TestValidatePublicKey_AcceptsRealKey(t *testing.T) {
 	d, err := New()
 	if err != nil {

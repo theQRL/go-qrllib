@@ -13,12 +13,18 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
+// Wallet is an ML-DSA-87 signing wallet: a [Descriptor], the ML-DSA-87
+// keypair derived from the seed, and the 48-byte common seed itself.
+// Construct one with the NewWallet* functions and call [Wallet.Zeroize]
+// when it is no longer needed.
 type Wallet struct {
 	desc Descriptor
 	d    *ml_dsa_87.MLDSA87
 	seed common.Seed
 }
 
+// NewWallet creates a wallet from a fresh 48-byte seed drawn from
+// crypto/rand, using the default ML-DSA-87 descriptor.
 func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
@@ -30,6 +36,9 @@ func NewWallet() (*Wallet, error) {
 	return NewWalletFromSeed(seed)
 }
 
+// NewWalletFromSeed derives a wallet from a 48-byte common seed using the
+// default ML-DSA-87 descriptor. The keypair is generated from
+// SHA-256(seed); see the package doc "Seed Derivation" section.
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc, err := NewMLDSA87Descriptor()
 	if err != nil {
@@ -51,6 +60,9 @@ func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	}, nil
 }
 
+// NewWalletFromHexSeed is [NewWalletFromSeed] for a hex-encoded seed. An
+// optional 0x/0X prefix is accepted; the decoded seed must be exactly
+// common.SeedSize bytes.
 func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 	if strings.HasPrefix(hexSeed, "0x") || strings.HasPrefix(hexSeed, "0X") {
 		hexSeed = hexSeed[2:]
@@ -67,6 +79,9 @@ func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 	return NewWalletFromSeed(seed)
 }
 
+// NewWalletFromExtendedSeed derives a wallet from an extended seed
+// (descriptor || seed). The embedded descriptor must be a valid ML-DSA-87
+// descriptor; see [Descriptor.IsValid].
 func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error) {
 	desc, err := NewMLDSA87DescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
 	if err != nil {
@@ -94,6 +109,10 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 	}, nil
 }
 
+// NewWalletFromHexExtendedSeed is [NewWalletFromExtendedSeed] for a
+// hex-encoded extended seed, such as the value returned by
+// [Wallet.GetHexSeed]. An optional 0x/0X prefix is accepted; the decoded
+// value must be exactly common.ExtendedSeedSize bytes.
 func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 	if strings.HasPrefix(hexExtendedSeed, "0x") || strings.HasPrefix(hexExtendedSeed, "0X") {
 		hexExtendedSeed = hexExtendedSeed[2:]
@@ -110,6 +129,9 @@ func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 	return NewWalletFromExtendedSeed(extendedSeed)
 }
 
+// NewWalletFromMnemonic derives a wallet from a QRL mnemonic phrase, which
+// encodes the extended seed (descriptor || seed). It is the inverse of
+// [Wallet.GetMnemonic].
 func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 	bin, err := misc.MnemonicToBin(mnemonic)
 	if err != nil {
@@ -124,10 +146,14 @@ func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 	return NewWalletFromExtendedSeed(extendedSeed)
 }
 
+// GetSeed returns the 48-byte common seed the wallet was derived from.
+// This is secret material; see [Wallet.Zeroize].
 func (w *Wallet) GetSeed() common.Seed {
 	return w.seed
 }
 
+// GetExtendedSeed returns the extended seed (descriptor || seed) from
+// which the wallet can be restored with [NewWalletFromExtendedSeed].
 func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
@@ -148,6 +174,8 @@ func (w *Wallet) GetHexSeed() (string, error) {
 	return eSeed.ToHex(), nil
 }
 
+// GetMnemonic returns the wallet's extended seed as a QRL mnemonic phrase,
+// accepted by [NewWalletFromMnemonic].
 func (w *Wallet) GetMnemonic() (string, error) {
 	eSeed, err := w.GetExtendedSeed()
 	if err != nil {
@@ -162,23 +190,33 @@ func (w *Wallet) GetMnemonic() (string, error) {
 	return mnemonic, nil
 }
 
+// GetPK returns the packed ML-DSA-87 public key (rho || t1).
 func (w *Wallet) GetPK() PK {
 	return w.d.GetPK()
 }
 
+// GetSK returns the packed ML-DSA-87 secret key. This is secret material;
+// see [Wallet.Zeroize].
 func (w *Wallet) GetSK() [SKSize]uint8 {
 	return w.d.GetSK()
 }
 
+// GetDescriptor returns the wallet's descriptor, which selects the signing
+// context and is part of the address derivation.
 func (w *Wallet) GetDescriptor() Descriptor {
 	return w.desc
 }
 
+// GetAddress returns the raw QRL address derived from the descriptor and
+// public key; see the package doc "Address Format" section.
 func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
 	pk := w.GetPK()
 	return common.UnsafeGetAddress(pk[:], w.desc.ToDescriptor())
 }
 
+// GetAddressStr returns the canonical lowercase string form of the
+// address: "Q" followed by the hex-encoded address bytes. See
+// [Wallet.GetChecksumAddressStr] for the checksummed form.
 func (w *Wallet) GetAddressStr() string {
 	addr := w.GetAddress()
 	return fmt.Sprintf("Q%x", addr[:])

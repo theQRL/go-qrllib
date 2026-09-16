@@ -104,6 +104,8 @@ func ExampleVerify() {
 	// After tampering: false
 }
 
+// ExampleWallet_SignDeterministic shows that deterministic signing is
+// reproducible and verifies like a hedged signature.
 func ExampleWallet_SignDeterministic() {
 	// Deterministic signing: same wallet + same message → identical bytes.
 	// Restoring from a fixed extended seed makes this example reproducible.
