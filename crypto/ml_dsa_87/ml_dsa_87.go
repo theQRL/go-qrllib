@@ -261,6 +261,10 @@ func (d *MLDSA87) SignDeterministic(ctx, message []uint8) ([CRYPTO_BYTES]uint8, 
 // On any error the returned message slice is nil. Callers that don't
 // need to distinguish failure modes can use `msg, _ := Open(...)` and
 // check `msg != nil`.
+//
+// Like [Verify], Open performs no key validation beyond the nil check
+// (FIPS 204 Algorithm 8 conformance). Callers that accept public keys
+// from an untrusted source MUST call [ValidatePublicKey] first.
 func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]uint8, error) {
 	if pk == nil {
 		return nil, cryptoerrors.ErrPublicKeyNil
@@ -271,6 +275,13 @@ func Open(ctx, signatureMessage []uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) ([]
 // Verify checks the signature against the message and public key with the given context.
 // The ctx parameter must match the context used during signing (FIPS 204 requirement).
 // Returns false if pk is nil rather than panicking. (TOB-QRLLIB-11)
+//
+// Verify is a conformant implementation of FIPS 204 Algorithm 8 and
+// performs no key validation beyond the nil check: in particular it
+// accepts signatures under an all-zero-t1 public key, as the
+// C2SP/wycheproof ZeroPublicKey vectors require. Callers that accept
+// public keys from an untrusted source MUST call [ValidatePublicKey]
+// first; the wallet layer does so.
 func Verify(ctx, message []uint8, signature [CRYPTO_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) bool {
 	if pk == nil {
 		return false

@@ -20,6 +20,10 @@ var (
 	ErrSecretKeyNil      = errors.New("secret key is nil")
 	ErrSecretKeyZeroized = errors.New("secret key is zeroized")
 	ErrKeyGeneration     = errors.New("key generation failed")
+	// ErrZeroT1PublicKey is returned by key validation when an ML-DSA
+	// public key's t1 component is all zero. Such a key is universally
+	// forgeable and must never be accepted from an untrusted source.
+	ErrZeroT1PublicKey = errors.New("public key t1 is all zero")
 )
 
 // Signature errors
