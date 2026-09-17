@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
@@ -13,12 +14,18 @@ import (
 	"github.com/theQRL/go-qrllib/wallet/misc"
 )
 
+// Wallet is an ML-DSA-87 signing wallet: a [Descriptor], the ML-DSA-87
+// keypair derived from the seed, and the 48-byte common seed itself.
+// Construct one with the NewWallet* functions and call [Wallet.Zeroize]
+// when it is no longer needed.
 type Wallet struct {
 	desc Descriptor
 	d    *ml_dsa_87.MLDSA87
 	seed common.Seed
 }
 
+// NewWallet creates a wallet from a fresh 48-byte seed drawn from
+// crypto/rand, using the default ML-DSA-87 descriptor.
 func NewWallet() (*Wallet, error) {
 	var seed common.Seed
 	_, err := rand.Read(seed[:])
@@ -30,6 +37,9 @@ func NewWallet() (*Wallet, error) {
 	return NewWalletFromSeed(seed)
 }
 
+// NewWalletFromSeed derives a wallet from a 48-byte common seed using the
+// default ML-DSA-87 descriptor. The keypair is generated from
+// SHA-256(seed); see the package doc "Seed Derivation" section.
 func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	desc, err := NewMLDSA87Descriptor()
 	if err != nil {
@@ -51,6 +61,9 @@ func NewWalletFromSeed(seed common.Seed) (*Wallet, error) {
 	}, nil
 }
 
+// NewWalletFromHexSeed is [NewWalletFromSeed] for a hex-encoded seed. An
+// optional 0x/0X prefix is accepted; the decoded seed must be exactly
+// common.SeedSize bytes.
 func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 	if strings.HasPrefix(hexSeed, "0x") || strings.HasPrefix(hexSeed, "0X") {
 		hexSeed = hexSeed[2:]
@@ -67,6 +80,9 @@ func NewWalletFromHexSeed(hexSeed string) (*Wallet, error) {
 	return NewWalletFromSeed(seed)
 }
 
+// NewWalletFromExtendedSeed derives a wallet from an extended seed
+// (descriptor || seed). The embedded descriptor must be a valid ML-DSA-87
+// descriptor; see [Descriptor.IsValid].
 func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error) {
 	desc, err := NewMLDSA87DescriptorFromDescriptorBytes(extendedSeed.GetDescriptorBytes())
 	if err != nil {
@@ -94,6 +110,10 @@ func NewWalletFromExtendedSeed(extendedSeed common.ExtendedSeed) (*Wallet, error
 	}, nil
 }
 
+// NewWalletFromHexExtendedSeed is [NewWalletFromExtendedSeed] for a
+// hex-encoded extended seed, such as the value returned by
+// [Wallet.GetHexSeed]. An optional 0x/0X prefix is accepted; the decoded
+// value must be exactly common.ExtendedSeedSize bytes.
 func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 	if strings.HasPrefix(hexExtendedSeed, "0x") || strings.HasPrefix(hexExtendedSeed, "0X") {
 		hexExtendedSeed = hexExtendedSeed[2:]
@@ -110,6 +130,9 @@ func NewWalletFromHexExtendedSeed(hexExtendedSeed string) (*Wallet, error) {
 	return NewWalletFromExtendedSeed(extendedSeed)
 }
 
+// NewWalletFromMnemonic derives a wallet from a QRL mnemonic phrase, which
+// encodes the extended seed (descriptor || seed). It is the inverse of
+// [Wallet.GetMnemonic].
 func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 	bin, err := misc.MnemonicToBin(mnemonic)
 	if err != nil {
@@ -124,10 +147,14 @@ func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 	return NewWalletFromExtendedSeed(extendedSeed)
 }
 
+// GetSeed returns the 48-byte common seed the wallet was derived from.
+// This is secret material; see [Wallet.Zeroize].
 func (w *Wallet) GetSeed() common.Seed {
 	return w.seed
 }
 
+// GetExtendedSeed returns the extended seed (descriptor || seed) from
+// which the wallet can be restored with [NewWalletFromExtendedSeed].
 func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
@@ -148,6 +175,8 @@ func (w *Wallet) GetHexSeed() (string, error) {
 	return eSeed.ToHex(), nil
 }
 
+// GetMnemonic returns the wallet's extended seed as a QRL mnemonic phrase,
+// accepted by [NewWalletFromMnemonic].
 func (w *Wallet) GetMnemonic() (string, error) {
 	eSeed, err := w.GetExtendedSeed()
 	if err != nil {
@@ -162,23 +191,39 @@ func (w *Wallet) GetMnemonic() (string, error) {
 	return mnemonic, nil
 }
 
+// GetPK returns the packed ML-DSA-87 public key (rho || t1).
 func (w *Wallet) GetPK() PK {
+	if w == nil || w.d == nil {
+		return PK{}
+	}
 	return w.d.GetPK()
 }
 
+// GetSK returns the packed ML-DSA-87 secret key. This is secret material;
+// see [Wallet.Zeroize].
 func (w *Wallet) GetSK() [SKSize]uint8 {
+	if w == nil || w.d == nil {
+		return [SKSize]uint8{}
+	}
 	return w.d.GetSK()
 }
 
+// GetDescriptor returns the wallet's descriptor, which selects the signing
+// context and is part of the address derivation.
 func (w *Wallet) GetDescriptor() Descriptor {
 	return w.desc
 }
 
+// GetAddress returns the raw QRL address derived from the descriptor and
+// public key; see the package doc "Address Format" section.
 func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
 	pk := w.GetPK()
 	return common.UnsafeGetAddress(pk[:], w.desc.ToDescriptor())
 }
 
+// GetAddressStr returns the canonical lowercase string form of the
+// address: "Q" followed by the hex-encoded address bytes. See
+// [Wallet.GetChecksumAddressStr] for the checksummed form.
 func (w *Wallet) GetAddressStr() string {
 	addr := w.GetAddress()
 	return fmt.Sprintf("Q%x", addr[:])
@@ -201,6 +246,9 @@ func (w *Wallet) GetChecksumAddressStr() string {
 // [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
 // "Signing Mode" section for the full discussion.
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
+	if w == nil || w.d == nil {
+		return [SigSize]uint8{}, cryptoerrors.ErrKeyUninitialised
+	}
 	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
@@ -223,28 +271,34 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 // [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
 // "Signing Mode" section for the full discussion.
 func (w *Wallet) SignDeterministic(message []uint8) ([SigSize]uint8, error) {
+	if w == nil || w.d == nil {
+		return [SigSize]uint8{}, cryptoerrors.ErrKeyUninitialised
+	}
 	return w.d.SignDeterministic(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
 // Zeroize clears sensitive key material from memory.
 // This should be called when the Wallet is no longer needed.
 func (w *Wallet) Zeroize() {
+	if w == nil {
+		return
+	}
 	for i := range w.seed {
 		w.seed[i] = 0
 	}
-	w.d.Zeroize()
+	if w.d != nil {
+		w.d.Zeroize()
+	}
 }
 
 // Verify reports whether the signature is a valid ML-DSA-87 signature
 // over message under pk and the descriptor-bound signing context.
 // Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
 //
-// Verify also rejects any public key that fails
-// [ml_dsa_87.ValidatePublicKey] — today, a key whose t1 region is all
-// zero, which is universally forgeable. This check lives here rather than
-// in the FIPS 204 primitive so that [ml_dsa_87.Verify] stays conformant;
-// it is applied on every call because PK is a plain array type and can
-// be constructed without going through [BytesToPK].
+// The key is passed through [ml_dsa_87.ParsePublicKey], which applies
+// [ml_dsa_87.ValidatePublicKey], so a weak key is rejected. This runs on
+// every call because PK is a plain array type and can be constructed
+// without going through [BytesToPK].
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if pk == nil {
 		return false
@@ -262,11 +316,10 @@ func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]
 	var sig [SigSize]uint8
 	copy(sig[:], signature)
 
-	pk2 := (*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(pk)
-
-	if err := ml_dsa_87.ValidatePublicKey(pk2); err != nil {
+	k, err := ml_dsa_87.ParsePublicKey(pk[:])
+	if err != nil {
 		return false
 	}
 
-	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, pk2)
+	return ml_dsa_87.Verify(common.SigningContext(d.ToDescriptor()), message, sig, k)
 }

@@ -104,24 +104,31 @@ component is all zero (tcId 66, and tcId 174–239). Upstream's note on the
 > The public key contains a zero vector. This makes it trivial to forge
 > signatures, but that's none of the verification algorithm's business.
 
-tcId 66 and 174 are `valid` and **must verify**. FIPS 204 Algorithm 8 has
-no key-validity precondition, so `crypto/ml_dsa_87.Verify` accepts them;
-adding a zero-`t1` rejection inside `Verify` would fail these vectors and
-make the primitive non-conformant.
+tcId 66 and 174 are `valid` and must verify. FIPS 204 Algorithm 8 has
+no key-validity precondition, so the primitive under
+`crypto/ml_dsa_87.Verify` accepts them; adding a zero-`t1` rejection inside
+the primitive would fail these vectors and make it non-conformant.
 
-Rejecting such keys is a *key-validation* policy, kept separate from the
+Rejecting such keys is a key-validation step kept separate from the
 primitive:
 
-- `crypto/ml_dsa_87.ValidatePublicKey` is the exported check. It is not
-  called by `Verify` / `Open`.
-- `wallet/ml_dsa_87.BytesToPK` and `wallet/ml_dsa_87.Verify` both call
-  it, so every wallet-layer path rejects the key.
-- Any consumer that calls the primitive directly with untrusted key
-  bytes (e.g. a consensus precompile) must call `ValidatePublicKey`
-  itself.
+- `crypto/ml_dsa_87.Verify` / `Open` take a `*PublicKey`, which outside
+  the package can only be obtained from `ParsePublicKey` or
+  `MLDSA87.PublicKey`. Both apply `ValidatePublicKey`, which rejects weak
+  keys (the all-zero key and every other key with fewer than 76 large
+  `t1` coefficients; see its doc comment), so every key a caller can
+  hand to the primitive has already been validated.
+- The primitive itself does no key validation. This harness is an
+  in-package test and builds `PublicKey` directly to exercise it on the
+  ZeroPublicKey vectors; that path is unreachable from other packages.
+- `wallet/ml_dsa_87.BytesToPK` additionally rejects on import, for
+  fail-fast behaviour.
 
-The remaining 64 vectors in group 25 (tcId 175–239) are `invalid`
-c~-byte-flip cases under the same key. Keeping the primitive conformant
+The remaining 65 vectors in group 25 (tcId 175–239) are `invalid`
+c~-byte-flip cases under the same key. The `MissingReduction` group
+(tcId 240–241) uses a key whose `t1` is all 1023, which the widened rule
+also classifies as weak (`2^13·1023 = q − 1`); tcId 240 is `valid` and the
+primitive accepts it. Keeping the primitive conformant
 also keeps those vectors meaningful; a verify-time key rejection would
 short-circuit before the signature is parsed and pass them vacuously.
 

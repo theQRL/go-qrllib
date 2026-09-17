@@ -25,12 +25,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	var pk [ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8
+	pk, err := ml_dsa_87.ParsePublicKey(pkBytes)
+	if err != nil {
+		fmt.Printf("ERROR: reference public key rejected: %v\n", err)
+		os.Exit(1)
+	}
 	var sig [ml_dsa_87.CRYPTO_BYTES]uint8
-	copy(pk[:], pkBytes)
 	copy(sig[:], sigBytes)
 
-	valid := ml_dsa_87.Verify(ctxBytes, msgBytes, sig, &pk)
+	valid := ml_dsa_87.Verify(ctxBytes, msgBytes, sig, pk)
 
 	fmt.Printf("go-qrllib ML-DSA-87 verifier:\n")
 	fmt.Printf("  PK size:  %d bytes\n", len(pkBytes))

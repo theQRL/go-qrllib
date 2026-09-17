@@ -180,7 +180,7 @@ func TestMLDSA87_SignAttached(t *testing.T) {
 	// Hedged signing (TOB-QRLLIB-6) means we cannot pin a specific
 	// signature byte string; instead, assert the round-trip via Open.
 	pk := d.GetPK()
-	opened, err := Open(ctx, signatureMessage, &pk)
+	opened, err := Open(ctx, signatureMessage, rawPK(pk))
 	if err != nil {
 		t.Fatalf("Open returned error: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestMLDSA87_Open(t *testing.T) {
 	// cannot survive the per-signature randomness; round-trip via Open
 	// remains the meaningful check.
 	pk := d.GetPK()
-	opened, err := Open(ctx, signatureMessage, &pk)
+	opened, err := Open(ctx, signatureMessage, rawPK(pk))
 	if err != nil {
 		t.Errorf("Open returned error: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestMLDSA87_Sign(t *testing.T) {
 	// Hedged signing (TOB-QRLLIB-6) means signatures are not pinable;
 	// verify the produced signature under the matching public key.
 	pk := d.GetPK()
-	if !Verify(ctx, msg, signature, &pk) {
+	if !Verify(ctx, msg, signature, rawPK(pk)) {
 		t.Error("Sign produced a signature that did not verify under its own public key")
 	}
 }
@@ -242,7 +242,7 @@ func TestMLDSA87_Verify(t *testing.T) {
 
 	// Hedged signing (TOB-QRLLIB-6): no fixed-hex pin; verify only.
 	pk := d.GetPK()
-	if !Verify(ctx, msg, signature, &pk) {
+	if !Verify(ctx, msg, signature, rawPK(pk)) {
 		t.Error("Signature Verification failed")
 	}
 }

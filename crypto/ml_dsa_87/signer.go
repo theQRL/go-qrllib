@@ -2,9 +2,10 @@ package ml_dsa_87
 
 import (
 	"crypto"
-	"crypto/subtle"
 	"errors"
 	"io"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 var errUnsupportedSignerOpts = errors.New("ml_dsa_87: opts must be *SignerOpts or nil")
@@ -16,37 +17,30 @@ type SignerOpts struct {
 
 func (o *SignerOpts) HashFunc() crypto.Hash { return 0 }
 
-// CryptoPublicKey wraps the ML-DSA-87 public key for crypto.PublicKey compatibility.
-type CryptoPublicKey struct {
-	key [CRYPTO_PUBLIC_KEY_BYTES]uint8
-}
-
-func (pk *CryptoPublicKey) Equal(x crypto.PublicKey) bool {
-	other, ok := x.(*CryptoPublicKey)
-	if !ok {
-		return false
-	}
-	return subtle.ConstantTimeCompare(pk.key[:], other.key[:]) == 1
-}
-
-// Bytes returns a copy of the raw public key bytes.
-func (pk *CryptoPublicKey) Bytes() [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
-	return pk.key
-}
-
 // CryptoSigner wraps an MLDSA87 instance to implement crypto.Signer.
 type CryptoSigner struct {
 	d *MLDSA87
 }
 
-// NewCryptoSigner returns a crypto.Signer backed by the given MLDSA87 instance.
+// NewCryptoSigner returns a crypto.Signer backed by d. A nil d yields a
+// signer whose Public returns nil and whose Sign returns
+// [cryptoerrors.ErrSecretKeyNil], rather than one that panics.
 func NewCryptoSigner(d *MLDSA87) *CryptoSigner {
 	return &CryptoSigner{d: d}
 }
 
+// Public implements crypto.Signer. The returned value is a *[PublicKey].
+// It is an untyped nil (not an interface wrapping a nil pointer) when the
+// signer has no usable keypair, so `Public() == nil` is a valid check.
 func (s *CryptoSigner) Public() crypto.PublicKey {
-	pk := s.d.GetPK()
-	return &CryptoPublicKey{key: pk}
+	if s == nil || s.d == nil {
+		return nil
+	}
+	pk := s.d.PublicKey()
+	if pk == nil {
+		return nil
+	}
+	return pk
 }
 
 // Sign implements crypto.Signer. The opts parameter must be *SignerOpts
@@ -58,6 +52,12 @@ func (s *CryptoSigner) Public() crypto.PublicKey {
 // crypto/rand is used. Either way signing is hedged — the deterministic
 // path was removed in TOB-QRLLIB-6 alongside the rand-discarding bug.
 func (s *CryptoSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	if s == nil || s.d == nil {
+		return nil, cryptoerrors.ErrSecretKeyNil
+	}
+	if err := s.d.signable(); err != nil {
+		return nil, err
+	}
 	var ctx []byte
 	switch o := opts.(type) {
 	case *SignerOpts:

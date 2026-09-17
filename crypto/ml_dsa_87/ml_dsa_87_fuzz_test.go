@@ -20,7 +20,7 @@ func FuzzMLDSA87Verify(f *testing.F) {
 		copy(pk[:], pkBytes)
 
 		// This should never panic, regardless of input
-		_ = Verify(ctx, message, sig, &pk)
+		_ = Verify(ctx, message, sig, rawPK(pk))
 	})
 }
 
@@ -36,7 +36,7 @@ func FuzzMLDSA87Open(f *testing.F) {
 		copy(pk[:], pkBytes)
 
 		// This should never panic
-		_, _ = Open(ctx, signatureMessage, &pk)
+		_, _ = Open(ctx, signatureMessage, rawPK(pk))
 	})
 }
 
