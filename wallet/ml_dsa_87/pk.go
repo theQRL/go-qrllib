@@ -28,6 +28,10 @@ func BytesToPK(pkBytes []byte) (PK, error) {
 
 	copy(pk[:], pkBytes)
 
+	// Fail fast on import for keys that ValidatePublicKey rejects (today,
+	// the universally-forgeable all-zero-t1 key). This is defense in depth:
+	// PK is a plain array type, so [Verify] re-runs the same validation on
+	// every call for keys built without this constructor.
 	if err := ml_dsa_87.ValidatePublicKey((*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)); err != nil {
 		return PK{}, fmt.Errorf(common.ErrWeakPublicKey, wallettype.ML_DSA_87, err)
 	}
