@@ -129,9 +129,11 @@ go get github.com/theQRL/go-qrllib
 
 Requires Go 1.25 or later.
 
-go-qrllib has **zero third-party dependencies**: every primitive (SHA-3/SHAKE,
-randomness, constant-time comparison) comes from the Go standard library
-(`crypto/sha3`, `crypto/rand`, `crypto/subtle`).
+go-qrllib has **zero third-party dependencies**: every supporting primitive
+(SHA-3/SHAKE, SHA-256, randomness, constant-time comparison) comes from the Go
+standard library (`crypto/sha3`, `crypto/sha256`, `crypto/rand`,
+`crypto/subtle`). `go.mod` has no `require` directives and there is no
+`go.sum`.
 
 ## Quick Start
 
