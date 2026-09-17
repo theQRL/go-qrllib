@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"errors"
 	"io"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 var errUnsupportedSignerOpts = errors.New("ml_dsa_87: opts must be *SignerOpts or nil")
@@ -20,14 +22,25 @@ type CryptoSigner struct {
 	d *MLDSA87
 }
 
-// NewCryptoSigner returns a crypto.Signer backed by the given MLDSA87 instance.
+// NewCryptoSigner returns a crypto.Signer backed by d. A nil d yields a
+// signer whose Public returns nil and whose Sign returns
+// [cryptoerrors.ErrSecretKeyNil], rather than one that panics.
 func NewCryptoSigner(d *MLDSA87) *CryptoSigner {
 	return &CryptoSigner{d: d}
 }
 
 // Public implements crypto.Signer. The returned value is a *[PublicKey].
+// It is an untyped nil (not an interface wrapping a nil pointer) when the
+// signer has no usable keypair, so `Public() == nil` is a valid check.
 func (s *CryptoSigner) Public() crypto.PublicKey {
-	return s.d.PublicKey()
+	if s == nil || s.d == nil {
+		return nil
+	}
+	pk := s.d.PublicKey()
+	if pk == nil {
+		return nil
+	}
+	return pk
 }
 
 // Sign implements crypto.Signer. The opts parameter must be *SignerOpts
@@ -39,6 +52,12 @@ func (s *CryptoSigner) Public() crypto.PublicKey {
 // crypto/rand is used. Either way signing is hedged — the deterministic
 // path was removed in TOB-QRLLIB-6 alongside the rand-discarding bug.
 func (s *CryptoSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	if s == nil || s.d == nil {
+		return nil, cryptoerrors.ErrSecretKeyNil
+	}
+	if err := s.d.signable(); err != nil {
+		return nil, err
+	}
 	var ctx []byte
 	switch o := opts.(type) {
 	case *SignerOpts:

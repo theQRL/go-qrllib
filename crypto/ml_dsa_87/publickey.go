@@ -21,8 +21,8 @@ import (
 // accept. That path is unreachable from other packages.
 //
 // The zero value PublicKey{} is not a usable key. Go always allows a zero
-// value to be declared, and its bytes are exactly the all-zero-t1 shape, so
-// the type carries an unexported validity marker that only the validating
+// value to be declared, and its bytes are the weakest key there is, so the
+// type carries an unexported validity marker that only the validating
 // constructors set; [Verify] and [Open] reject a key without it.
 //
 // PublicKey follows the [crypto.PublicKey] Equal convention and is what
@@ -36,7 +36,8 @@ type PublicKey struct {
 
 // ParsePublicKey decodes a packed public key (rho || t1) and validates it.
 // It returns [cryptoerrors.ErrInvalidPublicKey] for a wrong-length input
-// and [cryptoerrors.ErrZeroT1PublicKey] for an all-zero t1.
+// and [cryptoerrors.ErrWeakPublicKey] for a weak key (see
+// [ValidatePublicKey]).
 func ParsePublicKey(b []byte) (*PublicKey, error) {
 	if len(b) != CRYPTO_PUBLIC_KEY_BYTES {
 		return nil, cryptoerrors.ErrInvalidPublicKey
@@ -50,9 +51,17 @@ func ParsePublicKey(b []byte) (*PublicKey, error) {
 	return pk, nil
 }
 
-// PublicKey returns the keypair's validated public key. Key generation
-// upholds the validation invariant, so this cannot fail.
+// PublicKey returns the keypair's validated public key, or nil for a
+// zero-value MLDSA87{} that never went through a constructor. It works
+// after [MLDSA87.Zeroize], since the public key is not secret.
+//
+// The key is re-checked with [ValidatePublicKey] rather than trusted, so
+// every *PublicKey handed out by this package has passed validation on
+// the way out, whatever path produced the bytes.
 func (d *MLDSA87) PublicKey() *PublicKey {
+	if d == nil || d.state == keyStateUninitialised || ValidatePublicKey(&d.pk) != nil {
+		return nil
+	}
 	return &PublicKey{packed: d.pk, valid: true}
 }
 

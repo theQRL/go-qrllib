@@ -212,6 +212,9 @@ func TestACVPSigGen(t *testing.T) {
 
 			var sigArr [CRYPTO_BYTES]uint8
 			copy(sigArr[:], sig)
+			if err := ValidatePublicKey(&pk); err != nil {
+				t.Errorf("NIST key rejected by ValidatePublicKey: %v", err)
+			}
 			if !Verify(ctx, msg, sigArr, rawPK(pk)) {
 				t.Error("Generated signature failed verification")
 			}

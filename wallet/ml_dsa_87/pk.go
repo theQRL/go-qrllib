@@ -18,8 +18,7 @@ import (
 type PK [PKSize]byte
 
 // BytesToPK parses a packed ML-DSA-87 public key. It rejects a key of the
-// wrong length and a key whose t1 region is all zero (see
-// [ml_dsa_87.ValidatePublicKey]).
+// wrong length and a weak key (see [ml_dsa_87.ValidatePublicKey]).
 func BytesToPK(pkBytes []byte) (PK, error) {
 	var pk PK
 
@@ -30,7 +29,7 @@ func BytesToPK(pkBytes []byte) (PK, error) {
 	copy(pk[:], pkBytes)
 
 	if err := ml_dsa_87.ValidatePublicKey((*[ml_dsa_87.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)); err != nil {
-		return PK{}, fmt.Errorf(common.ErrZeroT1PublicKey, wallettype.ML_DSA_87, err)
+		return PK{}, fmt.Errorf(common.ErrWeakPublicKey, wallettype.ML_DSA_87, err)
 	}
 	return pk, nil
 }

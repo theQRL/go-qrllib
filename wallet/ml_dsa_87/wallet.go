@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	"github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
@@ -192,12 +193,18 @@ func (w *Wallet) GetMnemonic() (string, error) {
 
 // GetPK returns the packed ML-DSA-87 public key (rho || t1).
 func (w *Wallet) GetPK() PK {
+	if w == nil || w.d == nil {
+		return PK{}
+	}
 	return w.d.GetPK()
 }
 
 // GetSK returns the packed ML-DSA-87 secret key. This is secret material;
 // see [Wallet.Zeroize].
 func (w *Wallet) GetSK() [SKSize]uint8 {
+	if w == nil || w.d == nil {
+		return [SKSize]uint8{}
+	}
 	return w.d.GetSK()
 }
 
@@ -239,6 +246,9 @@ func (w *Wallet) GetChecksumAddressStr() string {
 // [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
 // "Signing Mode" section for the full discussion.
 func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
+	if w == nil || w.d == nil {
+		return [SigSize]uint8{}, cryptoerrors.ErrKeyUninitialised
+	}
 	return w.d.Sign(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
@@ -261,16 +271,24 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 // [github.com/theQRL/go-qrllib/crypto/ml_dsa_87] package doc
 // "Signing Mode" section for the full discussion.
 func (w *Wallet) SignDeterministic(message []uint8) ([SigSize]uint8, error) {
+	if w == nil || w.d == nil {
+		return [SigSize]uint8{}, cryptoerrors.ErrKeyUninitialised
+	}
 	return w.d.SignDeterministic(common.SigningContext(w.desc.ToDescriptor()), message)
 }
 
 // Zeroize clears sensitive key material from memory.
 // This should be called when the Wallet is no longer needed.
 func (w *Wallet) Zeroize() {
+	if w == nil {
+		return
+	}
 	for i := range w.seed {
 		w.seed[i] = 0
 	}
-	w.d.Zeroize()
+	if w.d != nil {
+		w.d.Zeroize()
+	}
 }
 
 // Verify reports whether the signature is a valid ML-DSA-87 signature
@@ -278,9 +296,9 @@ func (w *Wallet) Zeroize() {
 // Returns false (rather than panicking) if pk is nil. (TOB-QRLLIB-11)
 //
 // The key is passed through [ml_dsa_87.ParsePublicKey], which applies
-// [ml_dsa_87.ValidatePublicKey], so a key whose t1 region is all zero is
-// rejected. This runs on every call because PK is a plain array type and
-// can be constructed without going through [BytesToPK].
+// [ml_dsa_87.ValidatePublicKey], so a weak key is rejected. This runs on
+// every call because PK is a plain array type and can be constructed
+// without going through [BytesToPK].
 func Verify(message, signature []uint8, pk *PK, desc [descriptor.DescriptorSize]byte) (result bool) {
 	if pk == nil {
 		return false

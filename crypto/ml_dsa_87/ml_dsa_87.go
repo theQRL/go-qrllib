@@ -61,14 +61,24 @@
 // this package one can only be obtained from [ParsePublicKey], for bytes
 // received from elsewhere, or [MLDSA87.PublicKey], for a keypair you hold.
 // Both run [ValidatePublicKey], so a key that reaches the verifier has
-// already been checked. The zero value PublicKey{} is rejected.
+// already been checked. The zero values PublicKey{} and MLDSA87{} are
+// rejected: the former by [Verify] and [Open], the latter by returning nil
+// from [MLDSA87.PublicKey] and an error from its signing methods.
 //
-// Validation rejects one key shape, an all-zero t1, which key generation
-// never produces. The FIPS 204 primitive underneath does not check keys,
-// as the standard specifies, and the C2SP/wycheproof vectors require it to
-// accept that shape (tcId 66 and 174); see [ValidatePublicKey] for why it
-// is rejected at construction instead, and for the limits of the rule.
-// rust-qrllib and qrypto.js/wallet.js apply the same rule.
+// Validation rejects weak keys, those whose t1 has fewer than 76 large
+// coefficients (see [ValidatePublicKey] for the rule); key generation
+// never produces one. The FIPS 204 primitive underneath does not check
+// keys, as the standard specifies, and the C2SP/wycheproof vectors
+// require it to accept the all-zero key (tcId 66 and 174) and the
+// all-1023 key (tcId 240), so the check runs at construction instead.
+// rust-qrllib and qrypto.js/wallet.js apply the same rule against the same
+// test vectors.
+//
+// Secret keys only ever come from a seed, but the signing primitive still
+// checks that every s1 and s2 coefficient is within [-ETA, ETA]
+// ([ValidateSecretKey]) and bounds its rejection loop, so a raw key that
+// reached it by any future path could neither weaken the signature nor
+// make signing spin.
 //
 // # Thread Safety
 //
@@ -93,10 +103,41 @@ import (
 // FIPS-204-deterministic signing for test-vector reproduction
 // (ACVP / KAT) call the unexported [cryptoSignSignatureWithRnd] with
 // rnd=zero directly.
+//
+// A keypair is usable only between construction ([New],
+// [NewMLDSA87FromSeed], [NewMLDSA87FromHexSeed]) and [MLDSA87.Zeroize].
+// The zero value MLDSA87{} is not a keypair: its signing methods return
+// [cryptoerrors.ErrKeyUninitialised] and [MLDSA87.PublicKey] returns nil.
+// After Zeroize the signing methods return
+// [cryptoerrors.ErrSecretKeyZeroized]; the public key stays available.
 type MLDSA87 struct {
-	pk   [CRYPTO_PUBLIC_KEY_BYTES]uint8
-	sk   [CRYPTO_SECRET_KEY_BYTES]uint8
-	seed [SEED_BYTES]uint8
+	pk    [CRYPTO_PUBLIC_KEY_BYTES]uint8
+	sk    [CRYPTO_SECRET_KEY_BYTES]uint8
+	seed  [SEED_BYTES]uint8
+	state keyState
+}
+
+// keyState tracks the keypair lifecycle. The zero value is deliberately
+// keyStateUninitialised, so a MLDSA87{} declared outside a constructor is
+// inert rather than a keypair with all-zero material.
+type keyState uint8
+
+const (
+	keyStateUninitialised keyState = iota
+	keyStateReady
+	keyStateZeroized
+)
+
+// signable reports whether the keypair may sign.
+func (d *MLDSA87) signable() error {
+	switch d.state {
+	case keyStateReady:
+		return nil
+	case keyStateZeroized:
+		return cryptoerrors.ErrSecretKeyZeroized
+	default:
+		return cryptoerrors.ErrKeyUninitialised
+	}
 }
 
 func New() (*MLDSA87, error) {
@@ -127,7 +168,7 @@ func New() (*MLDSA87, error) {
 		return nil, cryptoerrors.ErrKeyGeneration
 	}
 
-	d := &MLDSA87{pk, sk, seed}
+	d := &MLDSA87{pk: pk, sk: sk, seed: seed, state: keyStateReady}
 	// Wipe the constructor-local copies now that they live in the
 	// returned instance (the NewMLDSA87FromHexSeed pattern, TOB-QRLLIB-10).
 	zeroBytes(sk[:])
@@ -155,7 +196,7 @@ func NewMLDSA87FromSeed(seed [SEED_BYTES]uint8) (*MLDSA87, error) {
 		return nil, cryptoerrors.ErrKeyGeneration
 	}
 
-	d := &MLDSA87{pk, sk, seed}
+	d := &MLDSA87{pk: pk, sk: sk, seed: seed, state: keyStateReady}
 	// seed is a by-value parameter, so this wipes only the local copy.
 	zeroBytes(sk[:])
 	zeroBytes(seed[:])
@@ -226,6 +267,9 @@ func (d *MLDSA87) GetHexSeed() string {
 // (ctx, message) under the same key produce distinct signatures, both
 // of which verify under the same public key. (TOB-QRLLIB-6.)
 func (d *MLDSA87) SignAttached(ctx, message []uint8) ([]uint8, error) {
+	if err := d.signable(); err != nil {
+		return nil, err
+	}
 	return cryptoSign(message, ctx, &d.sk)
 }
 
@@ -239,6 +283,9 @@ func (d *MLDSA87) SignAttached(ctx, message []uint8) ([]uint8, error) {
 // of which verify under the same public key. (TOB-QRLLIB-6.)
 func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	var signature [CRYPTO_BYTES]uint8
+	if err := d.signable(); err != nil {
+		return signature, err
+	}
 
 	sm, err := cryptoSign(message, ctx, &d.sk)
 	if err == nil {
@@ -271,6 +318,9 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 // crypto.Signer plumbing.
 func (d *MLDSA87) SignDeterministic(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	var signature [CRYPTO_BYTES]uint8
+	if err := d.signable(); err != nil {
+		return signature, err
+	}
 	var rnd [RND_BYTES]uint8 // zero — FIPS 204 §3.5 deterministic mode
 	if err := cryptoSignSignatureWithRnd(signature[:], message, ctx, &d.sk, rnd); err != nil {
 		return signature, err
@@ -307,7 +357,7 @@ func Open(ctx, signatureMessage []uint8, pk *PublicKey) ([]uint8, error) {
 	}
 	if !pk.valid {
 		// Zero-value PublicKey{}: never passed through a validating
-		// constructor, and its bytes are the all-zero-t1 shape.
+		// constructor, and its bytes are a weak key.
 		return nil, cryptoerrors.ErrInvalidPublicKey
 	}
 	return cryptoSignOpen(signatureMessage, ctx, &pk.packed)
@@ -380,8 +430,16 @@ func ExtractSignature(signatureMessage []uint8) []uint8 {
 //     hibernation images, swap files) need a hardware security module
 //     for hard guarantees.
 //
+// After Zeroize the keypair refuses to sign: [MLDSA87.Sign],
+// [MLDSA87.SignDeterministic], [MLDSA87.SignAttached] and
+// [CryptoSigner.Sign] return [cryptoerrors.ErrSecretKeyZeroized], rather
+// than silently signing with the cleared material. [MLDSA87.PublicKey]
+// keeps working, since the public key is not secret. Zeroize is
+// idempotent.
+//
 // See SECURITY.md ("Key Zeroization") for the full discussion.
 func (d *MLDSA87) Zeroize() {
 	zeroBytes(d.sk[:])
 	zeroBytes(d.seed[:])
+	d.state = keyStateZeroized
 }

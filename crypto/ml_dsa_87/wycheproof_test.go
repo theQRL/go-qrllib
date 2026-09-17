@@ -5,10 +5,13 @@ package ml_dsa_87
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 // Wycheproof ML-DSA-87 test vector verification.
@@ -107,6 +110,23 @@ func TestWycheproofVerify(t *testing.T) {
 		pkLengthOK := len(pkBytes) == CRYPTO_PUBLIC_KEY_BYTES
 		if pkLengthOK {
 			copy(pk[:], pkBytes)
+
+			// Cross-check key validation against the corpus. Exactly the
+			// groups flagged ZeroPublicKey (all-zero t1) and MissingReduction
+			// (t1 all 1023, i.e. 2^13*1023 = q-1) hold weak keys; every other
+			// group's key must pass. The primitive is exercised below
+			// regardless, since those groups' valid vectors must verify.
+			expectWeak := false
+			for _, tc := range group.Tests {
+				for _, f := range tc.Flags {
+					if f == "ZeroPublicKey" || f == "MissingReduction" {
+						expectWeak = true
+					}
+				}
+			}
+			if err := ValidatePublicKey(&pk); expectWeak != errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+				t.Errorf("group %d: ValidatePublicKey = %v, expected weak = %v", gi, err, expectWeak)
+			}
 		}
 
 		for _, tc := range group.Tests {

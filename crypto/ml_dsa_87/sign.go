@@ -145,7 +145,27 @@ func cryptoSignKeypair(seed *[SEED_BYTES]uint8, pk *[CRYPTO_PUBLIC_KEY_BYTES]uin
 	return seed, nil
 }
 
+// signMaxAttempts bounds the rejection-sampling loop in
+// cryptoSignSignatureAttempts. FIPS 204 loops until a candidate is
+// accepted; for ML-DSA-87 a candidate is accepted with probability about
+// 0.26 per attempt (3.85 expected attempts, FIPS 204 Table 2), and that
+// probability does not depend on the key as long as s1 and s2 are in
+// range, which validateSecretKeyVecs guarantees. The chance that a valid
+// key needs more than 1024 attempts is below 0.74^1024 < 2^-440, so the
+// bound never fires in honest use. It exists so that a secret key whose
+// other fields are adversarial (for example a t0 chosen to force more than
+// OMEGA hints on most attempts) yields ErrSigningFailed instead of
+// spinning.
+const signMaxAttempts = 1024
+
 func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8) error {
+	return cryptoSignSignatureAttempts(sig, m, pre, rnd, sk, signMaxAttempts)
+}
+
+// cryptoSignSignatureAttempts is the FIPS 204 Algorithm 7 loop with an
+// attempt bound. It rejects a secret key whose s1 or s2 has a coefficient
+// outside [-ETA, ETA] before doing any work.
+func cryptoSignSignatureAttempts(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uint8, sk *[CRYPTO_SECRET_KEY_BYTES]uint8, maxAttempts int) error {
 	var rho, key [SEED_BYTES]uint8
 	var tr [TR_BYTES]uint8
 	var mu, rhoPrime [CRH_BYTES]uint8
@@ -156,6 +176,9 @@ func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 	var nonce uint16
 
 	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
+	if err := validateSecretKeyVecs(&s1, &s2); err != nil {
+		return err
+	}
 
 	// Zeroize secret temporaries when signing completes.
 	// Go's GC may copy values before zeroization, but this still reduces
@@ -193,7 +216,12 @@ func cryptoSignSignatureInternal(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 	polyVecKNTT(&s2)
 	polyVecKNTT(&t0)
 
+	attempts := 0
 rej:
+	if attempts >= maxAttempts {
+		return cryptoerrors.ErrSigningFailed
+	}
+	attempts++
 
 	/* Sample intermediate vector y */
 	polyVecLUniformGamma1(&y, rhoPrime, nonce)
@@ -263,15 +291,13 @@ rej:
 	polyVecKReduce(&h)
 	if polyVecKChkNorm(&h, GAMMA2) != 0 {
 		//coverage:ignore
-		//rationale: rejection condition rarely triggers; signature typically succeeds on first attempt
+		//rationale: unreachable for any decodable t0: each coefficient of c*t0 is a sum of TAU terms of magnitude at most 2^(D-1), so its norm is at most TAU*2^(D-1) = 245760 < GAMMA2 = 261888
 		goto rej
 	}
 
 	polyVecKAdd(&w0, &w0, &h)
 	n := polyVecKMakeHint(&h, &w0, &w1)
 	if n > OMEGA {
-		//coverage:ignore
-		//rationale: rejection condition rarely triggers; signature typically succeeds on first attempt
 		goto rej
 	}
 	var c [C_TILDE_BYTES]uint8

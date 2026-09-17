@@ -65,7 +65,7 @@ This library assumes:
 | Stateless | Yes |
 | Side-channel resistant | Branchless arithmetic in signing path; see [details below](#constant-time-operations) |
 | Signature malleability | No (canonical encoding enforced) |
-| Public-key validation | `Verify`/`Open` take a `*PublicKey`, obtainable only from `ParsePublicKey` or `MLDSA87.PublicKey`; both reject an all-zero `t1`, a shape key generation never produces and under which the verifier would accept a signature anyone can compute. The FIPS 204 primitive is unchanged: Algorithm 8 has no key check and Wycheproof tcId 66 and 174 require that shape to verify. The rule is a minimum; keys with very small `t1` are not caught (`TestValidatePublicKey_KnownGap_SmallT1NotRejected`, tracked follow-up). The zero value `PublicKey{}` is rejected. See `.github/wycheproof/README.md`. |
+| Public-key validation | `Verify`/`Open` take a `*PublicKey`, obtainable only from `ParsePublicKey` or `MLDSA87.PublicKey`; both reject a weak key, one under which the verifier would accept a signature anyone can compute. A t1 coefficient is large when it lies in `[96, 415]` or `[608, 927]` (two `HighBits` bands from zero under both the direct and the `2^-1` parity mechanism); a key is weak unless at least 76 (= ω + 1) of its 2048 coefficients are large. Honest keys have about 1280, so rejection of a generated key is a sub-2⁻⁸⁰⁰ event. The FIPS 204 primitive is unchanged: Algorithm 8 has no key check, and Wycheproof requires the all-zero key (tcId 66, 174) and the all-1023 key (tcId 240) to verify. rust-qrllib, qrypto.js and wallet.js apply the same rule against `crypto/ml_dsa_87/testdata/weak_public_key_vectors.json`. The zero value `PublicKey{}` is rejected. |
 
 **Security Level**: NIST Level 5 (equivalent to AES-256)
 
@@ -457,6 +457,29 @@ what upstream invariant is being enforced.
 | `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 | `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 
+Keypair lifecycle (ML-DSA-87): a zero-value `MLDSA87{}` or `Wallet{}` that
+never went through a constructor signs with `ErrKeyUninitialised` and its
+`PublicKey()` is nil; after `Zeroize`, `Sign`, `SignDeterministic`,
+`SignAttached` and `CryptoSigner.Sign` return `ErrSecretKeyZeroized` and no
+signature, while the public key stays available. `NewCryptoSigner(nil)`
+yields a signer whose `Public` is nil and whose `Sign` returns
+`ErrSecretKeyNil`. `MLDSA87.PublicKey` re-validates the key bytes on the
+way out, so no path hands a caller an unvalidated `*PublicKey`. Regression
+tests: `lifecycle_test.go`, `TestWallet_ZeroValue`, and
+`TestWallet_SignDeterministic_AfterZeroize`.
+
+Secret keys (ML-DSA-87): every signing path first checks that each `s1`
+and `s2` coefficient lies in `[-ETA, ETA]` (`ValidateSecretKey`, returning
+`ErrInvalidSecretKey`); an out-of-range coefficient would break the
+`‖z‖∞ < GAMMA1 − BETA` bound the rejection loop relies on. The loop itself
+is bounded at 1024 attempts and returns `ErrSigningFailed` beyond that.
+For a valid key the acceptance probability per attempt is about 0.26
+regardless of the key, so the bound is a sub-2⁻⁴⁴⁰ event in honest use; it
+exists so that a crafted `t0` cannot make signing spin. Nothing in this
+library imports raw secret-key bytes today; the checks sit at the raw-key
+signing primitive so any future import path inherits them. Regression
+tests: `secretkey_test.go`.
+
 The crypto-level `Open` functions return `([]byte, error)`. Each failure mode
 surfaces a distinct typed sentinel from `cryptoerrors`, so callers that need to
 log or route on specific failure types can use `errors.Is(err,
@@ -471,8 +494,8 @@ nil-PK guard as defense-in-depth and surface the same typed sentinels.
 otherwise unvalidated `*PublicKey` — one not produced by `ParsePublicKey` or
 `MLDSA87.PublicKey`: `Verify` returns `false`, `Open` returns
 `(nil, ErrInvalidPublicKey)`. `ParsePublicKey` itself returns
-`ErrInvalidPublicKey` for a wrong-length input and `ErrZeroT1PublicKey` for an
-all-zero `t1`. Regression tests: `publickey_test.go`
+`ErrInvalidPublicKey` for a wrong-length input and `ErrWeakPublicKey` for a
+weak key. Regression tests: `publickey_test.go`
 (`TestPublicKey_ZeroValueRejected`, `TestParsePublicKey_*`).
 
 Regression tests in each affected package (`nil_pk_test.go`) exercise the nil-pk

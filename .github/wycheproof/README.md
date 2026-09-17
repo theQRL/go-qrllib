@@ -114,9 +114,10 @@ primitive:
 
 - `crypto/ml_dsa_87.Verify` / `Open` take a `*PublicKey`, which outside
   the package can only be obtained from `ParsePublicKey` or
-  `MLDSA87.PublicKey`. Both apply `ValidatePublicKey`, so every key a
-  caller can hand to the primitive has already been validated — by
-  construction, not by convention.
+  `MLDSA87.PublicKey`. Both apply `ValidatePublicKey`, which rejects weak
+  keys (the all-zero key and every other key with fewer than 76 large
+  `t1` coefficients; see its doc comment), so every key a caller can
+  hand to the primitive has already been validated.
 - The primitive itself does no key validation. This harness is an
   in-package test and builds `PublicKey` directly to exercise it on the
   ZeroPublicKey vectors; that path is unreachable from other packages.
@@ -124,7 +125,10 @@ primitive:
   fail-fast behaviour.
 
 The remaining 65 vectors in group 25 (tcId 175–239) are `invalid`
-c~-byte-flip cases under the same key. Keeping the primitive conformant
+c~-byte-flip cases under the same key. The `MissingReduction` group
+(tcId 240–241) uses a key whose `t1` is all 1023, which the widened rule
+also classifies as weak (`2^13·1023 = q − 1`); tcId 240 is `valid` and the
+primitive accepts it. Keeping the primitive conformant
 also keeps those vectors meaningful; a verify-time key rejection would
 short-circuit before the signature is parsed and pass them vacuously.
 

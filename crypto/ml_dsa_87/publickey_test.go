@@ -43,8 +43,8 @@ func TestParsePublicKey_WrongLength(t *testing.T) {
 func TestParsePublicKey_RejectsZeroT1(t *testing.T) {
 	for _, rho := range []uint8{0x00, 0xab} {
 		pk := zeroT1PK(rho)
-		if _, err := ParsePublicKey(pk[:]); !errors.Is(err, cryptoerrors.ErrZeroT1PublicKey) {
-			t.Fatalf("rho=%#x: err = %v, want ErrZeroT1PublicKey", rho, err)
+		if _, err := ParsePublicKey(pk[:]); !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+			t.Fatalf("rho=%#x: err = %v, want ErrWeakPublicKey", rho, err)
 		}
 	}
 }
@@ -97,8 +97,8 @@ func TestPublicKey_ZeroValueRejected(t *testing.T) {
 
 	// The same bytes through the validating constructor are refused too, so
 	// there is no route by which those bytes become a usable key.
-	if _, err := ParsePublicKey(zero.packed[:]); !errors.Is(err, cryptoerrors.ErrZeroT1PublicKey) {
-		t.Fatalf("ParsePublicKey on zero bytes: err = %v, want ErrZeroT1PublicKey", err)
+	if _, err := ParsePublicKey(zero.packed[:]); !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+		t.Fatalf("ParsePublicKey on zero bytes: err = %v, want ErrWeakPublicKey", err)
 	}
 
 	// Zero values never compare equal, even to themselves.

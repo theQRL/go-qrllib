@@ -18,10 +18,10 @@ const (
 	ErrInvalidPKSize                     = "%s invalid pkBytes size %d, expected %d"
 	ErrInvalidSeedLength                 = "%s invalid seed length %d, expected %d"
 	ErrInvalidExtendedSeedLength         = "%s invalid extended seed length %d, expected %d"
-	// ErrZeroT1PublicKey wraps cryptoerrors.ErrZeroT1PublicKey with the
-	// wallet type. Returned by BytesToPK / HexStrToPK for a public key
-	// whose t1 region is all zero, a shape key generation never produces.
-	ErrZeroT1PublicKey = "%s public key rejected: %w"
+	// ErrWeakPublicKey wraps cryptoerrors.ErrWeakPublicKey with the wallet
+	// type. Returned by BytesToPK / HexStrToPK for a weak public key, a
+	// shape key generation never produces.
+	ErrWeakPublicKey = "%s public key rejected: %w"
 )
 
 // Sentinel errors for wallet-type gating. Compare with errors.Is.
