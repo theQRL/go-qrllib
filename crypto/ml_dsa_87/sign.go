@@ -176,11 +176,8 @@ func cryptoSignSignatureAttempts(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 	var nonce uint16
 
 	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
-	if err := validateSecretKeyVecs(&s1, &s2); err != nil {
-		return err
-	}
 
-	// Zeroize secret temporaries when signing completes.
+	// Zeroize secret temporaries on every return, including a rejected key.
 	// Go's GC may copy values before zeroization, but this still reduces
 	// the window for secrets persisting in freed memory.
 	defer func() {
@@ -190,6 +187,10 @@ func cryptoSignSignatureAttempts(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 		zeroPolyVecK(&s2)
 		zeroPolyVecK(&t0)
 	}()
+
+	if err := validateSecretKeyVecs(&s1, &s2); err != nil {
+		return err
+	}
 
 	/* Compute mu = CRH(tr, 0, ctxlen, ctx, msg) */
 	state := getShake256()
