@@ -568,13 +568,13 @@ func TestOpen(t *testing.T) {
 
 	randomness := bytes.Repeat([]byte{0xa5}, nonceSize+SeedSize)
 	for _, msg := range [][]byte{nil, []byte("x"), bytes.Repeat([]byte("falcon-1024 open "), 50)} {
-		sm, err := Sign(bytes.NewReader(randomness), priv, msg)
-		if err != nil {
-			t.Fatal(err)
+		sm, signErr := Sign(bytes.NewReader(randomness), priv, msg)
+		if signErr != nil {
+			t.Fatal(signErr)
 		}
-		opened, err := Open(pub, sm)
-		if err != nil {
-			t.Fatalf("Open rejected a valid %d-byte message: %v", len(msg), err)
+		opened, openErr := Open(pub, sm)
+		if openErr != nil {
+			t.Fatalf("Open rejected a valid %d-byte message: %v", len(msg), openErr)
 		}
 		if !bytes.Equal(opened, msg) {
 			t.Fatal("Open returned a different message")
@@ -585,7 +585,7 @@ func TestOpen(t *testing.T) {
 				t.Fatal("Open returned a slice aliasing the signed message")
 			}
 		}
-		if _, err := Open(other.PublicKey(), sm); err == nil {
+		if _, otherErr := Open(other.PublicKey(), sm); otherErr == nil {
 			t.Fatal("Open accepted the signed message under another public key")
 		}
 	}
@@ -657,9 +657,9 @@ func TestDetachedSignature(t *testing.T) {
 
 	for _, msg := range [][]byte{nil, []byte("x"), bytes.Repeat([]byte("falcon-1024 detached "), 40)} {
 		reader := bytes.NewReader(randomness)
-		sig, err := SignDetached(reader, priv, msg)
-		if err != nil {
-			t.Fatal(err)
+		sig, signErr := SignDetached(reader, priv, msg)
+		if signErr != nil {
+			t.Fatal(signErr)
 		}
 		if reader.Len() != 0 {
 			t.Fatalf("SignDetached consumed %d random bytes, want %d", len(randomness)-reader.Len(), len(randomness))
@@ -673,17 +673,17 @@ func TestDetachedSignature(t *testing.T) {
 		if !bytes.Equal(sig[headerSize:detachedSignaturePrefixSize], randomness[:nonceSize]) {
 			t.Fatal("detached signature nonce is not the first 40 random bytes")
 		}
-		if err := Verify(pub, msg, sig); err != nil {
-			t.Fatalf("Verify rejected a valid detached signature of a %d-byte message: %v", len(msg), err)
+		if verifyErr := Verify(pub, msg, sig); verifyErr != nil {
+			t.Fatalf("Verify rejected a valid detached signature of a %d-byte message: %v", len(msg), verifyErr)
 		}
-		if err := Verify(other.PublicKey(), msg, sig); err == nil {
+		if otherErr := Verify(other.PublicKey(), msg, sig); otherErr == nil {
 			t.Fatal("Verify accepted the signature under another public key")
 		}
 
 		// With the same randomness, Sign embeds the same nonce and polynomial.
-		sm, err := Sign(bytes.NewReader(randomness), priv, msg)
-		if err != nil {
-			t.Fatal(err)
+		sm, smErr := Sign(bytes.NewReader(randomness), priv, msg)
+		if smErr != nil {
+			t.Fatal(smErr)
 		}
 		if want := detachedFromSignedMessage(t, sm, len(msg)); !bytes.Equal(sig, want) {
 			t.Fatal("detached signature differs from the signature in the signed message")

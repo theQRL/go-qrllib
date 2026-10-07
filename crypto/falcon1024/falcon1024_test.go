@@ -110,12 +110,12 @@ func TestRoundTrip(t *testing.T) {
 
 	modified := bytes.Clone(signedMessage)
 	modified[len(modified)-1] ^= 0x80
-	if _, err := Open(public1, modified); err == nil {
+	if _, err = Open(public1, modified); err == nil {
 		t.Fatal("modified signature accepted")
 	}
 	modified = bytes.Clone(signedMessage)
 	modified[2+40] ^= 1
-	if _, err := Open(public1, modified); err == nil {
+	if _, err = Open(public1, modified); err == nil {
 		t.Fatal("modified message accepted")
 	}
 
@@ -152,7 +152,7 @@ func TestRoundTrip(t *testing.T) {
 	if public.Equal(otherPublic) {
 		t.Fatal("different public keys are Equal")
 	}
-	if _, err := Open(otherPublic, signedMessage); err == nil {
+	if _, err = Open(otherPublic, signedMessage); err == nil {
 		t.Fatal("signed message accepted with a different public key")
 	}
 	if Verify(otherPublic, message, signature) {
@@ -176,7 +176,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Open(randomPrivate.Public().(*PublicKey), randomSigned); err != nil {
+	if _, err = Open(randomPrivate.Public().(*PublicKey), randomSigned); err != nil {
 		t.Fatalf("signed message with crypto/rand randomness rejected: %v", err)
 	}
 
@@ -232,7 +232,7 @@ func TestInvalidInputs(t *testing.T) {
 		make([]byte, PublicKeySize+1),
 		badHeaderPublic,
 	} {
-		if _, err := NewPublicKey(publicKey); err == nil {
+		if _, err = NewPublicKey(publicKey); err == nil {
 			t.Fatalf("NewPublicKey accepted invalid public key with length %d", len(publicKey))
 		}
 	}
@@ -245,7 +245,7 @@ func TestInvalidInputs(t *testing.T) {
 		make([]byte, PrivateKeySize+1),
 		badHeaderPrivate,
 	} {
-		if _, err := NewPrivateKey(privateKey); err == nil {
+		if _, err = NewPrivateKey(privateKey); err == nil {
 			t.Fatalf("NewPrivateKey accepted invalid private key with length %d", len(privateKey))
 		}
 	}
@@ -258,12 +258,12 @@ func TestInvalidInputs(t *testing.T) {
 		append(bytes.Clone(signedMessage), 0),
 		append(bytes.Clone(signedMessage[:sigOffset]), signedMessage[sigOffset]^0xFF),
 	} {
-		if _, err := Open(public, sm); err == nil {
+		if _, err = Open(public, sm); err == nil {
 			t.Fatalf("Open accepted invalid signed message with length %d", len(sm))
 		}
 	}
 
-	if _, err := Sign(bytes.NewReader(make([]byte, 40)), private, message); err == nil {
+	if _, err = Sign(bytes.NewReader(make([]byte, 40)), private, message); err == nil {
 		t.Fatal("Sign succeeded without enough randomness for the sampler seed")
 	}
 

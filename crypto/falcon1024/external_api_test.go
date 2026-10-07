@@ -44,9 +44,9 @@ func TestExternalAPILoop(t *testing.T) {
 
 		var signatures [2][]byte
 		for j := range signatures {
-			sig, err := SignDetached(rng, priv, []byte("data1"))
-			if err != nil {
-				t.Fatalf("round %d: SignDetached: %v", i, err)
+			sig, signErr := SignDetached(rng, priv, []byte("data1"))
+			if signErr != nil {
+				t.Fatalf("round %d: SignDetached: %v", i, signErr)
 			}
 			if len(sig) > MaxSignatureSize {
 				t.Fatalf("round %d: signature length = %d, want at most %d", i, len(sig), MaxSignatureSize)
