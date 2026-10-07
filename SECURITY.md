@@ -457,6 +457,20 @@ what upstream invariant is being enforced.
 | `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 | `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 
+XMSS preconditions: `crypto/xmss.Verify` and `VerifyWithCustomWOTSParamW`
+return `false` for an invalid `HashFunction` or a public key that is not
+exactly 64 bytes. `XMSSFastGenKeyPair` and
+`XMSSFastGenKeyPairFromExpandedSeed` return `ErrBufferTooSmall` for a short
+`pk`/`sk` and `ErrInvalidBDSParams` for a nil `bdsState` or `h ≤ k`. The XMSS
+fuzzers pass the hash-function and WOTS `w` selectors unmasked. Tests:
+`crypto/xmss/verify_preconditions_test.go`.
+
+v1 descriptor parity: `legacywallet/xmss` accepts what the v1 (QRL mainnet)
+node accepted, per qrllib v1.2.4, so every funded v1 address stays
+migratable. Reserved byte 2 is ignored on parse and written as 0; the
+address-format nibble is checked only at address derivation, not in `Verify`.
+Tests: `legacywallet/xmss/v1_mainnet_parity_test.go`.
+
 Keypair lifecycle (ML-DSA-87): a zero-value `MLDSA87{}` or `Wallet{}` that
 never went through a constructor signs with `ErrKeyUninitialised` and its
 `PublicKey()` is nil; after `Zeroize`, `Sign`, `SignDeterministic`,
