@@ -301,14 +301,21 @@ func TestWallet_RoundTripThroughHexSeed(t *testing.T) {
 // constructed with an invalid descriptor (which can't happen through normal
 // constructors but tests defensive error handling)
 
-func TestGetExtendedSeed_InvalidDescriptor(t *testing.T) {
-	// Construct wallet with invalid descriptor (type byte 255 is invalid)
-	// This bypasses normal constructors which always create valid descriptors
-	w := &Wallet{
-		desc: Descriptor{255, 0, 0}, // 255 is not a valid wallet type
-		seed: common.Seed{},
-		d:    nil, // not needed for this test
+// invalidDescriptorWallet returns an initialised wallet whose descriptor has
+// been overwritten with an invalid wallet type (255). No constructor can
+// produce this; it exercises the defensive error path in GetExtendedSeed.
+func invalidDescriptorWallet(t *testing.T) *Wallet {
+	t.Helper()
+	w, err := NewWallet()
+	if err != nil {
+		t.Fatalf("NewWallet: %v", err)
 	}
+	w.desc = Descriptor{255, 0, 0}
+	return w
+}
+
+func TestGetExtendedSeed_InvalidDescriptor(t *testing.T) {
+	w := invalidDescriptorWallet(t)
 
 	_, err := w.GetExtendedSeed()
 	if err == nil {
@@ -317,12 +324,7 @@ func TestGetExtendedSeed_InvalidDescriptor(t *testing.T) {
 }
 
 func TestGetHexSeed_InvalidDescriptor(t *testing.T) {
-	// Construct wallet with invalid descriptor
-	w := &Wallet{
-		desc: Descriptor{255, 0, 0},
-		seed: common.Seed{},
-		d:    nil,
-	}
+	w := invalidDescriptorWallet(t)
 
 	_, err := w.GetHexSeed()
 	if err == nil {
@@ -331,12 +333,7 @@ func TestGetHexSeed_InvalidDescriptor(t *testing.T) {
 }
 
 func TestGetMnemonic_InvalidDescriptor(t *testing.T) {
-	// Construct wallet with invalid descriptor
-	w := &Wallet{
-		desc: Descriptor{255, 0, 0},
-		seed: common.Seed{},
-		d:    nil,
-	}
+	w := invalidDescriptorWallet(t)
 
 	_, err := w.GetMnemonic()
 	if err == nil {

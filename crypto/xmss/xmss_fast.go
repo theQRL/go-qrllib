@@ -23,6 +23,9 @@ func XMSSFastGenKeyPair(hashFunction HashFunction, xmssParams *XMSSParams,
 	if err := validateXMSSFastParams(xmssParams); err != nil {
 		return err
 	}
+	if err := validateXMSSFastOutputs(xmssParams, pk, sk, bdsState); err != nil {
+		return err
+	}
 	// Reject seeds that are not exactly SeedSize (48) bytes. SHAKE256
 	// happily expands any input length, so without this guard an empty
 	// or truncated seed silently produces an entropy-starved tree.
@@ -60,6 +63,9 @@ func XMSSFastGenKeyPairFromExpandedSeed(hashFunction HashFunction, xmssParams *X
 	if err := validateXMSSFastParams(xmssParams); err != nil {
 		return err
 	}
+	if err := validateXMSSFastOutputs(xmssParams, pk, sk, bdsState); err != nil {
+		return err
+	}
 	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, expandedSeed)
 }
 
@@ -75,6 +81,27 @@ func validateXMSSFastParams(xmssParams *XMSSParams) error {
 	}
 	if xmssParams.h < 2 || xmssParams.h > uint32(MaxHeight) || xmssParams.h&1 == 1 {
 		return cryptoerrors.ErrInvalidHeight
+	}
+	// BDS traversal needs h > k; NewBDSState returns nil for h <= k. The same
+	// rule InitializeTree applies, so the two entry points agree.
+	if xmssParams.h <= xmssParams.k {
+		return cryptoerrors.ErrInvalidBDSParams
+	}
+	return nil
+}
+
+// validateXMSSFastOutputs checks the caller-supplied buffers and BDS state
+// that xmssFastGenKeyPairCore writes into, before anything is written: pk
+// must hold root || pub_seed (2n bytes), sk must hold idx || sk_seed ||
+// sk_prf || pub_seed || root (4 + 4n bytes), and bdsState must be non-nil.
+// Without these checks a short buffer or nil state panics inside the core.
+func validateXMSSFastOutputs(xmssParams *XMSSParams, pk, sk []uint8, bdsState *BDSState) error {
+	n := xmssParams.n
+	if len(pk) < int(2*n) || len(sk) < int(4+4*n) {
+		return cryptoerrors.ErrBufferTooSmall
+	}
+	if bdsState == nil {
+		return cryptoerrors.ErrInvalidBDSParams
 	}
 	return nil
 }
@@ -626,8 +653,10 @@ func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, p
 
 	n := wotsParams.n
 
-	// Validate public key length (must be at least 2*n bytes: root + pubSeed)
-	if uint32(len(pk)) < 2*n {
+	// The public key is exactly root || pub_seed (2*n bytes). Requiring the
+	// exact length keeps the encoding canonical: trailing bytes would otherwise
+	// be silently ignored, letting two byte strings name one key.
+	if len(pk) != int(2*n) {
 		return false
 	}
 

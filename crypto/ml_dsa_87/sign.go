@@ -188,6 +188,8 @@ func cryptoSignSignatureAttempts(sig, m []uint8, pre []uint8, rnd [RND_BYTES]uin
 		zeroPolyVecK(&t0)
 	}()
 
+	// The defer above must stay ahead of this return: it is what wipes the
+	// unpacked key when validation rejects it.
 	if err := validateSecretKeyVecs(&s1, &s2); err != nil {
 		return err
 	}

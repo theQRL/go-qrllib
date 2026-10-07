@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.25.x']
+        go-version: ['1.25.x', '1.26.x']
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,9 +72,18 @@ jobs:
             fi
             while IFS= read -r fuzz; do
               echo "  Running $fuzz..."
-              # Unit tests already ran above. Skip rerunning them for every fuzz
-              # target. A fixed budget is deterministic across runner speeds.
-              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime=100x
+              # Unit tests already ran above; skip rerunning them per target. A
+              # fixed input count is deterministic across runner speeds, and the
+              # counts are sized per package from measured throughput to ~2-3 s
+              # each. SPHINCS+ operations are slow (~70 execs/s), which is the
+              # original reason for counts over wall-clock; it stays small.
+              case "$pkg" in
+                ./crypto/sphincsplus_256s) budget=200x ;;
+                ./crypto/xmss)             budget=200000x ;;
+                ./wallet/misc)             budget=500000x ;;
+                *)                         budget=20000x ;;
+              esac
+              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime="$budget"
             done <<< "$targets"
           done
 
@@ -87,7 +96,8 @@ jobs:
         run: go test -tags metamorphic -count=1 -run "TestMetamorphic" -timeout 5m ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
 
       - name: Upload coverage to Codecov
-        if: github.repository == 'theQRL/go-qrllib' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # One upload per run: the matrix entries produce identical coverage.
+        if: github.repository == 'theQRL/go-qrllib' && github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.go-version == '1.25.x'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
