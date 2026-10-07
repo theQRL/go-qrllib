@@ -23,7 +23,7 @@ const (
 //     absorbing each encoded public key followed by its signature.
 //   - signLoopDigest covers the 200 signatures that signLoop makes with the
 //     first key of the keygen loop, each absorbed as n little-endian int16
-//     values; see TestSignTreeSelfVerifyLoop.
+//     values; see TestSignSelfVerifyLoop.
 const (
 	keygenLoopDigest = "72bcb4a3b250a8052d5f8069400ecb1f316d4fcacfdce850955cc64d1eff5b1f"
 	signLoopDigest   = "250f93901c18fe41a1867869d25c0c10db32c35e10ee337f0d6ca3f73eee308a"
@@ -67,7 +67,7 @@ func signLoop(t *testing.T, priv *PrivateKey, pub *PublicKey) *sha3.SHAKE {
 		_, _ = sc.Write(msg[:])
 		c0 := hashToPoint(sc)
 
-		s2 := signTree(rng, priv, c0)
+		s2 := sign(rng, priv, c0)
 		if !verifyRaw(c0, s2, pub.hNTT) {
 			t.Fatalf("signature %d not verified", i)
 		}
@@ -77,7 +77,7 @@ func signLoop(t *testing.T, priv *PrivateKey, pub *PublicKey) *sha3.SHAKE {
 	return digest
 }
 
-func TestSignTreeSelfVerifyLoop(t *testing.T) {
+func TestSignSelfVerifyLoop(t *testing.T) {
 	t.Run("fixed key", func(t *testing.T) {
 		// This only checks that the signatures verify. The fixed key lies
 		// outside of what Falcon-1024 key generation accepts: some leaves of
@@ -161,9 +161,9 @@ func TestKeygenSelfSignLoop(t *testing.T) {
 		_, _ = sc.Write(msg[:])
 		c0 := hashToPoint(sc)
 
-		s2 := signTree(rng, priv, c0)
+		s2 := sign(rng, priv, c0)
 		for !isInvertible(s2) {
-			s2 = signTree(rng, priv, c0)
+			s2 = sign(rng, priv, c0)
 		}
 		if !verifyRaw(c0, s2, pub.hNTT) {
 			t.Fatalf("key %d: self signature not verified", i)

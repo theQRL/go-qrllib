@@ -9,24 +9,23 @@ import (
 )
 
 func TestKeyDerivationDoesNotDependOnArchitecture(t *testing.T) {
-	// A private key is its seed, so a seed must expand to the same key pair on
-	// every machine. Key generation uses floating-point arithmetic when it
-	// checks the Gram-Schmidt norm and when it reduces F and G, and its
-	// rejection loop turns a differently rounded intermediate value into
-	// different f and g, hence a different public key.
+	// A seed must expand to the same key pair on every machine. Key
+	// generation uses floating-point arithmetic when it checks the
+	// Gram-Schmidt norm and when it reduces F and G, and its rejection loop
+	// turns a differently rounded intermediate value into different f and g,
+	// hence a different public key.
 	//
 	// The Go compiler may fuse x*y + z into a single instruction, which rounds
-	// once instead of twice. It does so where the target has such an
-	// instruction, which includes arm64 and amd64 built with GOAMD64=v3, but
-	// not amd64 with the default GOAMD64=v1. Most seeds are unaffected by the
-	// difference. These two are not: both expand to a different key pair when
-	// this package is built for arm64, and the second one also does with
-	// GOAMD64=v3. Building with -gcflags=all=-d=fmahash=n, which disables the
-	// fusion, makes every build agree again.
+	// once instead of twice, on targets that have such an instruction: arm64,
+	// and amd64 built with GOAMD64=v3, but not amd64 with the default
+	// GOAMD64=v1. The package blocks that fusion with explicit conversions so
+	// that every build rounds like the reference implementation. Most seeds
+	// would not notice the difference; these two were found to: without the
+	// guards both expanded to a different key pair on arm64, and the second
+	// one also with GOAMD64=v3.
 	//
-	// The digests are SHA-256 of the encoded public and private key obtained
-	// with separately rounded multiplications and additions, which is what
-	// amd64 with GOAMD64=v1 computes.
+	// The digests are SHA-256 of the encoded public and private key computed
+	// with the reference implementation's rounding.
 	testCases := []struct {
 		seed          string
 		publicKey     string
@@ -46,10 +45,11 @@ func TestKeyDerivationDoesNotDependOnArchitecture(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run("seed-"+strconv.Itoa(i), func(t *testing.T) {
-			priv, encoded, err := TestingOnlyNewPrivateKeyWithEncodedBytes(mustDecodeHex(t, tc.seed))
+			priv, err := NewPrivateKeyFromSeed(mustDecodeHex(t, tc.seed))
 			if err != nil {
 				t.Fatal(err)
 			}
+			encoded := priv.Bytes()
 
 			gotPublic := sha256.Sum256(priv.PublicKey().Bytes())
 			if hex.EncodeToString(gotPublic[:]) != tc.publicKey {

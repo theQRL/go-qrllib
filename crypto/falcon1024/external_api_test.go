@@ -11,8 +11,9 @@ import (
 func TestExternalAPILoop(t *testing.T) {
 	// 12 rounds of key generation, public key re-derivation, signing and
 	// verification through the exported API, including the rejection of a
-	// signature for different data. Each round signs the same data twice and
-	// checks that both signatures verify and that signing is randomized.
+	// signature for different data. Each round signs the same data twice,
+	// detached, and checks that both signatures verify and that signing is
+	// randomized, then signs it once more as a signed message and opens it.
 	rng := sha3.NewSHAKE256()
 	_, _ = rng.Write([]byte("external"))
 
@@ -43,12 +44,12 @@ func TestExternalAPILoop(t *testing.T) {
 
 		var signatures [2][]byte
 		for j := range signatures {
-			sig, err := Sign(rng, priv, []byte("data1"))
+			sig, err := SignDetached(rng, priv, []byte("data1"))
 			if err != nil {
-				t.Fatalf("round %d: Sign: %v", i, err)
+				t.Fatalf("round %d: SignDetached: %v", i, err)
 			}
-			if len(sig) != SignatureSize {
-				t.Fatalf("round %d: signature length = %d, want %d", i, len(sig), SignatureSize)
+			if len(sig) > MaxSignatureSize {
+				t.Fatalf("round %d: signature length = %d, want at most %d", i, len(sig), MaxSignatureSize)
 			}
 			if !Verify(pub, []byte("data1"), sig) {
 				t.Fatalf("round %d: valid signature rejected", i)
@@ -60,6 +61,21 @@ func TestExternalAPILoop(t *testing.T) {
 		}
 		if bytes.Equal(signatures[0], signatures[1]) {
 			t.Fatalf("round %d: two signatures of the same data are identical", i)
+		}
+
+		signedMessage, err := Sign(rng, priv, []byte("data1"))
+		if err != nil {
+			t.Fatalf("round %d: Sign: %v", i, err)
+		}
+		if len(signedMessage) > len("data1")+MaxSignedMessageOverhead {
+			t.Fatalf("round %d: signed message length = %d, want at most %d", i, len(signedMessage), len("data1")+MaxSignedMessageOverhead)
+		}
+		opened, err := Open(pub, signedMessage)
+		if err != nil {
+			t.Fatalf("round %d: Open: %v", i, err)
+		}
+		if !bytes.Equal(opened, []byte("data1")) {
+			t.Fatalf("round %d: Open returned different data", i)
 		}
 	}
 }

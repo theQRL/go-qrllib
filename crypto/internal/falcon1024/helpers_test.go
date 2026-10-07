@@ -1,6 +1,7 @@
 package falcon1024
 
 import (
+	"crypto/sha3"
 	"encoding/hex"
 	"slices"
 	"testing"
@@ -99,4 +100,11 @@ func decodeVerifyRawKATS2(t *testing.T, sig []byte) smallPolynomial {
 		s2[i] = int32(int16(uint16(sig[j])<<8 | uint16(sig[j+1])))
 	}
 	return s2
+}
+
+// keygen generates a private key from a SHAKE256 stream, which is what
+// NewPrivateKeyFromSeed does once it has absorbed the seed.
+func keygen(priv *PrivateKey, rng *sha3.SHAKE) (*PrivateKey, error) {
+	f, g, ntruF, ntruG, h := generateKeyComponents(rng)
+	return initPrivateKey(priv, f, g, ntruF, ntruG, h)
 }
