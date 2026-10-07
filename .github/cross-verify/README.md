@@ -122,6 +122,25 @@ Activating the wallet path therefore means first selecting a standardized
 parameter set and updating the implementation to match; doing it now would
 commit users to a choice QRL has not made.
 
+### Falcon-1024 (round-3 reference, via PQClean)
+
+- Reference: <https://github.com/PQClean/PQClean> `crypto_sign/falcon-1024/clean`
+  (current master). This is the Falcon round-3 reference code behind the
+  NIST API: integer-emulated floating point and the `sign_dyn` signer, which
+  go-qrllib reproduces bit for bit.
+- Both sides draw every random byte from the same SHAKE256 stream (the C
+  harness defines `randombytes()` over PQClean's SHAKE256), so the check is
+  stronger than mutual verification: for 8 entries it requires byte-identical
+  public keys, private keys, signed messages (the NIST `crypto_sign` form) and
+  detached signatures (the compressed form) from both implementations, in
+  both directions, and then opens and verifies each side's output with the
+  other.
+- Runs on amd64, on amd64 with `GOAMD64=v3` and on an arm64 runner, because
+  the Go sampler's exactness depends on the compiler not fusing
+  multiply-adds, which only those targets would do.
+- Key sizes: PK=1793, SK=2305 bytes; signed message overhead at most 1330,
+  detached signature at most 1462 bytes
+
 ### ML-KEM-1024 (FIPS 203) — vs Go stdlib `crypto/mlkem`
 
 ML-KEM-1024 is a key-encapsulation mechanism, not a signature, so
@@ -158,6 +177,8 @@ cloned or compiled; the check runs in-process.
 | `xmss_sign_ref.c` | Generate reference XMSS signature with seeded keypair (reverse direction) |
 | `xmss_verify.go` | Verify reference XMSS signature with go-qrllib via the rfc8391 sub-package (reverse direction) |
 | `mlkem1024_crossverify.go` | Cross-verify go-qrllib ML-KEM-1024 against Go stdlib `crypto/mlkem` (in-process, both directions) |
+| `falcon1024_crossverify.go` | Generate go-qrllib Falcon-1024 keys and signatures from a shared stream, and regenerate/compare/verify PQClean's |
+| `falcon1024_crossverify_ref.c` | Regenerate/compare/verify go-qrllib's Falcon-1024 output with PQClean, and generate PQClean's own |
 
 ## Running Locally
 
@@ -172,6 +193,25 @@ gcc -DDILITHIUM_MODE=5 -I. -O2 -o /tmp/verify \
     sign.c packing.c polyvec.c poly.c ntt.c reduce.c \
     rounding.c symmetric-shake.c fips202.c randombytes.c
 /tmp/verify
+
+# Falcon-1024 (bidirectional, byte-identical from a shared stream)
+git clone --depth 1 --no-checkout --filter=blob:none https://github.com/PQClean/PQClean.git /tmp/pqclean
+cd /tmp/pqclean && git sparse-checkout init --cone && \
+    git sparse-checkout set crypto_sign/falcon-1024/clean common && git checkout
+cd /path/to/go-qrllib
+go run .github/cross-verify/falcon1024_crossverify.go generate /tmp/falcon1024_go.bin
+cd /tmp/pqclean
+# common/randombytes.c is OMITTED: the harness defines its own randombytes().
+gcc -std=c99 -O2 -Icrypto_sign/falcon-1024/clean -Icommon -o /tmp/falcon1024_ref \
+    /path/to/go-qrllib/.github/cross-verify/falcon1024_crossverify_ref.c \
+    crypto_sign/falcon-1024/clean/codec.c crypto_sign/falcon-1024/clean/common.c \
+    crypto_sign/falcon-1024/clean/fft.c crypto_sign/falcon-1024/clean/fpr.c \
+    crypto_sign/falcon-1024/clean/keygen.c crypto_sign/falcon-1024/clean/pqclean.c \
+    crypto_sign/falcon-1024/clean/rng.c crypto_sign/falcon-1024/clean/sign.c \
+    crypto_sign/falcon-1024/clean/vrfy.c common/fips202.c
+/tmp/falcon1024_ref /tmp/falcon1024_go.bin /tmp/falcon1024_ref.bin
+cd /path/to/go-qrllib
+go run .github/cross-verify/falcon1024_crossverify.go check /tmp/falcon1024_ref.bin
 
 # SPHINCS+ (SHAKE-256s-robust)
 git clone --branch consistent-basew https://github.com/sphincs/sphincsplus.git /tmp/sphincs-ref

@@ -214,3 +214,79 @@ jobs:
           echo "=== Cross-verifying go-qrllib ML-KEM-1024 <-> Go stdlib crypto/mlkem ==="
           go run .github/cross-verify/mlkem1024_crossverify.go
           echo "✓ go-qrllib <-> stdlib crypto/mlkem: PASSED"
+
+  falcon1024-cross-verify:
+    name: Falcon-1024 Cross-Verification (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # go-qrllib's Falcon sampler uses native float64 and must round
+          # exactly as the reference's integer-emulated floating point does.
+          # The default amd64 build never fuses multiply-adds; GOAMD64=v3
+          # and arm64 do unless the code prevents it, so all three must
+          # produce byte-identical signatures.
+          - name: amd64
+            os: ubuntu-latest
+            goamd64: v1
+          - name: amd64 with fused multiply-add
+            os: ubuntu-latest
+            goamd64: v3
+          - name: arm64
+            os: ubuntu-24.04-arm
+            goamd64: v1
+    env:
+      GOAMD64: ${{ matrix.goamd64 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.25.x'
+
+      - name: Clone PQClean falcon-1024 (clean)
+        # PQClean's "clean" Falcon-1024 is the round-3 reference code behind the
+        # NIST API: integer-emulated floating point and the sign_dyn signer,
+        # i.e. exactly what go-qrllib reproduces bit for bit. Sparse checkout
+        # of the implementation and the shared SHAKE code only.
+        run: |
+          git clone --depth 1 --no-checkout --filter=blob:none \
+            https://github.com/PQClean/PQClean.git /tmp/pqclean
+          cd /tmp/pqclean
+          git sparse-checkout init --cone
+          git sparse-checkout set crypto_sign/falcon-1024/clean common
+          git checkout
+          echo "PQClean commit: $(git rev-parse --short HEAD)"
+
+      - name: Generate go-qrllib keys and signatures from the shared stream
+        run: go run .github/cross-verify/falcon1024_crossverify.go generate /tmp/falcon1024_go.bin
+
+      - name: Compile the PQClean harness
+        # common/randombytes.c is deliberately not linked: the harness defines
+        # randombytes() as the same SHAKE256 stream the Go program uses.
+        run: |
+          cd /tmp/pqclean
+          gcc -std=c99 -O2 -Icrypto_sign/falcon-1024/clean -Icommon \
+            -o /tmp/falcon1024_ref \
+            "$GITHUB_WORKSPACE/.github/cross-verify/falcon1024_crossverify_ref.c" \
+            crypto_sign/falcon-1024/clean/codec.c crypto_sign/falcon-1024/clean/common.c \
+            crypto_sign/falcon-1024/clean/fft.c crypto_sign/falcon-1024/clean/fpr.c \
+            crypto_sign/falcon-1024/clean/keygen.c crypto_sign/falcon-1024/clean/pqclean.c \
+            crypto_sign/falcon-1024/clean/rng.c crypto_sign/falcon-1024/clean/sign.c \
+            crypto_sign/falcon-1024/clean/vrfy.c common/fips202.c
+
+      - name: Regenerate and verify with PQClean, then generate PQClean's own
+        run: |
+          echo "=== PQClean regenerates go-qrllib's keys and signatures and verifies them ==="
+          /tmp/falcon1024_ref /tmp/falcon1024_go.bin /tmp/falcon1024_ref.bin
+          echo "✓ go-qrllib -> PQClean: PASSED"
+
+      - name: Regenerate and verify PQClean's output with go-qrllib
+        run: |
+          echo "=== go-qrllib regenerates PQClean's keys and signatures and verifies them ==="
+          go run .github/cross-verify/falcon1024_crossverify.go check /tmp/falcon1024_ref.bin
+          echo "✓ PQClean -> go-qrllib: PASSED"
