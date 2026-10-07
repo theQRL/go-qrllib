@@ -18,6 +18,11 @@ import (
 // keypair derived from the seed, and the 48-byte common seed itself.
 // Construct one with the NewWallet* functions and call [Wallet.Zeroize]
 // when it is no longer needed.
+//
+// Every method is safe to call on a nil *Wallet or a zero-value Wallet{}:
+// Sign and SignDeterministic return [cryptoerrors.ErrKeyUninitialised],
+// GetExtendedSeed, GetHexSeed and GetMnemonic return the same error, and the
+// remaining getters return their zero value ("" for the address strings).
 type Wallet struct {
 	desc Descriptor
 	d    *ml_dsa_87.MLDSA87
@@ -150,12 +155,18 @@ func NewWalletFromMnemonic(mnemonic string) (*Wallet, error) {
 // GetSeed returns the 48-byte common seed the wallet was derived from.
 // This is secret material; see [Wallet.Zeroize].
 func (w *Wallet) GetSeed() common.Seed {
+	if w == nil || w.d == nil {
+		return common.Seed{}
+	}
 	return w.seed
 }
 
 // GetExtendedSeed returns the extended seed (descriptor || seed) from
 // which the wallet can be restored with [NewWalletFromExtendedSeed].
 func (w *Wallet) GetExtendedSeed() (common.ExtendedSeed, error) {
+	if w == nil || w.d == nil {
+		return common.ExtendedSeed{}, cryptoerrors.ErrKeyUninitialised
+	}
 	extendedSeed, err := common.NewExtendedSeed(w.desc.ToDescriptor(), w.GetSeed())
 	if err != nil {
 		return common.ExtendedSeed{}, fmt.Errorf(common.ErrExtendedSeedFromDescriptorAndSeed, wallettype.ML_DSA_87, err)
@@ -192,6 +203,12 @@ func (w *Wallet) GetMnemonic() (string, error) {
 }
 
 // GetPK returns the packed ML-DSA-87 public key (rho || t1).
+//
+// On a nil or uninitialised wallet it returns the all-zero PK{}. That value
+// is not a usable key: it is the canonical weak key (t1 == 0) and is rejected
+// by [BytesToPK], [ml_dsa_87.ParsePublicKey] and [Verify]. Callers that need
+// to distinguish "no key" from a key should check the constructor error
+// rather than compare against PK{}.
 func (w *Wallet) GetPK() PK {
 	if w == nil || w.d == nil {
 		return PK{}
@@ -211,12 +228,18 @@ func (w *Wallet) GetSK() [SKSize]uint8 {
 // GetDescriptor returns the wallet's descriptor, which selects the signing
 // context and is part of the address derivation.
 func (w *Wallet) GetDescriptor() Descriptor {
+	if w == nil || w.d == nil {
+		return Descriptor{}
+	}
 	return w.desc
 }
 
 // GetAddress returns the raw QRL address derived from the descriptor and
 // public key; see the package doc "Address Format" section.
 func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
+	if w == nil || w.d == nil {
+		return [common.AddressSize]uint8{}
+	}
 	pk := w.GetPK()
 	return common.UnsafeGetAddress(pk[:], w.desc.ToDescriptor())
 }
@@ -225,6 +248,9 @@ func (w *Wallet) GetAddress() [common.AddressSize]uint8 {
 // address: "Q" followed by the hex-encoded address bytes. See
 // [Wallet.GetChecksumAddressStr] for the checksummed form.
 func (w *Wallet) GetAddressStr() string {
+	if w == nil || w.d == nil {
+		return ""
+	}
 	addr := w.GetAddress()
 	return fmt.Sprintf("Q%x", addr[:])
 }
@@ -235,6 +261,9 @@ func (w *Wallet) GetAddressStr() string {
 // GetAddressStr remains the canonical lowercase form for backward
 // compatibility with code that string-compares addresses.
 func (w *Wallet) GetChecksumAddressStr() string {
+	if w == nil || w.d == nil {
+		return ""
+	}
 	return common.ToChecksumAddress(w.GetAddress())
 }
 

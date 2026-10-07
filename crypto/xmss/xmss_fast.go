@@ -97,7 +97,7 @@ func validateXMSSFastParams(xmssParams *XMSSParams) error {
 // Without these checks a short buffer or nil state panics inside the core.
 func validateXMSSFastOutputs(xmssParams *XMSSParams, pk, sk []uint8, bdsState *BDSState) error {
 	n := xmssParams.n
-	if uint32(len(pk)) < 2*n || uint32(len(sk)) < 4+4*n {
+	if len(pk) < int(2*n) || len(sk) < int(4+4*n) {
 		return cryptoerrors.ErrBufferTooSmall
 	}
 	if bdsState == nil {
@@ -656,7 +656,7 @@ func verifySig(hashFunction HashFunction, wotsParams *WOTSParams, msg, sigMsg, p
 	// The public key is exactly root || pub_seed (2*n bytes). Requiring the
 	// exact length keeps the encoding canonical: trailing bytes would otherwise
 	// be silently ignored, letting two byte strings name one key.
-	if uint32(len(pk)) != 2*n {
+	if len(pk) != int(2*n) {
 		return false
 	}
 

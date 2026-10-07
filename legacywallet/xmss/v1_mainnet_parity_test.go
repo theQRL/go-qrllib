@@ -6,6 +6,7 @@ import (
 
 	"github.com/theQRL/go-qrllib/common"
 	xmsscrypto "github.com/theQRL/go-qrllib/crypto/xmss"
+	"github.com/theQRL/go-qrllib/misc"
 )
 
 // These tests pin the descriptor rules the v1 (QRL mainnet) node applied for
@@ -14,6 +15,17 @@ import (
 // qrllib v1.3.1 is stricter on byte 2, but addresses funded under the old
 // rules must still migrate, so the old rules are the target here.
 
+// withChecksum recomputes the trailing 4-byte checksum so an address differs
+// from a valid one only in the field under test.
+func withChecksum(addr [AddressSize]uint8) [AddressSize]uint8 {
+	var h [32]uint8
+	misc.SHA256(h[:], addr[:DescriptorSize+32])
+	copy(addr[DescriptorSize+32:], h[28:])
+	return addr
+}
+
+// v1ParityFixture returns a signed message, its extended PK and the derived
+// address from a fixed-seed height-4 SHAKE_256 wallet, all verified.
 func v1ParityFixture(t *testing.T) (msg, sig []uint8, epk [ExtendedPKSize]uint8, addr [AddressSize]uint8) {
 	t.Helper()
 	var seed [SeedSize]uint8
@@ -81,23 +93,30 @@ func TestV1MainnetParity_AddrFormatCheckedOnlyAtAddressDerivation(t *testing.T) 
 	}
 	badAddr := addr
 	badAddr[1] = (badAddr[1] & 0x0F) | (0x01 << 4)
+	badAddr = withChecksum(badAddr)
 	if IsValidXMSSAddress(badAddr) {
 		t.Error("IsValidXMSSAddress = true, want false")
 	}
 }
 
 // A v1 multisig address (descriptor 0x11 0x00 0x00) is not an XMSS address.
+// The literal mainnet descriptor is tested as-is; the height-2 variant shows
+// the signature-type nibble alone is enough to reject it.
 func TestV1MainnetParity_MultisigDescriptorIsNotXMSS(t *testing.T) {
-	if _, err := NewQRLDescriptorFromBytes([]byte{0x11, 0x00, 0x00}); err == nil {
-		t.Fatal("multisig descriptor parsed as XMSS")
-	}
-	var addr [AddressSize]uint8
-	copy(addr[:], []byte{0x11, 0x00, 0x00})
-	if IsValidXMSSAddress(addr) {
-		t.Fatal("multisig address reported as a valid XMSS address")
+	for _, desc := range [][]byte{{0x11, 0x00, 0x00}, {0x11, 0x01, 0x00}} {
+		if _, err := NewQRLDescriptorFromBytes(desc); err == nil {
+			t.Fatalf("descriptor % x parsed as XMSS", desc)
+		}
+		var addr [AddressSize]uint8
+		copy(addr[:], desc)
+		addr = withChecksum(addr)
+		if IsValidXMSSAddress(addr) {
+			t.Fatalf("multisig address % x reported as a valid XMSS address", desc)
+		}
 	}
 }
 
+// GetBytes always writes 0 to the reserved byte.
 func TestQRLDescriptor_GetBytesNormalisesReservedByte(t *testing.T) {
 	h, _ := xmsscrypto.ToHeight(10)
 	if got := NewQRLDescriptor(h, xmsscrypto.SHA2_256, 0, common.SHA256_2X).GetBytes(); got[2] != 0 {

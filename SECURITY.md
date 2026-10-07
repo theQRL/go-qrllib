@@ -478,7 +478,11 @@ never went through a constructor signs with `ErrKeyUninitialised` and its
 signature, while the public key stays available. `NewCryptoSigner(nil)`
 yields a signer whose `Public` is nil and whose `Sign` returns
 `ErrSecretKeyNil`. `MLDSA87.PublicKey` re-validates the key bytes on the
-way out, so no path hands a caller an unvalidated `*PublicKey`. Regression
+way out, so no path hands a caller an unvalidated `*PublicKey`. Every
+`Wallet` method is nil-safe: on a nil `*Wallet` or `Wallet{}` the getters
+return zero values (`""` for the address strings) and `GetExtendedSeed`,
+`GetHexSeed` and `GetMnemonic` return `ErrKeyUninitialised`. `GetPK` returns
+the all-zero `PK{}` there, which is itself a rejected weak key. Regression
 tests: `lifecycle_test.go`, `TestWallet_ZeroValue`, and
 `TestWallet_SignDeterministic_AfterZeroize`.
 

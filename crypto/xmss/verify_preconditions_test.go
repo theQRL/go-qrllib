@@ -15,6 +15,8 @@ import (
 // key-generation entry points must refuse bad output buffers and BDS state
 // the same way InitializeTree does.
 
+// newVerifyFixture returns a verified message/signature/public-key triple
+// from a fixed-seed height-4 SHAKE_256 tree.
 func newVerifyFixture(t *testing.T) (msg, sig, pk []uint8) {
 	t.Helper()
 	seed := bytes.Repeat([]byte{0x42}, SeedSize)

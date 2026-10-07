@@ -656,16 +656,36 @@ func TestWallet_ZeroValue(t *testing.T) {
 	if _, err := w.SignDeterministic([]byte("x")); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
 		t.Fatalf("SignDeterministic on zero-value wallet: err = %v, want ErrKeyUninitialised", err)
 	}
-	if w.GetPK() != (PK{}) || w.GetSK() != ([SKSize]uint8{}) {
-		t.Fatal("zero-value wallet returned non-zero key material")
-	}
+	checkUninitialisedGetters(t, "zero-value", &w)
 	w.Zeroize()
 	var nilW *Wallet
 	nilW.Zeroize()
 	if _, err := nilW.Sign([]byte("x")); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
 		t.Fatalf("Sign on nil wallet: err = %v", err)
 	}
-	if nilW.GetPK() != (PK{}) || nilW.GetSK() != ([SKSize]uint8{}) {
-		t.Fatal("nil wallet returned non-zero key material")
+	checkUninitialisedGetters(t, "nil", nilW)
+}
+
+// checkUninitialisedGetters asserts the nil-safety contract from the Wallet
+// type doc: every getter returns its zero value or ErrKeyUninitialised.
+func checkUninitialisedGetters(t *testing.T, name string, w *Wallet) {
+	t.Helper()
+	if w.GetPK() != (PK{}) || w.GetSK() != ([SKSize]uint8{}) {
+		t.Fatalf("%s wallet returned non-zero key material", name)
+	}
+	if w.GetSeed() != (common.Seed{}) || w.GetDescriptor() != (Descriptor{}) {
+		t.Fatalf("%s wallet returned non-zero seed or descriptor", name)
+	}
+	if w.GetAddress() != ([common.AddressSize]uint8{}) || w.GetAddressStr() != "" || w.GetChecksumAddressStr() != "" {
+		t.Fatalf("%s wallet returned a non-empty address", name)
+	}
+	if _, err := w.GetExtendedSeed(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
+		t.Fatalf("%s wallet GetExtendedSeed: err = %v, want ErrKeyUninitialised", name, err)
+	}
+	if s, err := w.GetHexSeed(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) || s != "" {
+		t.Fatalf("%s wallet GetHexSeed: %q, err = %v, want \"\" + ErrKeyUninitialised", name, s, err)
+	}
+	if m, err := w.GetMnemonic(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) || m != "" {
+		t.Fatalf("%s wallet GetMnemonic: %q, err = %v, want \"\" + ErrKeyUninitialised", name, m, err)
 	}
 }
