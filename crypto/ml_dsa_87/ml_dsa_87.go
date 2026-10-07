@@ -212,7 +212,7 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 }
 
 // SignDeterministic produces an ML-DSA-87 signature using the FIPS 204
-// §3.5 deterministic mode (per-signature RND_BYTES = 32 zero bytes).
+// §3.4 deterministic variant (Algorithm 2: per-signature RND_BYTES = 32 zero bytes).
 // Two SignDeterministic calls with the same (key, ctx, message) produce
 // byte-identical signatures.
 //
@@ -235,7 +235,7 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 // crypto.Signer plumbing.
 func (d *MLDSA87) SignDeterministic(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 	var signature [CRYPTO_BYTES]uint8
-	var rnd [RND_BYTES]uint8 // zero — FIPS 204 §3.5 deterministic mode
+	var rnd [RND_BYTES]uint8 // zero — FIPS 204 §3.4 deterministic variant
 	if err := cryptoSignSignatureWithRnd(signature[:], message, ctx, &d.sk, rnd); err != nil {
 		return signature, err
 	}

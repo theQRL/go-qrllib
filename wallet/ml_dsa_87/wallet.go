@@ -205,7 +205,7 @@ func (w *Wallet) Sign(message []uint8) ([SigSize]uint8, error) {
 }
 
 // SignDeterministic produces an ML-DSA-87 signature over message using
-// the descriptor-bound signing context and the FIPS 204 §3.5
+// the descriptor-bound signing context and the FIPS 204 §3.4
 // deterministic mode (per-signature RND_BYTES = 32 zero bytes). Two
 // calls over the same message from the same wallet produce byte-identical
 // signatures.

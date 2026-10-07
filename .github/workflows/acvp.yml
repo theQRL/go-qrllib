@@ -36,7 +36,8 @@ jobs:
           git sparse-checkout init --cone
           git sparse-checkout set \
             gen-val/json-files/ML-DSA-keyGen-FIPS204 \
-            gen-val/json-files/ML-DSA-sigGen-FIPS204
+            gen-val/json-files/ML-DSA-sigGen-FIPS204 \
+            gen-val/json-files/ML-DSA-sigVer-FIPS204
           git checkout
           echo "ACVP-Server commit: $(git rev-parse --short HEAD)"
           echo "ACVP-Server date: $(git log -1 --format=%ci)"
@@ -49,6 +50,8 @@ jobs:
             --keygen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-keyGen-FIPS204/expectedResults.json \
             --siggen-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/prompt.json \
             --siggen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/expectedResults.json \
+            --sigver-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-sigVer-FIPS204/prompt.json \
+            --sigver-results /tmp/acvp-server/gen-val/json-files/ML-DSA-sigVer-FIPS204/expectedResults.json \
             --parameter-set ML-DSA-87 \
             --output-dir /tmp/acvp-vectors
           echo "=== Generated vector files ==="
@@ -58,6 +61,8 @@ jobs:
           python3 -c "import json; d=json.load(open('/tmp/acvp-vectors/keygen.json')); print(f'  {len(d)} test cases')"
           echo "SigGen vectors:"
           python3 -c "import json; d=json.load(open('/tmp/acvp-vectors/siggen.json')); print(f'  {len(d)} test cases')"
+          echo "SigVer vectors:"
+          python3 -c "import json; d=json.load(open('/tmp/acvp-vectors/sigver.json')); print(f'  {len(d)} test cases')"
 
       - name: Run ACVP tests
         env:

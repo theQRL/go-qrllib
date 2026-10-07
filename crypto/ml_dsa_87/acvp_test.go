@@ -14,9 +14,9 @@ import (
 
 // NIST ACVP test vector verification for ML-DSA-87.
 //
-// These tests validate key generation and deterministic signature generation
-// against official NIST ACVP test vectors. Guarded by the "acvp" build tag
-// so they only run in CI or when explicitly requested.
+// These tests validate key generation, signature generation and signature
+// verification against official NIST ACVP test vectors. Guarded by the
+// "acvp" build tag so they only run in CI or when explicitly requested.
 //
 // See .github/acvp/README.md for setup, local usage, and vector format details.
 
@@ -29,6 +29,31 @@ func acvpVectorsDir(t *testing.T) string {
 	return dir
 }
 
+func acvpLoad[T any](t *testing.T, dir, name string) []T {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", name, err)
+	}
+	var vectors []T
+	if err := json.Unmarshal(data, &vectors); err != nil {
+		t.Fatalf("Failed to parse %s: %v", name, err)
+	}
+	if len(vectors) == 0 {
+		t.Fatalf("No test vectors found in %s", name)
+	}
+	return vectors
+}
+
+func acvpHex(t *testing.T, field, value string) []byte {
+	t.Helper()
+	b, err := hex.DecodeString(value)
+	if err != nil {
+		t.Fatalf("Invalid %s hex: %v", field, err)
+	}
+	return b
+}
+
 type acvpKeyGenVector struct {
 	TcID int    `json:"tcId"`
 	Seed string `json:"seed"`
@@ -37,52 +62,40 @@ type acvpKeyGenVector struct {
 }
 
 type acvpSigGenVector struct {
-	TcID      int    `json:"tcId"`
-	SK        string `json:"sk"`
-	Message   string `json:"message"`
-	Context   string `json:"context"`
-	Signature string `json:"signature"`
+	TcID          int    `json:"tcId"`
+	Deterministic bool   `json:"deterministic"`
+	Interface     string `json:"signatureInterface"`
+	SK            string `json:"sk"`
+	Message       string `json:"message"`
+	Context       string `json:"context"`
+	Rnd           string `json:"rnd"`
+	Signature     string `json:"signature"`
+}
+
+type acvpSigVerVector struct {
+	TcID       int    `json:"tcId"`
+	Interface  string `json:"signatureInterface"`
+	PK         string `json:"pk"`
+	Message    string `json:"message"`
+	Context    string `json:"context"`
+	Signature  string `json:"signature"`
+	TestPassed bool   `json:"testPassed"`
 }
 
 // TestACVPKeyGen verifies that key generation from seed produces byte-exact
 // matches against NIST ACVP expected public and secret keys.
 func TestACVPKeyGen(t *testing.T) {
-	dir := acvpVectorsDir(t)
-
-	data, err := os.ReadFile(filepath.Join(dir, "keygen.json"))
-	if err != nil {
-		t.Fatalf("Failed to read keygen.json: %v", err)
-	}
-
-	var vectors []acvpKeyGenVector
-	if err := json.Unmarshal(data, &vectors); err != nil {
-		t.Fatalf("Failed to parse keygen.json: %v", err)
-	}
-
-	if len(vectors) == 0 {
-		t.Fatal("No keygen test vectors found")
-	}
-
+	vectors := acvpLoad[acvpKeyGenVector](t, acvpVectorsDir(t), "keygen.json")
 	t.Logf("Running %d ACVP keygen test vectors", len(vectors))
 
 	for _, vec := range vectors {
 		t.Run(fmt.Sprintf("tc%d", vec.TcID), func(t *testing.T) {
-			seedBytes, err := hex.DecodeString(vec.Seed)
-			if err != nil {
-				t.Fatalf("Invalid seed hex: %v", err)
-			}
+			seedBytes := acvpHex(t, "seed", vec.Seed)
 			if len(seedBytes) != SEED_BYTES {
 				t.Fatalf("Seed length %d, expected %d", len(seedBytes), SEED_BYTES)
 			}
-
-			expectedPK, err := hex.DecodeString(vec.PK)
-			if err != nil {
-				t.Fatalf("Invalid pk hex: %v", err)
-			}
-			expectedSK, err := hex.DecodeString(vec.SK)
-			if err != nil {
-				t.Fatalf("Invalid sk hex: %v", err)
-			}
+			expectedPK := acvpHex(t, "pk", vec.PK)
+			expectedSK := acvpHex(t, "sk", vec.SK)
 
 			var seed [SEED_BYTES]uint8
 			copy(seed[:], seedBytes)
@@ -107,69 +120,83 @@ func TestACVPKeyGen(t *testing.T) {
 	}
 }
 
-// TestACVPSigGen verifies that deterministic signature generation produces
-// byte-exact matches against NIST ACVP expected signatures.
+// acvpPublicKeyFromSecretKey rebuilds the public key a secret key belongs
+// to: t1 is the high part of A*s1 + s2, as in key generation.
+func acvpPublicKeyFromSecretKey(sk *[CRYPTO_SECRET_KEY_BYTES]uint8) [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
+	var rho [SEED_BYTES]uint8
+	var tr [TR_BYTES]uint8
+	var key [SEED_BYTES]uint8
+	var t0 polyVecK
+	var s1 polyVecL
+	var s2 polyVecK
+	unpackSk(&rho, &tr, &key, &t0, &s1, &s2, sk)
+
+	var mat [K]polyVecL
+	var t1 polyVecK
+	s1hat := s1
+	polyVecLNTT(&s1hat)
+	_ = polyVecMatrixExpand(&mat, &rho)
+	polyVecMatrixPointWiseMontgomery(&t1, &mat, &s1hat)
+	polyVecKReduce(&t1)
+	polyVecKInvNTTToMont(&t1)
+	polyVecKAdd(&t1, &t1, &s2)
+	polyVecKCAddQ(&t1)
+
+	var t0Discard polyVecK
+	polyVecKPower2Round(&t1, &t0Discard, &t1)
+
+	var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
+	packPk(&pk, rho, &t1)
+	return pk
+}
+
+// TestACVPSigGen verifies that signature generation produces byte-exact
+// matches against NIST ACVP expected signatures, for the deterministic
+// variant (rnd = zero) and the hedged variant with the rnd NIST supplies,
+// through both the external interface (M' = 0x00 || |ctx| || ctx || M) and
+// the internal interface (M' as given). The pre-hash and external-mu groups
+// are not part of the vectors, as the implementation does not offer them.
 //
-// Only deterministic, external-interface, pure (non-preHash) vectors are tested,
-// as go-qrllib implements deterministic pure ML-DSA signing.
+// Public signing is hedged with crypto/rand, so the vectors are reproduced
+// through the unexported entry points that take an explicit rnd.
 func TestACVPSigGen(t *testing.T) {
-	dir := acvpVectorsDir(t)
-
-	data, err := os.ReadFile(filepath.Join(dir, "siggen.json"))
-	if err != nil {
-		t.Fatalf("Failed to read siggen.json: %v", err)
-	}
-
-	var vectors []acvpSigGenVector
-	if err := json.Unmarshal(data, &vectors); err != nil {
-		t.Fatalf("Failed to parse siggen.json: %v", err)
-	}
-
-	if len(vectors) == 0 {
-		t.Fatal("No siggen test vectors found")
-	}
-
+	vectors := acvpLoad[acvpSigGenVector](t, acvpVectorsDir(t), "siggen.json")
 	t.Logf("Running %d ACVP siggen test vectors", len(vectors))
 
 	for _, vec := range vectors {
 		t.Run(fmt.Sprintf("tc%d", vec.TcID), func(t *testing.T) {
-			skBytes, err := hex.DecodeString(vec.SK)
-			if err != nil {
-				t.Fatalf("Invalid sk hex: %v", err)
-			}
+			skBytes := acvpHex(t, "sk", vec.SK)
 			if len(skBytes) != CRYPTO_SECRET_KEY_BYTES {
 				t.Fatalf("SK length %d, expected %d", len(skBytes), CRYPTO_SECRET_KEY_BYTES)
 			}
-
-			msg, err := hex.DecodeString(vec.Message)
-			if err != nil {
-				t.Fatalf("Invalid message hex: %v", err)
-			}
-
-			ctx, err := hex.DecodeString(vec.Context)
-			if err != nil {
-				t.Fatalf("Invalid context hex: %v", err)
-			}
-
-			expectedSig, err := hex.DecodeString(vec.Signature)
-			if err != nil {
-				t.Fatalf("Invalid signature hex: %v", err)
-			}
+			msg := acvpHex(t, "message", vec.Message)
+			ctx := acvpHex(t, "context", vec.Context)
+			expectedSig := acvpHex(t, "signature", vec.Signature)
 
 			var sk [CRYPTO_SECRET_KEY_BYTES]uint8
 			copy(sk[:], skBytes)
 
-			// FIPS-204-deterministic signing for ACVP vector reproduction:
-			// rnd = all zeros (FIPS 204 §3.5). Public ML-DSA-87 signing
-			// in this library is hedged (TOB-QRLLIB-6); the deterministic
-			// path is exposed only via the unexported
-			// cryptoSignSignatureWithRnd entry point so that test-vector
-			// reproduction remains possible without offering a
-			// deterministic-by-default knob to external callers.
-			var rnd [RND_BYTES]uint8 // zero — FIPS 204 deterministic mode
+			var rnd [RND_BYTES]uint8 // zero: the FIPS 204 deterministic variant
+			if !vec.Deterministic {
+				rndBytes := acvpHex(t, "rnd", vec.Rnd)
+				if len(rndBytes) != RND_BYTES {
+					t.Fatalf("rnd length %d, expected %d", len(rndBytes), RND_BYTES)
+				}
+				copy(rnd[:], rndBytes)
+			}
+
 			sig := make([]uint8, CRYPTO_BYTES)
-			if err := cryptoSignSignatureWithRnd(sig, msg, ctx, &sk, rnd); err != nil {
-				t.Fatalf("cryptoSignSignatureWithRnd failed: %v", err)
+			var err error
+			switch vec.Interface {
+			case "external":
+				err = cryptoSignSignatureWithRnd(sig, msg, ctx, &sk, rnd)
+			case "internal":
+				err = cryptoSignSignatureInternal(sig, msg, nil, rnd, &sk)
+			default:
+				t.Fatalf("unsupported signature interface %q", vec.Interface)
+			}
+			if err != nil {
+				t.Fatalf("signing failed: %v", err)
 			}
 
 			if !bytes.Equal(sig, expectedSig) {
@@ -177,43 +204,65 @@ func TestACVPSigGen(t *testing.T) {
 					hex.EncodeToString(sig[:32]), hex.EncodeToString(expectedSig[:32]))
 			}
 
-			// Also verify the signature we produced is valid
-			// Extract pk from the sk (first 32 bytes of sk is rho, which is
-			// also the first 32 bytes of pk, but we need the full pk).
-			// Regenerate pk from sk by re-deriving from the components.
-			// Simpler: just verify using the sign-then-verify path.
-			var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
-			var rho [SEED_BYTES]uint8
-			var tr [TR_BYTES]uint8
-			var key [SEED_BYTES]uint8
-			var t0 polyVecK
-			var s1 polyVecL
-			var s2 polyVecK
-
-			unpackSk(&rho, &tr, &key, &t0, &s1, &s2, &sk)
-
-			// Reconstruct pk from rho and t1 (t1 = power2round(A*s1+s2).high)
-			var s1hat polyVecL
-			var mat [K]polyVecL
-			var t1 polyVecK
-
-			s1hat = s1
-			polyVecLNTT(&s1hat)
-			_ = polyVecMatrixExpand(&mat, &rho)
-			polyVecMatrixPointWiseMontgomery(&t1, &mat, &s1hat)
-			polyVecKReduce(&t1)
-			polyVecKInvNTTToMont(&t1)
-			polyVecKAdd(&t1, &t1, &s2)
-			polyVecKCAddQ(&t1)
-
-			var t0Discard polyVecK
-			polyVecKPower2Round(&t1, &t0Discard, &t1)
-			packPk(&pk, rho, &t1)
-
+			// The signature must also verify under the key's public key.
+			pk := acvpPublicKeyFromSecretKey(&sk)
 			var sigArr [CRYPTO_BYTES]uint8
 			copy(sigArr[:], sig)
-			if !Verify(ctx, msg, sigArr, &pk) {
+			var ok bool
+			if vec.Interface == "external" {
+				ok = Verify(ctx, msg, sigArr, &pk)
+			} else {
+				ok, err = cryptoSignVerifyInternal(sigArr, msg, nil, &pk)
+				if err != nil {
+					t.Fatalf("verification failed: %v", err)
+				}
+			}
+			if !ok {
 				t.Error("Generated signature failed verification")
+			}
+		})
+	}
+}
+
+// TestACVPSigVer verifies that signature verification reaches NIST's verdict
+// on every ACVP sigVer vector, valid and invalid alike, through the external
+// and the internal interface.
+func TestACVPSigVer(t *testing.T) {
+	vectors := acvpLoad[acvpSigVerVector](t, acvpVectorsDir(t), "sigver.json")
+	t.Logf("Running %d ACVP sigver test vectors", len(vectors))
+
+	for _, vec := range vectors {
+		t.Run(fmt.Sprintf("tc%d", vec.TcID), func(t *testing.T) {
+			pkBytes := acvpHex(t, "pk", vec.PK)
+			if len(pkBytes) != CRYPTO_PUBLIC_KEY_BYTES {
+				t.Fatalf("PK length %d, expected %d", len(pkBytes), CRYPTO_PUBLIC_KEY_BYTES)
+			}
+			msg := acvpHex(t, "message", vec.Message)
+			ctx := acvpHex(t, "context", vec.Context)
+			sigBytes := acvpHex(t, "signature", vec.Signature)
+
+			var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
+			copy(pk[:], pkBytes)
+
+			// A signature of the wrong length is invalid (FIPS 204 §3.6.2);
+			// the fixed-size signature type enforces this for callers.
+			got := false
+			if len(sigBytes) == CRYPTO_BYTES {
+				var sig [CRYPTO_BYTES]uint8
+				copy(sig[:], sigBytes)
+				switch vec.Interface {
+				case "external":
+					got = Verify(ctx, msg, sig, &pk)
+				case "internal":
+					ok, err := cryptoSignVerifyInternal(sig, msg, nil, &pk)
+					got = err == nil && ok
+				default:
+					t.Fatalf("unsupported signature interface %q", vec.Interface)
+				}
+			}
+
+			if got != vec.TestPassed {
+				t.Errorf("Verification = %v, NIST expects %v", got, vec.TestPassed)
 			}
 		})
 	}

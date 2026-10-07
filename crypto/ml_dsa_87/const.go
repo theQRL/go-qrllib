@@ -52,7 +52,7 @@ const (
 	RND_BYTES  = 32
 	N          = 256
 	Q          = 8380417
-	Q_INV      = 58728449 // -q^(-1) mod 2^32
+	Q_INV      = 58728449 // q^(-1) mod 2^32
 	D          = 13
 
 	// Matrix/vector dimensions: A is K×L, s1 is L×1, s2 is K×1

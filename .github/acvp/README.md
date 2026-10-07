@@ -16,25 +16,33 @@ Vectors are never vendored — they always come directly from NIST's repository.
    `expectedResults.json` (expected outputs) into simplified test vector files,
    filtered to ML-DSA-87
 3. **Test**: `acvp_test.go` runs the vectors through go-qrllib's internal key
-   generation and signing functions, comparing byte-exact output
+   generation, signing and verification functions, comparing byte-exact
+   output and accept/reject verdicts
 
 ## What's Tested
 
 | Test | Vectors | Description |
 | --- | --- | --- |
 | `TestACVPKeyGen` | 25 | Seed -> (pk, sk) matches NIST expected output |
-| `TestACVPSigGen` | 15 | sk + message + context -> signature matches NIST expected output |
+| `TestACVPSigGen` | 60 | sk + message (+ context) (+ rnd) -> signature matches NIST expected output |
+| `TestACVPSigVer` | 30 | pk + message (+ context) + signature -> accept/reject matches NIST's verdict |
 
-Only **deterministic, external-interface, pure** (non-preHash) signature
-vectors are tested. Note that go-qrllib's public ML-DSA-87 API is
-**hedged by default** per FIPS 204 §3.4 (see SECURITY.md and
-TOB-QRLLIB-6); a public Sign call mixes fresh `crypto/rand` into the
-per-signature `RND_BYTES` and therefore cannot reproduce a fixed ACVP
-vector byte-for-byte. The ACVP test runner here uses the unexported
-`cryptoSignSignatureWithRnd(..., rnd = zero)` entry point — the same
-internal function the hedged path calls into, but with an explicit
-all-zero `rnd` so the FIPS 204 §3.5 deterministic-mode signatures the
-ACVP vectors were generated against can be reproduced.
+Signature vectors cover every group the implementation can serve: both
+the **deterministic** variant (`rnd` = 32 zero bytes) and the **hedged**
+variant with the `rnd` value NIST supplies, through both the **external**
+interface (`M' = 0x00 || |ctx| || ctx || M`) and the **internal** interface
+(`M'` as given). The **pre-hash** (HashML-DSA) and **external-mu** groups
+are skipped: the package implements pure ML-DSA and computes mu itself,
+like the pq-crystals reference.
+
+go-qrllib's public ML-DSA-87 API is **hedged by default** per FIPS 204
+§3.4 (see SECURITY.md and TOB-QRLLIB-6); a public Sign call mixes fresh
+`crypto/rand` into the per-signature `RND_BYTES` and therefore cannot
+reproduce a fixed ACVP vector byte-for-byte. The ACVP test runner uses
+the unexported `cryptoSignSignatureWithRnd` and
+`cryptoSignSignatureInternal` entry points — the same internal functions
+the public paths call into — with the explicit `rnd` the vector
+prescribes (zero for the deterministic variant).
 
 ## Running Locally
 
@@ -48,6 +56,8 @@ python3 .github/acvp/merge_vectors.py \
   --keygen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-keyGen-FIPS204/expectedResults.json \
   --siggen-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/prompt.json \
   --siggen-results /tmp/acvp-server/gen-val/json-files/ML-DSA-sigGen-FIPS204/expectedResults.json \
+  --sigver-prompt /tmp/acvp-server/gen-val/json-files/ML-DSA-sigVer-FIPS204/prompt.json \
+  --sigver-results /tmp/acvp-server/gen-val/json-files/ML-DSA-sigVer-FIPS204/expectedResults.json \
   --parameter-set ML-DSA-87 \
   --output-dir /tmp/acvp-vectors
 
@@ -67,8 +77,8 @@ ACVP_VECTORS_DIR=/tmp/acvp-vectors go test -v -tags acvp -run TestACVP ./crypto/
 
 The NIST ACVP-Server stores vectors in two files per algorithm:
 
-- `prompt.json` — Test inputs (seed, message, sk, context)
-- `expectedResults.json` — Expected outputs (pk, sk, signature)
+- `prompt.json` — Test inputs (seed, message, sk, pk, context, rnd, signature)
+- `expectedResults.json` — Expected outputs (pk, sk, signature, testPassed)
 
 These are linked by `tcId` within test groups. `merge_vectors.py` joins them and
 filters to the requested parameter set.
