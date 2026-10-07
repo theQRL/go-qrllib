@@ -44,6 +44,18 @@ jobs:
         # No pipes here: they would mask go test's exit status (default shell has no pipefail).
         run: go clean -testcache && go test -v ./... -coverprofile=coverage.out -covermode=atomic
 
+      - name: Test Falcon-1024 with fused multiply-add instructions
+        # The Falcon-1024 floating-point code must round every operation
+        # individually to reproduce the reference implementation bit for bit.
+        # The default amd64 build (GOAMD64=v1) never fuses multiply-adds, so
+        # the explicit-rounding guards are only exercised on targets that do:
+        # arm64, ppc64, s390x, riscv64 and amd64 with GOAMD64=v3. Without
+        # those guards the round-3 KAT suite fails here (seed 65 generates a
+        # different key) while passing in the default build above.
+        env:
+          GOAMD64: v3
+        run: go test -count=1 ./crypto/internal/falcon1024/... ./crypto/falcon1024/...
+
       - name: Process coverage exclusions
         run: |
           # Pinned; quantumcycle/go-ignore-cov is the maintained home of the

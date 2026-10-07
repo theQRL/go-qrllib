@@ -156,7 +156,7 @@ const (
 )
 
 func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
-	if len(dst) != encodedPrivateKeySize {
+	if len(dst) != PrivateKeySize {
 		return errors.New("falcon-1024: invalid private key length")
 	}
 
@@ -181,7 +181,7 @@ func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
 	}
 	offset += written
 
-	if offset != encodedPrivateKeySize {
+	if offset != PrivateKeySize {
 		return errors.New("falcon-1024: invalid private key encoding")
 	}
 
@@ -189,7 +189,7 @@ func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
 }
 
 func skDecode(src []byte) (f, g, ntruF smallPolynomial, err error) {
-	if len(src) != encodedPrivateKeySize {
+	if len(src) != PrivateKeySize {
 		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{},
 			errors.New("falcon-1024: invalid private key length")
 	}
@@ -219,7 +219,7 @@ func skDecode(src []byte) (f, g, ntruF smallPolynomial, err error) {
 	}
 	offset += consumed
 
-	if offset != encodedPrivateKeySize {
+	if offset != PrivateKeySize {
 		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{},
 			errors.New("falcon-1024: invalid private key")
 	}
@@ -252,49 +252,122 @@ func pkDecode(src []byte) (h ringElement, err error) {
 }
 
 const (
-	signatureHeader     byte = 0x30 + logN
-	signaturePrefixSize      = headerSize + nonceSize
+	// signatureHeader is the signature header byte of the reference NIST API
+	// (nist.c): 0x20 + logn.
+	signatureHeader byte = 0x20 + logN
+
+	signedMessageLengthSize = 2
+	signedMessagePrefixSize = signedMessageLengthSize + nonceSize
+
+	// maxCompressedSignatureSize is the room the reference crypto_sign gives
+	// comp_encode: CRYPTO_BYTES less the length prefix, the nonce and the
+	// signature header byte.
+	maxCompressedSignatureSize = MaxSignedMessageOverhead - signedMessagePrefixSize - headerSize
 )
 
-func sigEncode(dst []byte, nonce [nonceSize]byte, s2 smallPolynomial) error {
-	if len(dst) != SignatureSize {
-		return errors.New("falcon-1024: invalid signature length")
-	}
+var errInvalidSignedMessage = errors.New("falcon-1024: invalid signed message")
 
-	dst[0] = signatureHeader
-	copy(dst[headerSize:signaturePrefixSize], nonce[:])
-
-	written, err := compressedEncode(dst[signaturePrefixSize:], s2)
+// signedMessageEncode builds the reference crypto_sign output: a two-byte
+// big-endian signature length, the nonce, the message and the signature
+// (header byte then compressed s2). Like the reference, it fails rather than
+// retries when the compressed polynomial does not fit.
+func signedMessageEncode(nonce [nonceSize]byte, message []byte, s2 smallPolynomial) ([]byte, error) {
+	var sig [headerSize + maxCompressedSignatureSize]byte
+	sig[0] = signatureHeader
+	written, err := compressedEncode(sig[headerSize:], s2)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	clear(dst[signaturePrefixSize+written:])
+	sigLen := headerSize + written
 
-	return nil
+	sm := make([]byte, signedMessagePrefixSize+len(message)+sigLen)
+	sm[0] = byte(sigLen >> 8)
+	sm[1] = byte(sigLen)
+	copy(sm[signedMessageLengthSize:], nonce[:])
+	copy(sm[signedMessagePrefixSize:], message)
+	copy(sm[signedMessagePrefixSize+len(message):], sig[:sigLen])
+	return sm, nil
 }
 
-func sigDecode(src []byte) (nonce [nonceSize]byte, s2 smallPolynomial, err error) {
-	if len(src) != SignatureSize {
-		return nonce, smallPolynomial{}, errors.New("falcon-1024: invalid signature length")
-	}
-	if src[0] != signatureHeader {
-		return nonce, smallPolynomial{}, errors.New("falcon-1024: invalid signature")
+// signedMessageDecode parses a signed message with the checks of the
+// reference crypto_sign_open. The returned nonce and message alias sm.
+func signedMessageDecode(sm []byte) (nonce, message []byte, s2 smallPolynomial, err error) {
+	if len(sm) < signedMessagePrefixSize {
+		return nil, nil, smallPolynomial{}, errInvalidSignedMessage
 	}
 
-	copy(nonce[:], src[headerSize:signaturePrefixSize])
+	sigLen := int(sm[0])<<8 | int(sm[1])
+	if sigLen > len(sm)-signedMessagePrefixSize {
+		return nil, nil, smallPolynomial{}, errInvalidSignedMessage
+	}
+	msgLen := len(sm) - signedMessagePrefixSize - sigLen
 
-	s2, consumed, err := compressedDecode(src[signaturePrefixSize:])
+	nonce = sm[signedMessageLengthSize:signedMessagePrefixSize]
+	message = sm[signedMessagePrefixSize : signedMessagePrefixSize+msgLen]
+	sig := sm[signedMessagePrefixSize+msgLen:]
+
+	if sigLen < headerSize || sig[0] != signatureHeader {
+		return nil, nil, smallPolynomial{}, errInvalidSignedMessage
+	}
+
+	s2, consumed, err := compressedDecode(sig[headerSize:])
 	if err != nil {
-		return nonce, smallPolynomial{}, err
+		return nil, nil, smallPolynomial{}, err
+	}
+	if consumed != sigLen-headerSize {
+		return nil, nil, smallPolynomial{}, errInvalidSignedMessage
 	}
 
-	for _, b := range src[signaturePrefixSize+consumed:] {
-		if b != 0 {
-			return nonce, smallPolynomial{}, errors.New("falcon-1024: invalid signature")
-		}
+	return nonce, message, s2, nil
+}
+
+const (
+	// detachedSignatureHeader is the header byte of the compressed signature
+	// format of the reference library API (falcon.h): 0x30 + logn.
+	detachedSignatureHeader byte = 0x30 + logN
+
+	detachedSignaturePrefixSize = headerSize + nonceSize
+
+	// maxDetachedCompressedSize is the room FALCON_SIG_COMPRESSED_MAXSIZE
+	// leaves for the compressed polynomial.
+	maxDetachedCompressedSize = MaxSignatureSize - detachedSignaturePrefixSize
+)
+
+// detachedSignatureEncode builds a compressed-format signature as the
+// reference library's signing functions do for FALCON_SIG_COMPRESSED: the
+// header byte, the nonce and the compressed polynomial, nothing more.
+func detachedSignatureEncode(nonce [nonceSize]byte, s2 smallPolynomial) ([]byte, error) {
+	var sig [MaxSignatureSize]byte
+	sig[0] = detachedSignatureHeader
+	copy(sig[headerSize:detachedSignaturePrefixSize], nonce[:])
+	written, err := compressedEncode(sig[detachedSignaturePrefixSize:], s2)
+	if err != nil {
+		return nil, err
 	}
 
-	return nonce, s2, nil
+	out := make([]byte, detachedSignaturePrefixSize+written)
+	copy(out, sig[:])
+	return out, nil
+}
+
+// detachedSignatureDecode parses a compressed-format signature with the
+// checks of the reference falcon_verify: the header byte, at least the nonce,
+// and a compressed polynomial that consumes exactly the remaining bytes. The
+// returned nonce aliases sig.
+func detachedSignatureDecode(sig []byte) (nonce []byte, s2 smallPolynomial, err error) {
+	if len(sig) < detachedSignaturePrefixSize || sig[0] != detachedSignatureHeader {
+		return nil, smallPolynomial{}, errInvalidSignatureEncoding
+	}
+
+	s2, consumed, err := compressedDecode(sig[detachedSignaturePrefixSize:])
+	if err != nil {
+		return nil, smallPolynomial{}, err
+	}
+	if consumed != len(sig)-detachedSignaturePrefixSize {
+		return nil, smallPolynomial{}, errInvalidSignatureEncoding
+	}
+
+	return sig[headerSize:detachedSignaturePrefixSize], s2, nil
 }
 
 // trimI8Len returns the number of bytes a trim_i8 encoding of n bits-wide

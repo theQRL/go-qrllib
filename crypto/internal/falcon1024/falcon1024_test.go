@@ -159,37 +159,37 @@ func TestSignTree(t *testing.T) {
 
 			rng := sha3.NewSHAKE256()
 			_, _ = rng.Write([]byte(tc.seed))
-			s2 := signTree(rng, priv, c0)
+			s2 := sign(rng, priv, c0)
 			if !verifyRaw(c0, s2, pub.hNTT) {
-				t.Fatal("signTree output failed verifyRaw")
+				t.Fatal("sign output failed verifyRaw")
 			}
 		})
 	}
 }
 
-func TestSignTreeRound3KATVectors(t *testing.T) {
+func TestSignRound3KATVectors(t *testing.T) {
 	// These vectors are derived from Falcon Round 3 submission KATs, not
 	// official NIST/FIPS validation vectors.
 	// TestFalconRound3KATDigest checks the full 100-case transcript against the
-	// Falcon reference digest; this test pins the internal signTree output
+	// Falcon reference digest; this test pins the internal sign output
 	// for every KAT case.
 	// Source: https://falcon-sign.info/falcon-round3.zip
 	testCases := readSignTreeRound3KATVectors(t)
 
-	forEachRound3KATSignTreeInput(t, len(testCases), func(count int, priv *PrivateKey, c0 ringElement, rng *sha3.SHAKE) {
+	forEachRound3KATSignInput(t, len(testCases), func(count int, priv *PrivateKey, c0 ringElement, rng *sha3.SHAKE) {
 		tc := testCases[count]
 		t.Run("count-"+strconv.Itoa(tc.Count), func(t *testing.T) {
 			if tc.Count != count {
 				t.Fatalf("count = %d, want %d", tc.Count, count)
 			}
-			s2 := signTree(rng, priv, c0)
+			s2 := sign(rng, priv, c0)
 
 			pub := priv.PublicKey()
 			if !verifyRaw(c0, s2, pub.hNTT) {
-				t.Fatal("signTree output failed verifyRaw")
+				t.Fatal("sign output failed verifyRaw")
 			}
 
-			comp := make([]byte, round3KATCompressedCapacity)
+			comp := make([]byte, maxCompressedSignatureSize)
 			written, err := compressedEncode(comp, s2)
 			if err != nil {
 				t.Fatal(err)
@@ -205,7 +205,7 @@ func TestSignTreeRound3KATVectors(t *testing.T) {
 	})
 }
 
-func forEachRound3KATSignTreeInput(t *testing.T, count int, f func(int, *PrivateKey, ringElement, *sha3.SHAKE)) {
+func forEachRound3KATSignInput(t *testing.T, count int, f func(int, *PrivateKey, ringElement, *sha3.SHAKE)) {
 	t.Helper()
 
 	var entropy [SeedSize]byte
@@ -227,9 +227,9 @@ func forEachRound3KATSignTreeInput(t *testing.T, count int, f func(int, *Private
 		var keySeed [SeedSize]byte
 		drbg.read(keySeed[:])
 
-		priv, err := NewPrivateKey(keySeed[:])
+		priv, err := NewPrivateKeyFromSeed(keySeed[:])
 		if err != nil {
-			t.Fatalf("NewPrivateKey: %v", err)
+			t.Fatalf("NewPrivateKeyFromSeed: %v", err)
 		}
 
 		var nonce [nonceSize]byte
@@ -250,15 +250,6 @@ func forEachRound3KATSignTreeInput(t *testing.T, count int, f func(int, *Private
 		drbg.restore(state)
 	}
 }
-
-const (
-	round3KATSignatureSize         = 1330
-	round3KATSignatureLengthSize   = 2
-	round3KATMessageOffset         = round3KATSignatureLengthSize + nonceSize
-	round3KATSignatureHeaderSize   = 1
-	round3KATCompressedCapacity    = round3KATSignatureSize - round3KATMessageOffset - round3KATSignatureHeaderSize
-	round3KATCompressedSignatureID = 0x20 + logN
-)
 
 type nistDRBG struct {
 	key [32]byte
@@ -293,6 +284,13 @@ func (d *nistDRBG) read(buf []byte) {
 	}
 
 	d.update(nil)
+}
+
+// Read lets the DRBG stand in for randombytes: every call is one randombytes
+// invocation, which matters because the DRBG reseeds itself after each one.
+func (d *nistDRBG) Read(buf []byte) (int, error) {
+	d.read(buf)
+	return len(buf), nil
 }
 
 func (d *nistDRBG) update(provided []byte) {
@@ -337,7 +335,10 @@ func (d *nistDRBG) restore(state nistDRBGState) {
 
 func TestFalconRound3KATDigest(t *testing.T) {
 	// Reproduce the Falcon Round 3 submission KAT transcript compactly by
-	// checking its SHA-1 digest.
+	// checking its SHA-1 digest. The transcript is produced the way the NIST
+	// KAT generator produces it: the DRBG stands in for randombytes, key
+	// generation draws its seed from it, and Sign draws the nonce and then
+	// the sampler seed from it.
 	var entropy [SeedSize]byte
 	for i := range entropy {
 		entropy[i] = byte(i)
@@ -359,48 +360,27 @@ func TestFalconRound3KATDigest(t *testing.T) {
 		state := drbg.save()
 		drbg = newNISTDRBG(seed[:])
 
-		var keySeed [SeedSize]byte
-		drbg.read(keySeed[:])
-
-		priv, sk, err := TestingOnlyNewPrivateKeyWithEncodedBytes(keySeed[:])
+		priv, err := GenerateKey(drbg)
 		if err != nil {
-			t.Fatalf("TestingOnlyNewPrivateKeyWithEncodedBytes: %v", err)
+			t.Fatalf("GenerateKey: %v", err)
 		}
-		pub := priv.PublicKey().Bytes()
+		pub := priv.PublicKey()
 
-		var nonce [nonceSize]byte
-		drbg.read(nonce[:])
-
-		hashData := sha3.NewSHAKE256()
-		_, _ = hashData.Write(nonce[:])
-		_, _ = hashData.Write(msg)
-
-		c0 := hashToPoint(hashData)
-
-		var signSeed [SeedSize]byte
-		drbg.read(signSeed[:])
-		signRNG := sha3.NewSHAKE256()
-		_, _ = signRNG.Write(signSeed[:])
-
-		s2 := signTree(signRNG, priv, c0)
-
-		comp := make([]byte, round3KATCompressedCapacity)
-		written, err := compressedEncode(comp, s2)
+		sm, err := Sign(drbg, priv, msg)
 		if err != nil {
-			t.Fatalf("compressedEncode: %v", err)
+			t.Fatalf("Sign: %v", err)
+		}
+		if len(sm) > len(msg)+MaxSignedMessageOverhead {
+			t.Fatalf("count %d: signed message is %d bytes for a %d-byte message", count, len(sm), len(msg))
 		}
 
-		sigLen := round3KATSignatureHeaderSize + written
-		smLen := round3KATMessageOffset + len(msg) + sigLen
-		sm := make([]byte, smLen)
-		sm[0] = byte(sigLen >> 8)
-		sm[1] = byte(sigLen)
-		copy(sm[round3KATSignatureLengthSize:], nonce[:])
-		copy(sm[round3KATMessageOffset:], msg)
-
-		sigOffset := round3KATMessageOffset + len(msg)
-		sm[sigOffset] = round3KATCompressedSignatureID
-		copy(sm[sigOffset+round3KATSignatureHeaderSize:], comp[:written])
+		opened, err := Open(pub, sm)
+		if err != nil {
+			t.Fatalf("count %d: Open: %v", count, err)
+		}
+		if !bytes.Equal(opened, msg) {
+			t.Fatalf("count %d: Open returned a different message", count)
+		}
 
 		drbg.restore(state)
 
@@ -408,9 +388,9 @@ func TestFalconRound3KATDigest(t *testing.T) {
 		katDigestWriteHexLine(h, "seed = ", seed[:])
 		katDigestWriteIntLine(h, "mlen = ", len(msg))
 		katDigestWriteHexLine(h, "msg = ", msg)
-		katDigestWriteHexLine(h, "pk = ", pub)
-		katDigestWriteHexLine(h, "sk = ", sk)
-		katDigestWriteIntLine(h, "smlen = ", smLen)
+		katDigestWriteHexLine(h, "pk = ", pub.Bytes())
+		katDigestWriteHexLine(h, "sk = ", priv.Bytes())
+		katDigestWriteIntLine(h, "smlen = ", len(sm))
 		katDigestWriteHexLine(h, "sm = ", sm)
 		katDigestWriteLine(h, "")
 	}
@@ -455,4 +435,336 @@ func katDigestWriteHexLine(h hash.Hash, s string, data []byte) {
 		h.Write(buf[:])
 	}
 	h.Write([]byte{'\n'})
+}
+
+func TestPrivateKeyEncoding(t *testing.T) {
+	seed := make([]byte, SeedSize)
+	for i := range seed {
+		seed[i] = byte(i)
+	}
+	priv, err := NewPrivateKeyFromSeed(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := priv.Bytes()
+	if len(sk) != PrivateKeySize {
+		t.Fatalf("private key length = %d, want %d", len(sk), PrivateKeySize)
+	}
+	if sk[0] != privateKeyHeader {
+		t.Fatalf("private key header = %#x, want %#x", sk[0], privateKeyHeader)
+	}
+	sk[0] ^= 1
+	if bytes.Equal(priv.Bytes(), sk) {
+		t.Fatal("Bytes returned the internal buffer")
+	}
+	sk[0] ^= 1
+
+	decoded, err := NewPrivateKey(sk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Equal(priv) || !bytes.Equal(decoded.Bytes(), sk) {
+		t.Fatal("decoded private key differs from the generated one")
+	}
+	if !decoded.PublicKey().Equal(priv.PublicKey()) {
+		t.Fatal("decoded private key has a different public key")
+	}
+
+	// The decoded key must sign identically: G and the expanded basis are
+	// recomputed from f, g and F exactly as the reference crypto_sign does.
+	randomness := bytes.Repeat([]byte{0x5c}, nonceSize+SeedSize)
+	msg := []byte("falcon-1024 private key encoding")
+	want, err := Sign(bytes.NewReader(randomness), priv, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Sign(bytes.NewReader(randomness), decoded, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("decoded private key signs differently")
+	}
+
+	zeroF := bytes.Clone(sk)
+	clear(zeroF[headerSize : headerSize+trimI8Len(fgBits)])
+	badHeader := bytes.Clone(sk)
+	badHeader[0] ^= 0xff
+	for _, tc := range []struct {
+		name string
+		sk   []byte
+	}{
+		{name: "nil", sk: nil},
+		{name: "short", sk: sk[:PrivateKeySize-1]},
+		{name: "long", sk: append(bytes.Clone(sk), 0)},
+		{name: "bad header", sk: badHeader},
+		{name: "f not invertible", sk: zeroF},
+	} {
+		if _, err := NewPrivateKey(tc.sk); err == nil {
+			t.Fatalf("NewPrivateKey accepted %s private key", tc.name)
+		}
+	}
+
+	for _, seed := range [][]byte{nil, make([]byte, SeedSize-1), make([]byte, SeedSize+1)} {
+		if _, err := NewPrivateKeyFromSeed(seed); err == nil {
+			t.Fatalf("NewPrivateKeyFromSeed accepted a %d-byte seed", len(seed))
+		}
+	}
+}
+
+func TestSignRandomnessOrder(t *testing.T) {
+	// Sign draws the 40-byte nonce first and the 48-byte sampler seed second,
+	// as the reference crypto_sign calls randombytes, and nothing else.
+	priv, err := NewPrivateKeyFromSeed(make([]byte, SeedSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	randomness := make([]byte, nonceSize+SeedSize+1)
+	for i := range randomness {
+		randomness[i] = byte(i + 1)
+	}
+	reader := bytes.NewReader(randomness)
+	msg := []byte("falcon-1024 randomness order")
+	sm, err := Sign(reader, priv, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reader.Len() != 1 {
+		t.Fatalf("Sign consumed %d random bytes, want %d", len(randomness)-reader.Len(), nonceSize+SeedSize)
+	}
+	if !bytes.Equal(sm[signedMessageLengthSize:signedMessagePrefixSize], randomness[:nonceSize]) {
+		t.Fatal("signed message nonce is not the first 40 random bytes")
+	}
+	if !bytes.Equal(sm[signedMessagePrefixSize:signedMessagePrefixSize+len(msg)], msg) {
+		t.Fatal("signed message does not carry the message after the nonce")
+	}
+	sigLen := int(sm[0])<<8 | int(sm[1])
+	if sigLen != len(sm)-signedMessagePrefixSize-len(msg) {
+		t.Fatalf("signature length field = %d, want %d", sigLen, len(sm)-signedMessagePrefixSize-len(msg))
+	}
+	if sm[signedMessagePrefixSize+len(msg)] != signatureHeader {
+		t.Fatalf("signature header = %#x, want %#x", sm[signedMessagePrefixSize+len(msg)], signatureHeader)
+	}
+
+	for _, short := range []int{0, nonceSize - 1, nonceSize, nonceSize + SeedSize - 1} {
+		if _, err := Sign(bytes.NewReader(randomness[:short]), priv, msg); err == nil {
+			t.Fatalf("Sign succeeded with %d random bytes", short)
+		}
+	}
+}
+
+func TestOpen(t *testing.T) {
+	priv, err := NewPrivateKeyFromSeed(make([]byte, SeedSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := priv.PublicKey()
+	other, err := NewPrivateKeyFromSeed(bytes.Repeat([]byte{1}, SeedSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	randomness := bytes.Repeat([]byte{0xa5}, nonceSize+SeedSize)
+	for _, msg := range [][]byte{nil, []byte("x"), bytes.Repeat([]byte("falcon-1024 open "), 50)} {
+		sm, err := Sign(bytes.NewReader(randomness), priv, msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opened, err := Open(pub, sm)
+		if err != nil {
+			t.Fatalf("Open rejected a valid %d-byte message: %v", len(msg), err)
+		}
+		if !bytes.Equal(opened, msg) {
+			t.Fatal("Open returned a different message")
+		}
+		if len(msg) > 0 {
+			opened[0] ^= 1
+			if sm[signedMessagePrefixSize] == opened[0] {
+				t.Fatal("Open returned a slice aliasing the signed message")
+			}
+		}
+		if _, err := Open(other.PublicKey(), sm); err == nil {
+			t.Fatal("Open accepted the signed message under another public key")
+		}
+	}
+
+	msg := []byte("falcon-1024 open rejects")
+	sm, err := Sign(bytes.NewReader(randomness), priv, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sigOffset := signedMessagePrefixSize + len(msg)
+
+	mutate := func(f func(sm []byte) []byte) []byte { return f(bytes.Clone(sm)) }
+	for _, tc := range []struct {
+		name string
+		sm   []byte
+	}{
+		{name: "nil", sm: nil},
+		{name: "shorter than the prefix", sm: sm[:signedMessagePrefixSize-1]},
+		{name: "prefix only", sm: sm[:signedMessagePrefixSize]},
+		{name: "signature length beyond the end", sm: mutate(func(sm []byte) []byte { sm[1]++; return sm })},
+		{name: "signature length too small", sm: mutate(func(sm []byte) []byte { sm[1]--; return sm })},
+		{name: "bad signature header", sm: mutate(func(sm []byte) []byte { sm[sigOffset] ^= 0x10; return sm })},
+		{name: "extra byte inside the signature", sm: mutate(func(sm []byte) []byte {
+			sigLen := int(sm[0])<<8 | int(sm[1]) + 1
+			sm[0], sm[1] = byte(sigLen>>8), byte(sigLen)
+			return append(sm, 0)
+		})},
+		{name: "extra byte after the signature", sm: append(bytes.Clone(sm), 0)},
+		{name: "truncated signature", sm: sm[:len(sm)-1]},
+		{name: "flipped nonce bit", sm: mutate(func(sm []byte) []byte { sm[signedMessageLengthSize] ^= 1; return sm })},
+		{name: "flipped message bit", sm: mutate(func(sm []byte) []byte { sm[signedMessagePrefixSize] ^= 1; return sm })},
+		{name: "flipped signature bit", sm: mutate(func(sm []byte) []byte { sm[len(sm)-1] ^= 0x80; return sm })},
+	} {
+		if _, err := Open(pub, tc.sm); err == nil {
+			t.Fatalf("Open accepted a signed message with %s", tc.name)
+		}
+	}
+}
+
+// detachedFromSignedMessage re-encodes the signature a signed message carries
+// in the detached format: the same nonce and compressed polynomial under the
+// library header byte.
+func detachedFromSignedMessage(t *testing.T, sm []byte, msgLen int) []byte {
+	t.Helper()
+	sigOffset := signedMessagePrefixSize + msgLen
+	if sm[sigOffset] != signatureHeader {
+		t.Fatalf("signed message signature header = %#x, want %#x", sm[sigOffset], signatureHeader)
+	}
+	sig := []byte{detachedSignatureHeader}
+	sig = append(sig, sm[signedMessageLengthSize:signedMessagePrefixSize]...)
+	return append(sig, sm[sigOffset+headerSize:]...)
+}
+
+func TestDetachedSignature(t *testing.T) {
+	priv, err := NewPrivateKeyFromSeed(make([]byte, SeedSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := priv.PublicKey()
+	other, err := NewPrivateKeyFromSeed(bytes.Repeat([]byte{1}, SeedSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	randomness := make([]byte, nonceSize+SeedSize)
+	for i := range randomness {
+		randomness[i] = byte(3 * i)
+	}
+
+	for _, msg := range [][]byte{nil, []byte("x"), bytes.Repeat([]byte("falcon-1024 detached "), 40)} {
+		reader := bytes.NewReader(randomness)
+		sig, err := SignDetached(reader, priv, msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reader.Len() != 0 {
+			t.Fatalf("SignDetached consumed %d random bytes, want %d", len(randomness)-reader.Len(), len(randomness))
+		}
+		if len(sig) < detachedSignaturePrefixSize || len(sig) > MaxSignatureSize {
+			t.Fatalf("detached signature length = %d", len(sig))
+		}
+		if sig[0] != detachedSignatureHeader {
+			t.Fatalf("detached signature header = %#x, want %#x", sig[0], detachedSignatureHeader)
+		}
+		if !bytes.Equal(sig[headerSize:detachedSignaturePrefixSize], randomness[:nonceSize]) {
+			t.Fatal("detached signature nonce is not the first 40 random bytes")
+		}
+		if err := Verify(pub, msg, sig); err != nil {
+			t.Fatalf("Verify rejected a valid detached signature of a %d-byte message: %v", len(msg), err)
+		}
+		if err := Verify(other.PublicKey(), msg, sig); err == nil {
+			t.Fatal("Verify accepted the signature under another public key")
+		}
+
+		// With the same randomness, Sign embeds the same nonce and polynomial.
+		sm, err := Sign(bytes.NewReader(randomness), priv, msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := detachedFromSignedMessage(t, sm, len(msg)); !bytes.Equal(sig, want) {
+			t.Fatal("detached signature differs from the signature in the signed message")
+		}
+	}
+
+	msg := []byte("falcon-1024 detached rejects")
+	sig, err := SignDetached(bytes.NewReader(randomness), priv, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutate := func(f func(sig []byte) []byte) []byte { return f(bytes.Clone(sig)) }
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+		sig  []byte
+	}{
+		{name: "nil signature", msg: msg, sig: nil},
+		{name: "shorter than the nonce", msg: msg, sig: sig[:detachedSignaturePrefixSize-1]},
+		{name: "no polynomial", msg: msg, sig: sig[:detachedSignaturePrefixSize]},
+		{name: "signed-message header", msg: msg, sig: mutate(func(sig []byte) []byte { sig[0] = signatureHeader; return sig })},
+		{name: "constant-time format header", msg: msg, sig: mutate(func(sig []byte) []byte { sig[0] = 0x50 + logN; return sig })},
+		{name: "degree-512 header", msg: msg, sig: mutate(func(sig []byte) []byte { sig[0] = 0x30 + 9; return sig })},
+		{name: "trailing byte", msg: msg, sig: append(bytes.Clone(sig), 0)},
+		{name: "truncated polynomial", msg: msg, sig: sig[:len(sig)-1]},
+		{name: "flipped nonce bit", msg: msg, sig: mutate(func(sig []byte) []byte { sig[headerSize] ^= 1; return sig })},
+		{name: "flipped polynomial bit", msg: msg, sig: mutate(func(sig []byte) []byte { sig[len(sig)-1] ^= 0x80; return sig })},
+		{name: "different message", msg: []byte("falcon-1024 detached reject"), sig: sig},
+	} {
+		if err := Verify(pub, tc.msg, tc.sig); err == nil {
+			t.Fatalf("Verify accepted %s", tc.name)
+		}
+	}
+
+	for _, short := range []int{0, nonceSize, nonceSize + SeedSize - 1} {
+		if _, err := SignDetached(bytes.NewReader(randomness[:short]), priv, msg); err == nil {
+			t.Fatalf("SignDetached succeeded with %d random bytes", short)
+		}
+	}
+}
+
+func TestDetachedSignatureMatchesRound3KATSignedMessages(t *testing.T) {
+	// Drive the first KAT entries exactly as TestFalconRound3KATDigest does,
+	// and check that SignDetached, given the same randombytes stream, yields
+	// the signature the official signed message carries.
+	var entropy [SeedSize]byte
+	for i := range entropy {
+		entropy[i] = byte(i)
+	}
+	drbg := newNISTDRBG(entropy[:])
+
+	for count := range 8 {
+		var seed [SeedSize]byte
+		drbg.read(seed[:])
+		msg := make([]byte, 33*(count+1))
+		drbg.read(msg)
+
+		outer := drbg.save()
+		drbg = newNISTDRBG(seed[:])
+		priv, err := GenerateKey(drbg)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		signing := drbg.save()
+		sm, err := Sign(drbg, priv, msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		drbg.restore(signing)
+		sig, err := SignDetached(drbg, priv, msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := detachedFromSignedMessage(t, sm, len(msg)); !bytes.Equal(sig, want) {
+			t.Fatalf("count %d: detached signature differs from the KAT signed message's signature", count)
+		}
+		if err := Verify(priv.PublicKey(), msg, sig); err != nil {
+			t.Fatalf("count %d: Verify: %v", count, err)
+		}
+
+		drbg.restore(outer)
+	}
 }

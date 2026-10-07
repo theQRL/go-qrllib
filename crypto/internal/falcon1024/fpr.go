@@ -22,7 +22,16 @@ const (
 	negTwoTo63Minus1 fpr = -9223372036854775807
 )
 
-// Falcon's fpr layer uses native float64, matching the reference FPNATIVE path.
+// Falcon's fpr layer uses native float64. The reference implementation rounds
+// every floating-point operation to binary64 individually (its emulated and
+// native builds agree on this), so to reproduce its keys and signatures
+// bit-for-bit the Go code must do the same. Go permits the compiler to fuse
+// x*y+z into a single fused multiply-add on arm64, ppc64, s390x, riscv64 and
+// amd64 with GOAMD64=v3, which skips the intermediate rounding; an explicit
+// floating-point conversion prevents that fusion. Therefore every product
+// that feeds an addition or subtraction in this package is wrapped in an
+// explicit fpr(...) conversion, and the operation order mirrors the C source.
+// fprExpmP63 follows the reference's integer (falcon1024int) form.
 type fpr float64
 
 var fprP2Tab = [...]fpr{

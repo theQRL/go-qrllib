@@ -101,7 +101,7 @@ func TestPrivateKeyCodec(t *testing.T) {
 	g := mustDecodeSmallPolynomialHex(t, ntruSmallG1024Hex)
 	ntruF := mustDecodeSmallPolynomialHex(t, ntruF1024Hex)
 
-	sk := make([]byte, encodedPrivateKeySize)
+	sk := make([]byte, PrivateKeySize)
 	if err := skEncode(sk, f, g, ntruF); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestPrivateKeyCodec(t *testing.T) {
 		}{
 			{
 				name: "short",
-				in:   sk[:encodedPrivateKeySize-1],
+				in:   sk[:PrivateKeySize-1],
 			},
 			{
 				name: "long",
@@ -159,11 +159,11 @@ func TestPrivateKeyCodec(t *testing.T) {
 		}{
 			{
 				name: "short",
-				out:  make([]byte, encodedPrivateKeySize-1),
+				out:  make([]byte, PrivateKeySize-1),
 			},
 			{
 				name: "long",
-				out:  make([]byte, encodedPrivateKeySize+1),
+				out:  make([]byte, PrivateKeySize+1),
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -175,122 +175,124 @@ func TestPrivateKeyCodec(t *testing.T) {
 	})
 }
 
-func TestSignatureCodec(t *testing.T) {
+func TestSignedMessageCodec(t *testing.T) {
 	verifyRawKATs := readVerifyRawKATFixture(t).Tests
-
-	tc := verifyRawKATs[0]
-	nonceBytes := mustDecodeHex(t, tc.NonceHex)
-	var referenceNonce [nonceSize]byte
-	copy(referenceNonce[:], nonceBytes)
-	s2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
-
-	referenceSig := make([]byte, SignatureSize)
-	if err := sigEncode(referenceSig, referenceNonce, s2); err != nil {
-		t.Fatal(err)
-	}
 
 	t.Run("reference raw s2 vectors", func(t *testing.T) {
 		// The s2 vectors are decoded from the Falcon reference implementation
 		// KAT_SIG_1024 raw verify vectors. Those raw vectors use a 32-byte hash
-		// seed, not the 40-byte nonce carried by padded Falcon signatures, so the
-		// seed is zero-extended only to exercise this package's padded codec.
+		// seed, not the 40-byte nonce the signed message carries, so the seed
+		// is zero-extended only to exercise this package's codec.
 		// Source: https://falcon-sign.info/impl/test_falcon.c.html
 		for _, tc := range verifyRawKATs {
 			t.Run(tc.Message, func(t *testing.T) {
-				nonceBytes := mustDecodeHex(t, tc.NonceHex)
 				var nonce [nonceSize]byte
-				copy(nonce[:], nonceBytes)
-
+				copy(nonce[:], mustDecodeHex(t, tc.NonceHex))
 				wantS2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
+				message := []byte(tc.Message)
 
-				sig := make([]byte, SignatureSize)
-				if err := sigEncode(sig, nonce, wantS2); err != nil {
-					t.Fatal(err)
-				}
-
-				gotNonce, gotS2, err := sigDecode(sig)
+				sm, err := signedMessageEncode(nonce, message, wantS2)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if gotNonce != nonce {
-					t.Fatal("sigDecode returned unexpected nonce")
+
+				comp := make([]byte, maxCompressedSignatureSize)
+				compLen, err := compressedEncode(comp, wantS2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				sigLen := headerSize + compLen
+				if want := signedMessagePrefixSize + len(message) + sigLen; len(sm) != want {
+					t.Fatalf("signed message length = %d, want %d", len(sm), want)
+				}
+				if got := int(sm[0])<<8 | int(sm[1]); got != sigLen {
+					t.Fatalf("signature length field = %d, want %d", got, sigLen)
+				}
+				sigOffset := signedMessagePrefixSize + len(message)
+				if sm[sigOffset] != signatureHeader {
+					t.Fatalf("signature header = %#x, want %#x", sm[sigOffset], signatureHeader)
+				}
+				if !bytes.Equal(sm[sigOffset+headerSize:], comp[:compLen]) {
+					t.Fatal("signed message does not end with the compressed polynomial")
+				}
+
+				gotNonce, gotMessage, gotS2, err := signedMessageDecode(sm)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(gotNonce, nonce[:]) {
+					t.Fatal("signedMessageDecode returned unexpected nonce")
+				}
+				if !bytes.Equal(gotMessage, message) {
+					t.Fatal("signedMessageDecode returned unexpected message")
 				}
 				if gotS2 != wantS2 {
-					t.Fatal("sigDecode returned unexpected s2")
+					t.Fatal("signedMessageDecode returned unexpected s2")
 				}
 			})
 		}
 	})
 
+	tc := verifyRawKATs[0]
+	var nonce [nonceSize]byte
+	copy(nonce[:], mustDecodeHex(t, tc.NonceHex))
+	s2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
+	message := []byte(tc.Message)
+	reference, err := signedMessageEncode(nonce, message, s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sigOffset := signedMessagePrefixSize + len(message)
+
 	t.Run("rejects invalid input", func(t *testing.T) {
+		mutate := func(f func(sm []byte) []byte) []byte { return f(bytes.Clone(reference)) }
 		testCases := []struct {
 			name string
 			in   []byte
 		}{
-			{
-				name: "short",
-				in:   referenceSig[:SignatureSize-1],
-			},
-			{
-				name: "long",
-				in:   append(bytes.Clone(referenceSig), 0),
-			},
-			{
-				name: "invalid header",
-				in: func() []byte {
-					in := bytes.Clone(referenceSig)
-					in[0] ^= 0xff
-					return in
-				}(),
-			},
+			{name: "nil", in: nil},
+			{name: "shorter than the prefix", in: reference[:signedMessagePrefixSize-1]},
+			{name: "prefix only", in: reference[:signedMessagePrefixSize]},
+			{name: "truncated", in: reference[:len(reference)-1]},
+			{name: "signature length beyond the end", in: mutate(func(sm []byte) []byte { sm[1]++; return sm })},
+			{name: "signature length of zero", in: mutate(func(sm []byte) []byte { sm[0], sm[1] = 0, 0; return sm })},
+			{name: "invalid header", in: mutate(func(sm []byte) []byte { sm[sigOffset] ^= 0xff; return sm })},
+			{name: "padded signature header", in: mutate(func(sm []byte) []byte { sm[sigOffset] = 0x30 + logN; return sm })},
+			{name: "trailing byte inside the signature", in: mutate(func(sm []byte) []byte {
+				sigLen := int(sm[0])<<8 | int(sm[1]) + 1
+				sm[0], sm[1] = byte(sigLen>>8), byte(sigLen)
+				return append(sm, 0)
+			})},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				if _, _, err := sigDecode(tc.in); err == nil {
-					t.Fatal("sigDecode accepted invalid signature")
+				if _, _, _, err := signedMessageDecode(tc.in); err == nil {
+					t.Fatal("signedMessageDecode accepted invalid signed message")
 				}
 			})
 		}
 	})
 
-	t.Run("rejects invalid output buffer", func(t *testing.T) {
-		for _, tc := range []struct {
-			name string
-			out  []byte
-		}{
-			{
-				name: "short",
-				out:  make([]byte, SignatureSize-1),
-			},
-			{
-				name: "long",
-				out:  make([]byte, SignatureSize+1),
-			},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				if err := sigEncode(tc.out, referenceNonce, s2); err == nil {
-					t.Fatal("sigEncode accepted invalid signature buffer")
-				}
-			})
-		}
-	})
-
-	t.Run("rejects non-zero padding", func(t *testing.T) {
-		sig := make([]byte, SignatureSize)
-		sig[0] = signatureHeader
-		copy(sig[headerSize:signaturePrefixSize], referenceNonce[:])
-		written, err := compressedEncode(sig[signaturePrefixSize:], s2)
+	t.Run("rejects non-zero trailing bits", func(t *testing.T) {
+		// A polynomial whose compressed encoding ends with padding bits.
+		var padded smallPolynomial
+		padded[0] = 128
+		sm, err := signedMessageEncode(nonce, message, padded)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if written >= SignatureSize-signaturePrefixSize {
-			t.Fatal("reference signature unexpectedly leaves no padding byte to corrupt")
+		sm[len(sm)-1] |= 1
+		if _, _, _, err := signedMessageDecode(sm); err == nil {
+			t.Fatal("signedMessageDecode accepted non-zero trailing bits")
 		}
+	})
 
-		sig[signaturePrefixSize+written] = 1
-		if _, _, err := sigDecode(sig); err == nil {
-			t.Fatal("sigDecode accepted non-zero padded signature bytes")
+	t.Run("rejects out-of-range coefficients", func(t *testing.T) {
+		var outOfRange smallPolynomial
+		outOfRange[0] = maxCompressedCoefficient + 1
+		if _, err := signedMessageEncode(nonce, message, outOfRange); !errors.Is(err, errCompressedCoefficientOutOfRange) {
+			t.Fatalf("signedMessageEncode error = %v, want %v", err, errCompressedCoefficientOutOfRange)
 		}
 	})
 }
@@ -325,7 +327,7 @@ func TestCompressedCodec(t *testing.T) {
 		for i, tc := range verifyRawKATs {
 			t.Run(tc.Message, func(t *testing.T) {
 				s2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
-				dst := make([]byte, SignatureSize-signaturePrefixSize)
+				dst := make([]byte, maxCompressedSignatureSize)
 
 				written, err := compressedEncode(dst, s2)
 				if err != nil {
@@ -356,7 +358,7 @@ func TestCompressedCodec(t *testing.T) {
 			{
 				name: "out of range coefficient",
 				s2:   outOfRange,
-				dst:  make([]byte, SignatureSize-signaturePrefixSize),
+				dst:  make([]byte, maxCompressedSignatureSize),
 				err:  errCompressedCoefficientOutOfRange,
 			},
 			{
@@ -380,7 +382,7 @@ func TestCompressedCodec(t *testing.T) {
 		var s2 smallPolynomial
 		s2[0] = 128
 
-		buf := make([]byte, SignatureSize-signaturePrefixSize)
+		buf := make([]byte, maxCompressedSignatureSize)
 		written, err := compressedEncode(buf, s2)
 		if err != nil {
 			t.Fatal(err)
@@ -614,4 +616,105 @@ func TestTrimI8DecodeRejectsForbiddenValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDetachedSignatureCodec(t *testing.T) {
+	verifyRawKATs := readVerifyRawKATFixture(t).Tests
+
+	t.Run("reference raw s2 vectors", func(t *testing.T) {
+		for _, tc := range verifyRawKATs {
+			t.Run(tc.Message, func(t *testing.T) {
+				var nonce [nonceSize]byte
+				copy(nonce[:], mustDecodeHex(t, tc.NonceHex))
+				wantS2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
+
+				sig, err := detachedSignatureEncode(nonce, wantS2)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				comp := make([]byte, maxDetachedCompressedSize)
+				compLen, err := compressedEncode(comp, wantS2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if want := detachedSignaturePrefixSize + compLen; len(sig) != want {
+					t.Fatalf("detached signature length = %d, want %d", len(sig), want)
+				}
+				if sig[0] != detachedSignatureHeader {
+					t.Fatalf("header = %#x, want %#x", sig[0], detachedSignatureHeader)
+				}
+				if !bytes.Equal(sig[headerSize:detachedSignaturePrefixSize], nonce[:]) {
+					t.Fatal("detached signature does not carry the nonce after the header")
+				}
+				if !bytes.Equal(sig[detachedSignaturePrefixSize:], comp[:compLen]) {
+					t.Fatal("detached signature does not end with the compressed polynomial")
+				}
+
+				gotNonce, gotS2, err := detachedSignatureDecode(sig)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(gotNonce, nonce[:]) {
+					t.Fatal("detachedSignatureDecode returned unexpected nonce")
+				}
+				if gotS2 != wantS2 {
+					t.Fatal("detachedSignatureDecode returned unexpected s2")
+				}
+			})
+		}
+	})
+
+	tc := verifyRawKATs[0]
+	var nonce [nonceSize]byte
+	copy(nonce[:], mustDecodeHex(t, tc.NonceHex))
+	s2 := decodeVerifyRawKATS2(t, mustDecodeHex(t, tc.SignatureHex))
+	reference, err := detachedSignatureEncode(nonce, s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("rejects invalid input", func(t *testing.T) {
+		mutate := func(f func(sig []byte) []byte) []byte { return f(bytes.Clone(reference)) }
+		for _, tc := range []struct {
+			name string
+			in   []byte
+		}{
+			{name: "nil", in: nil},
+			{name: "shorter than the nonce", in: reference[:detachedSignaturePrefixSize-1]},
+			{name: "no polynomial", in: reference[:detachedSignaturePrefixSize]},
+			{name: "truncated", in: reference[:len(reference)-1]},
+			{name: "trailing byte", in: append(bytes.Clone(reference), 0)},
+			{name: "signed-message header", in: mutate(func(sig []byte) []byte { sig[0] = signatureHeader; return sig })},
+			{name: "constant-time header", in: mutate(func(sig []byte) []byte { sig[0] = 0x50 + logN; return sig })},
+			{name: "wrong degree", in: mutate(func(sig []byte) []byte { sig[0] = 0x30 + 9; return sig })},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if _, _, err := detachedSignatureDecode(tc.in); err == nil {
+					t.Fatal("detachedSignatureDecode accepted invalid signature")
+				}
+			})
+		}
+	})
+
+	t.Run("rejects non-zero trailing bits", func(t *testing.T) {
+		var padded smallPolynomial
+		padded[0] = 128
+		sig, err := detachedSignatureEncode(nonce, padded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sig[len(sig)-1] |= 1
+		if _, _, err := detachedSignatureDecode(sig); err == nil {
+			t.Fatal("detachedSignatureDecode accepted non-zero trailing bits")
+		}
+	})
+
+	t.Run("rejects out-of-range coefficients", func(t *testing.T) {
+		var outOfRange smallPolynomial
+		outOfRange[0] = maxCompressedCoefficient + 1
+		if _, err := detachedSignatureEncode(nonce, outOfRange); !errors.Is(err, errCompressedCoefficientOutOfRange) {
+			t.Fatalf("detachedSignatureEncode error = %v, want %v", err, errCompressedCoefficientOutOfRange)
+		}
+	})
 }

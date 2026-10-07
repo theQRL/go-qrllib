@@ -326,8 +326,14 @@ func coefficientsExceedBound(p smallPolynomial, bound int32) bool {
 	return false
 }
 
+// squaredNormExceedsBound is the reference keygen's check on the squared
+// norm of (f, g): the two saturating sums are added, saturated again, and
+// compared with the bound.
 func squaredNormExceedsBound(f, g smallPolynomial, bound uint32) bool {
-	return f.squaredNorm()+g.squaredNorm() >= bound
+	normf := f.squaredNorm()
+	normg := g.squaredNorm()
+	norm := (normf + normg) | -((normf | normg) >> 31)
+	return norm >= bound
 }
 
 func orthogonalizedNormExceedsBound(f, g smallPolynomial, bound float64) bool {
@@ -352,45 +358,59 @@ func orthogonalizedNormExceedsBound(f, g smallPolynomial, bound float64) bool {
 	inverseFFT(rf[:], logN)
 	inverseFFT(rg[:], logN)
 
-	var norm float64
+	// Accumulate exactly as the reference keygen: bnorm += rt1[u]^2, then
+	// bnorm += rt2[u]^2, each product rounded before the add. The reference
+	// rejects on !(bnorm < max), which also rejects a NaN norm.
+	var norm fpr
 	for i := range rf {
-		norm += float64(rf[i]*rf[i] + rg[i]*rg[i])
+		norm += fpr(rf[i] * rf[i])
+		norm += fpr(rg[i] * rg[i])
 	}
 
-	return norm >= bound
+	return !(norm < fpr(bound))
 }
 
-const signatureNormBound uint64 = 70_265_242
+// signatureNormBound is the reference l2bound for degree 1024.
+const signatureNormBound = 70_265_242
 
+// signatureNormExceedsPartialBound is the negation of the reference
+// is_short_half: sqn is the saturating 32-bit squared norm of s1, to which
+// the squared norm of s2 is added with the same saturation. A sum that ever
+// overflows 32 bits is forced to the maximum and so exceeds the bound.
 func signatureNormExceedsPartialBound(sqn uint32, s2 smallPolynomial) bool {
-	norm := uint64(sqn)
-
-	for _, x := range s2 {
-		y := int64(x)
-		norm += uint64(y * y)
+	ng := -(sqn >> 31)
+	for _, z := range s2 {
+		sqn += uint32(z * z)
+		ng |= sqn
 	}
-
-	return norm > signatureNormBound
+	sqn |= -(ng >> 31)
+	return sqn > signatureNormBound
 }
 
+// squaredNorm is the reference poly_small_sqnorm: a 32-bit sum of squares
+// that is forced to the maximum if it ever overflows.
 func (p smallPolynomial) squaredNorm() uint32 {
-	var sum uint32
+	var s, ng uint32
 	for _, x := range p {
-		sum += uint32(x * x)
+		s += uint32(x * x)
+		ng |= s
 	}
-	return sum
+	return s | -(ng >> 31)
 }
 
+// signatureNormWithinBound is the reference is_short: the squared norms of
+// s1 and s2 are accumulated together, coefficient by coefficient, in a 32-bit
+// sum that is forced to the maximum if it ever overflows.
 func signatureNormWithinBound(s1, s2 smallPolynomial) bool {
-	var norm uint64
-
+	var s, ng uint32
 	for i := range s1 {
-		x := int64(s1[i])
-		norm += uint64(x * x)
-
-		y := int64(s2[i])
-		norm += uint64(y * y)
+		z := s1[i]
+		s += uint32(z * z)
+		ng |= s
+		z = s2[i]
+		s += uint32(z * z)
+		ng |= s
 	}
-
-	return norm <= signatureNormBound
+	s |= -(ng >> 31)
+	return s <= signatureNormBound
 }

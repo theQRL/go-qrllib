@@ -54,17 +54,16 @@ func TestRoundTrip(t *testing.T) {
 	}
 
 	zeroSeed := make([]byte, SeedSize)
-	_, _ = zero.Read(zeroSeed)
-	privateFromSeed, err := NewPrivateKey(zeroSeed)
+	privateFromSeed, err := NewPrivateKeyFromSeed(zeroSeed)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publicFromSeed := privateFromSeed.Public().(*PublicKey)
 	if !bytes.Equal(publicFromSeed.Bytes(), public.Bytes()) {
-		t.Fatal("GenerateKey and NewPrivateKey returned different public keys")
+		t.Fatal("GenerateKey and NewPrivateKeyFromSeed returned different public keys")
 	}
 	if !bytes.Equal(privateFromSeed.Bytes(), private.Bytes()) {
-		t.Fatal("GenerateKey and NewPrivateKey returned different private keys")
+		t.Fatal("GenerateKey and NewPrivateKeyFromSeed returned different private keys")
 	}
 
 	public1, err := NewPublicKey(public.Bytes())
@@ -79,36 +78,71 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(private.Bytes(), private1.Bytes()) {
-		t.Fatal("private key seed did not round-trip")
+		t.Fatal("private key encoding did not round-trip")
+	}
+	if !private.Equal(private1) {
+		t.Fatal("decoded private key is not equal to the original")
 	}
 
 	message := []byte("test message")
-	signature, err := Sign(zero, private, message)
+	signedMessage, err := Sign(zero, private, message)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(signature) != SignatureSize {
-		t.Fatalf("signature length = %d, want %d", len(signature), SignatureSize)
+	if len(signedMessage) > len(message)+MaxSignedMessageOverhead {
+		t.Fatalf("signed message length = %d, want at most %d", len(signedMessage), len(message)+MaxSignedMessageOverhead)
+	}
+	opened, err := Open(public1, signedMessage)
+	if err != nil {
+		t.Fatalf("valid signed message rejected: %v", err)
+	}
+	if !bytes.Equal(opened, message) {
+		t.Fatal("Open returned a different message")
+	}
+
+	signedMessage1, err := private1.Sign(zero, message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(signedMessage1, signedMessage) {
+		t.Fatal("decoded private key signed differently with the same randomness")
+	}
+
+	modified := bytes.Clone(signedMessage)
+	modified[len(modified)-1] ^= 0x80
+	if _, err := Open(public1, modified); err == nil {
+		t.Fatal("modified signature accepted")
+	}
+	modified = bytes.Clone(signedMessage)
+	modified[2+40] ^= 1
+	if _, err := Open(public1, modified); err == nil {
+		t.Fatal("modified message accepted")
+	}
+
+	signature, err := SignDetached(zero, private, message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(signature) > MaxSignatureSize {
+		t.Fatalf("detached signature length = %d, want at most %d", len(signature), MaxSignatureSize)
 	}
 	if !Verify(public1, message, signature) {
-		t.Fatal("valid signature rejected")
+		t.Fatal("valid detached signature rejected")
 	}
 	if Verify(public1, []byte("wrong message"), signature) {
-		t.Fatal("signature of different message accepted")
+		t.Fatal("detached signature of different message accepted")
 	}
-
-	signature1, err := private1.Sign(zero, message)
+	signature1, err := private1.SignDetached(zero, message)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !Verify(public1, message, signature1) {
-		t.Fatal("PrivateKey.Sign signature rejected")
+	if !bytes.Equal(signature1, signature) {
+		t.Fatal("decoded private key produced a different detached signature with the same randomness")
 	}
-
 	modifiedSignature := bytes.Clone(signature)
-	modifiedSignature[SignatureSize-1] ^= 1
+	modifiedSignature[len(modifiedSignature)-1] ^= 0x80
 	if Verify(public1, message, modifiedSignature) {
-		t.Fatal("modified signature accepted")
+		t.Fatal("modified detached signature accepted")
 	}
 
 	otherPublic, otherPrivate, err := GenerateKey(rand.Reader)
@@ -118,8 +152,11 @@ func TestRoundTrip(t *testing.T) {
 	if public.Equal(otherPublic) {
 		t.Fatal("different public keys are Equal")
 	}
+	if _, err := Open(otherPublic, signedMessage); err == nil {
+		t.Fatal("signed message accepted with a different public key")
+	}
 	if Verify(otherPublic, message, signature) {
-		t.Fatal("signature accepted with a different public key")
+		t.Fatal("detached signature accepted with a different public key")
 	}
 	if private.Equal(otherPrivate) {
 		t.Fatal("different private keys are Equal")
@@ -135,13 +172,20 @@ func TestRoundTrip(t *testing.T) {
 	if bytes.Equal(private.Bytes(), randomPrivate.Bytes()) {
 		t.Fatal("GenerateKey returned the same private key twice")
 	}
+	randomSigned, err := randomPrivate.Sign(nil, message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(randomPrivate.Public().(*PublicKey), randomSigned); err != nil {
+		t.Fatalf("signed message with crypto/rand randomness rejected: %v", err)
+	}
 
 	seed := testSeed()
 	_, generatedFromSeed, err := GenerateKey(bytes.NewReader(seed))
 	if err != nil {
 		t.Fatal(err)
 	}
-	privateFromTestSeed, err := NewPrivateKey(seed)
+	privateFromTestSeed, err := NewPrivateKeyFromSeed(seed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,14 +202,14 @@ func testSeed() []byte {
 	return seed
 }
 
-func TestInvalidInputLengths(t *testing.T) {
+func TestInvalidInputs(t *testing.T) {
 	for _, seed := range [][]byte{
 		nil,
 		make([]byte, SeedSize-1),
 		make([]byte, SeedSize+1),
 	} {
-		if _, err := NewPrivateKey(seed); err == nil {
-			t.Fatalf("NewPrivateKey accepted seed with length %d", len(seed))
+		if _, err := NewPrivateKeyFromSeed(seed); err == nil {
+			t.Fatalf("NewPrivateKeyFromSeed accepted seed with length %d", len(seed))
 		}
 	}
 
@@ -175,7 +219,7 @@ func TestInvalidInputLengths(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := []byte("test message")
-	signature, err := Sign(zero, private, message)
+	signedMessage, err := Sign(zero, private, message)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,32 +237,70 @@ func TestInvalidInputLengths(t *testing.T) {
 		}
 	}
 
+	badHeaderPrivate := bytes.Clone(private.Bytes())
+	badHeaderPrivate[0] ^= 0xFF
+	for _, privateKey := range [][]byte{
+		nil,
+		make([]byte, PrivateKeySize-1),
+		make([]byte, PrivateKeySize+1),
+		badHeaderPrivate,
+	} {
+		if _, err := NewPrivateKey(privateKey); err == nil {
+			t.Fatalf("NewPrivateKey accepted invalid private key with length %d", len(privateKey))
+		}
+	}
+
+	sigOffset := 2 + 40 + len(message)
+	for _, sm := range [][]byte{
+		nil,
+		signedMessage[:2+40-1],
+		signedMessage[:len(signedMessage)-1],
+		append(bytes.Clone(signedMessage), 0),
+		append(bytes.Clone(signedMessage[:sigOffset]), signedMessage[sigOffset]^0xFF),
+	} {
+		if _, err := Open(public, sm); err == nil {
+			t.Fatalf("Open accepted invalid signed message with length %d", len(sm))
+		}
+	}
+
+	if _, err := Sign(bytes.NewReader(make([]byte, 40)), private, message); err == nil {
+		t.Fatal("Sign succeeded without enough randomness for the sampler seed")
+	}
+
+	signature, err := SignDetached(zero, private, message)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, sig := range [][]byte{
 		nil,
-		make([]byte, SignatureSize-1),
-		make([]byte, SignatureSize+1),
+		signature[:40],
+		signature[:len(signature)-1],
+		append(bytes.Clone(signature), 0),
 		append([]byte{signature[0] ^ 0xFF}, signature[1:]...),
 	} {
 		if Verify(public, message, sig) {
-			t.Fatalf("Verify accepted invalid signature with length %d", len(sig))
+			t.Fatalf("Verify accepted invalid detached signature with length %d", len(sig))
 		}
+	}
+	if _, err := SignDetached(bytes.NewReader(make([]byte, 40)), private, message); err == nil {
+		t.Fatal("SignDetached succeeded without enough randomness for the sampler seed")
 	}
 }
 
 // TestAccumulated accumulates deterministic operations and checks the hash of
 // the result instead of checking in large vector files.
 func TestAccumulated(t *testing.T) {
-	const expected = "ae200d33ef07d795d68e34bfa1b710c52f1ebb28e7c7ee7157c5443a552925c8"
+	const expected = "73e6b1af517fdfe4dc674e7e9e5165c3460f5a02bb1e6bf412bb4bae55ad9b82"
 
 	s := sha3.NewSHAKE128()
 	o := sha3.NewSHAKE128()
 	seed := make([]byte, SeedSize)
-	signSeed := make([]byte, SeedSize)
+	randomness := make([]byte, 40+SeedSize)
 	var message [32]byte
 
 	for range 16 {
 		_, _ = s.Read(seed)
-		private, err := NewPrivateKey(seed)
+		private, err := NewPrivateKeyFromSeed(seed)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -227,13 +309,26 @@ func TestAccumulated(t *testing.T) {
 		_, _ = o.Write(private.Bytes())
 
 		_, _ = s.Read(message[:])
-		_, _ = s.Read(signSeed)
-		signature, err := Sign(bytes.NewReader(signSeed), private, message[:])
+		_, _ = s.Read(randomness)
+		signedMessage, err := Sign(bytes.NewReader(randomness), private, message[:])
+		if err != nil {
+			t.Fatal(err)
+		}
+		opened, err := Open(public, signedMessage)
+		if err != nil {
+			t.Fatalf("valid signed message rejected: %v", err)
+		}
+		if !bytes.Equal(opened, message[:]) {
+			t.Fatal("Open returned a different message")
+		}
+		_, _ = o.Write(signedMessage)
+
+		signature, err := SignDetached(bytes.NewReader(randomness), private, message[:])
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !Verify(public, message[:], signature) {
-			t.Fatal("valid signature rejected")
+			t.Fatal("valid detached signature rejected")
 		}
 		_, _ = o.Write(signature)
 	}
@@ -251,16 +346,20 @@ func TestConstantSizes(t *testing.T) {
 		t.Errorf("SeedSize mismatch: got %d, want %d", SeedSize, internal.SeedSize)
 	}
 
-	if PrivateKeySize != internal.SeedSize {
-		t.Errorf("PrivateKeySize mismatch: got %d, want %d", PrivateKeySize, internal.SeedSize)
+	if PrivateKeySize != internal.PrivateKeySize {
+		t.Errorf("PrivateKeySize mismatch: got %d, want %d", PrivateKeySize, internal.PrivateKeySize)
 	}
 
 	if PublicKeySize != internal.PublicKeySize {
 		t.Errorf("PublicKeySize mismatch: got %d, want %d", PublicKeySize, internal.PublicKeySize)
 	}
 
-	if SignatureSize != internal.SignatureSize {
-		t.Errorf("SignatureSize mismatch: got %d, want %d", SignatureSize, internal.SignatureSize)
+	if MaxSignedMessageOverhead != internal.MaxSignedMessageOverhead {
+		t.Errorf("MaxSignedMessageOverhead mismatch: got %d, want %d", MaxSignedMessageOverhead, internal.MaxSignedMessageOverhead)
+	}
+
+	if MaxSignatureSize != internal.MaxSignatureSize {
+		t.Errorf("MaxSignatureSize mismatch: got %d, want %d", MaxSignatureSize, internal.MaxSignatureSize)
 	}
 }
 
@@ -279,10 +378,25 @@ func BenchmarkGenerateKey(b *testing.B) {
 	}
 }
 
-func BenchmarkNewPrivateKey(b *testing.B) {
+func BenchmarkNewPrivateKeyFromSeed(b *testing.B) {
 	seed := make([]byte, SeedSize)
 	for b.Loop() {
-		private, err := NewPrivateKey(seed)
+		private, err := NewPrivateKeyFromSeed(seed)
+		if err != nil {
+			b.Fatal(err)
+		}
+		sink ^= private.Bytes()[0]
+	}
+}
+
+func BenchmarkNewPrivateKey(b *testing.B) {
+	private, err := NewPrivateKeyFromSeed(make([]byte, SeedSize))
+	if err != nil {
+		b.Fatal(err)
+	}
+	encoded := private.Bytes()
+	for b.Loop() {
+		private, err := NewPrivateKey(encoded)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -298,7 +412,43 @@ func BenchmarkSign(b *testing.B) {
 	}
 	message := []byte("Hello, world!")
 	for b.Loop() {
-		signature, err := Sign(zero, private, message)
+		signedMessage, err := Sign(zero, private, message)
+		if err != nil {
+			b.Fatal(err)
+		}
+		sink ^= signedMessage[0]
+	}
+}
+
+func BenchmarkOpen(b *testing.B) {
+	var zero zeroReader
+	public, private, err := GenerateKey(zero)
+	if err != nil {
+		b.Fatal(err)
+	}
+	message := []byte("Hello, world!")
+	signedMessage, err := Sign(zero, private, message)
+	if err != nil {
+		b.Fatal(err)
+	}
+	for b.Loop() {
+		opened, err := Open(public, signedMessage)
+		if err != nil {
+			b.Fatal(err)
+		}
+		sink ^= opened[0]
+	}
+}
+
+func BenchmarkSignDetached(b *testing.B) {
+	var zero zeroReader
+	_, private, err := GenerateKey(zero)
+	if err != nil {
+		b.Fatal(err)
+	}
+	message := []byte("Hello, world!")
+	for b.Loop() {
+		signature, err := SignDetached(zero, private, message)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -313,7 +463,7 @@ func BenchmarkVerify(b *testing.B) {
 		b.Fatal(err)
 	}
 	message := []byte("Hello, world!")
-	signature, err := Sign(zero, private, message)
+	signature, err := SignDetached(zero, private, message)
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -7,27 +7,54 @@ import (
 	"io"
 )
 
+// This package follows the NIST API of the Falcon round-3 reference
+// implementation (nist.c): key generation expands SeedSize random bytes with
+// SHAKE256 exactly as crypto_sign_keypair expands the bytes it draws from
+// randombytes, private and public keys use the CRYPTO_SECRETKEYBYTES and
+// CRYPTO_PUBLICKEYBYTES encodings, and Sign and Open produce and consume the
+// crypto_sign signed-message format. SignDetached and Verify add the
+// compressed detached-signature format of the reference library API
+// (falcon.h, FALCON_SIG_COMPRESSED), which carries the same nonce and
+// compressed polynomial as the signed message under the header byte 0x3A.
 const (
-	SeedSize              = 48
-	PublicKeySize         = 1793
-	encodedPrivateKeySize = 2305
-	SignatureSize         = 1280
+	// SeedSize is the number of random bytes key generation consumes, which
+	// the reference crypto_sign_keypair draws with randombytes.
+	SeedSize = 48
+
+	// PublicKeySize is the size in bytes of an encoded public key
+	// (CRYPTO_PUBLICKEYBYTES).
+	PublicKeySize = 1793
+
+	// PrivateKeySize is the size in bytes of an encoded private key
+	// (CRYPTO_SECRETKEYBYTES).
+	PrivateKeySize = 2305
+
+	// MaxSignedMessageOverhead is the most a signed message exceeds the
+	// message it carries, in bytes (CRYPTO_BYTES).
+	MaxSignedMessageOverhead = 1330
+
+	// MaxSignatureSize is the maximum size in bytes of a detached signature
+	// (FALCON_SIG_COMPRESSED_MAXSIZE of the reference library API for degree
+	// 1024).
+	MaxSignatureSize = 1462
 )
 
 type PrivateKey struct {
-	seed               [SeedSize]byte
+	raw                [PrivateKeySize]byte
 	pub                PublicKey
 	b00, b01, b10, b11 fftPolynomial
 	tree               fprTree
 }
 
 func (priv *PrivateKey) Equal(x *PrivateKey) bool {
-	return subtle.ConstantTimeCompare(priv.seed[:], x.seed[:]) == 1
+	return subtle.ConstantTimeCompare(priv.raw[:], x.raw[:]) == 1
 }
 
+// Bytes returns the PrivateKeySize-byte encoding of priv: the header byte
+// 0x5A, then f and g at five bits per coefficient and F at eight.
 func (priv *PrivateKey) Bytes() []byte {
-	seed := priv.seed
-	return seed[:]
+	sk := priv.raw
+	return sk[:]
 }
 
 func (priv *PrivateKey) PublicKey() *PublicKey {
@@ -50,20 +77,56 @@ func (pub *PublicKey) Bytes() []byte {
 	return pk[:]
 }
 
-var errInvalidSeedLength = errors.New("falcon-1024: invalid seed length")
+var (
+	errInvalidSeedLength = errors.New("falcon-1024: invalid seed length")
+	errInvalidPrivateKey = errors.New("falcon-1024: invalid private key")
+)
 
-func NewPrivateKey(seed []byte) (*PrivateKey, error) {
+// GenerateKey reads SeedSize bytes from random and generates the private key
+// from them, as the reference crypto_sign_keypair does with randombytes.
+func GenerateKey(random io.Reader) (*PrivateKey, error) {
+	var seed [SeedSize]byte
+	if _, err := io.ReadFull(random, seed[:]); err != nil {
+		return nil, err
+	}
+	return NewPrivateKeyFromSeed(seed[:])
+}
+
+// NewPrivateKeyFromSeed deterministically generates the private key from a
+// SeedSize-byte seed, the way the reference crypto_sign_keypair expands the
+// bytes it draws from randombytes.
+func NewPrivateKeyFromSeed(seed []byte) (*PrivateKey, error) {
 	if len(seed) != SeedSize {
 		return nil, errInvalidSeedLength
 	}
 
-	priv := &PrivateKey{}
-	copy(priv.seed[:], seed)
-
 	rng := sha3.NewSHAKE256()
 	_, _ = rng.Write(seed)
 
-	return keygen(priv, rng)
+	f, g, ntruF, ntruG, h := generateKeyComponents(rng)
+	return initPrivateKey(&PrivateKey{}, f, g, ntruF, ntruG, h)
+}
+
+// NewPrivateKey decodes a PrivateKeySize-byte private key. As the reference
+// crypto_sign does, it recomputes G from f, g and F and rejects encodings for
+// which that fails.
+func NewPrivateKey(privateKey []byte) (*PrivateKey, error) {
+	f, g, ntruF, err := skDecode(privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	ntruG, ok := completePrivate(f, g, ntruF)
+	if !ok {
+		return nil, errInvalidPrivateKey
+	}
+
+	h, ok := computePublic(f, g)
+	if !ok {
+		return nil, errInvalidPrivateKey
+	}
+
+	return initPrivateKey(&PrivateKey{}, f, g, ntruF, ntruG, h)
 }
 
 const (
@@ -71,11 +134,6 @@ const (
 	keygenSqNormBound = 16823
 	keygenBNormBound  = 16822.4121
 )
-
-func keygen(priv *PrivateKey, rng *sha3.SHAKE) (*PrivateKey, error) {
-	f, g, ntruF, ntruG, h := generateKeyComponents(rng)
-	return initPrivateKey(priv, f, g, ntruF, ntruG, h)
-}
 
 func generateKeyComponents(rng *sha3.SHAKE) (f, g, ntruF, ntruG smallPolynomial, h ringElement) {
 	// Falcon key generation is rejection-based; this loop is intentionally
@@ -131,6 +189,10 @@ func computePublic(f, g smallPolynomial) (ringElement, bool) {
 }
 
 func initPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial, h ringElement) (*PrivateKey, error) {
+	if err := skEncode(priv.raw[:], f, g, ntruF); err != nil {
+		return nil, err
+	}
+
 	pub, err := newPublicKeyFromH(h)
 	if err != nil {
 		return nil, err
@@ -152,6 +214,9 @@ func newPublicKeyFromH(h ringElement) (PublicKey, error) {
 	return pub, nil
 }
 
+// expandPrivateKey computes the FFT basis and the LDL tree with the same
+// arithmetic as the reference expand_privkey and, equivalently, the Gram
+// matrix and on-the-fly LDL of the reference sign_dyn.
 func expandPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial) {
 	fftFromSmall(priv.b01[:], f)
 	fftFromSmall(priv.b00[:], g)
@@ -205,7 +270,7 @@ func completePrivate(f, g, ntruF smallPolynomial) (smallPolynomial, bool) {
 
 	var ntruG smallPolynomial
 	for i := range ntruG {
-		gi := fieldCenteredMod(gNTT[i])
+		gi := completePrivateCenter(uint32(gNTT[i]))
 		if gi < -ntruCoeffBound || gi > ntruCoeffBound {
 			return smallPolynomial{}, false
 		}
@@ -213,6 +278,14 @@ func completePrivate(f, g, ntruF smallPolynomial) (smallPolynomial, bool) {
 	}
 
 	return ntruG, true
+}
+
+// completePrivateCenter maps a residue modulo q to the centered range the
+// way the reference complete_private does: every residue of q/2 and above
+// has q subtracted. (verify_raw centers differently and keeps q/2 itself.)
+func completePrivateCenter(w uint32) int32 {
+	w -= q & ^(-((w - q/2) >> 31))
+	return int32(w)
 }
 
 func NewPublicKey(pubBytes []byte) (*PublicKey, error) {
@@ -229,17 +302,14 @@ func NewPublicKey(pubBytes []byte) (*PublicKey, error) {
 
 const nonceSize = 40
 
-func Sign(random io.Reader, priv *PrivateKey, message []byte) ([]byte, error) {
-	var seed [SeedSize]byte
-	if _, err := io.ReadFull(random, seed[:]); err != nil {
-		return nil, err
+// signCore performs the signing steps Sign and SignDetached share: it draws
+// the 40-byte nonce and then the SeedSize-byte sampler seed from random, in
+// the order the reference crypto_sign calls randombytes, hashes the nonce and
+// message to a point and signs it.
+func signCore(random io.Reader, priv *PrivateKey, message []byte) (nonce [nonceSize]byte, s2 smallPolynomial, err error) {
+	if _, err = io.ReadFull(random, nonce[:]); err != nil {
+		return nonce, smallPolynomial{}, err
 	}
-
-	rng := sha3.NewSHAKE256()
-	_, _ = rng.Write(seed[:])
-
-	var nonce [nonceSize]byte
-	_, _ = rng.Read(nonce[:])
 
 	hashData := sha3.NewSHAKE256()
 	_, _ = hashData.Write(nonce[:])
@@ -247,38 +317,66 @@ func Sign(random io.Reader, priv *PrivateKey, message []byte) ([]byte, error) {
 
 	c0 := hashToPoint(hashData)
 
-	signature := make([]byte, SignatureSize)
-	// Retry until the sampled signature fits the padded compressed encoding,
-	// matching the Falcon reference signing loop.
-	for {
-		s2 := signTree(rng, priv, c0)
-
-		if err := sigEncode(signature, nonce, s2); err != nil {
-			if errors.Is(err, errCompressedSignatureTooLarge) ||
-				errors.Is(err, errCompressedCoefficientOutOfRange) {
-				continue
-			}
-			return nil, err
-		}
-
-		return signature, nil
+	var seed [SeedSize]byte
+	if _, err = io.ReadFull(random, seed[:]); err != nil {
+		return nonce, smallPolynomial{}, err
 	}
+
+	rng := sha3.NewSHAKE256()
+	_, _ = rng.Write(seed[:])
+
+	return nonce, sign(rng, priv, c0), nil
 }
 
-func signTree(rng *sha3.SHAKE, priv *PrivateKey, c0 ringElement) smallPolynomial {
-	// Falcon's tree-based signing step is rejection-based; this loop is
-	// intentionally unbounded to match the reference.
+// Sign signs message with priv and returns the signed message in the format
+// of the reference crypto_sign: a two-byte big-endian signature length, the
+// nonce, the message, and the signature, which is the header byte 0x2A
+// followed by the compressed polynomial s2. random supplies the 40-byte nonce
+// and then the SeedSize-byte sampler seed, in the order crypto_sign draws
+// them with randombytes. As in the reference, Sign fails instead of retrying
+// if the compressed polynomial does not fit MaxSignedMessageOverhead.
+func Sign(random io.Reader, priv *PrivateKey, message []byte) ([]byte, error) {
+	nonce, s2, err := signCore(random, priv, message)
+	if err != nil {
+		return nil, err
+	}
+
+	return signedMessageEncode(nonce, message, s2)
+}
+
+// SignDetached signs message with priv and returns a detached signature in
+// the compressed format of the reference library API (FALCON_SIG_COMPRESSED):
+// the header byte 0x3A, the 40-byte nonce and the compressed polynomial s2,
+// at most MaxSignatureSize bytes. It draws randomness exactly as Sign does,
+// so the same random bytes yield the nonce and polynomial Sign embeds in its
+// signed message.
+func SignDetached(random io.Reader, priv *PrivateKey, message []byte) ([]byte, error) {
+	nonce, s2, err := signCore(random, priv, message)
+	if err != nil {
+		return nil, err
+	}
+
+	return detachedSignatureEncode(nonce, s2)
+}
+
+// sign mirrors the reference sign_dyn loop: each attempt seeds a fresh
+// sampler PRNG from the continuing SHAKE stream.
+func sign(rng *sha3.SHAKE, priv *PrivateKey, c0 ringElement) smallPolynomial {
+	// Falcon's signing step is rejection-based; this loop is intentionally
+	// unbounded to match the reference.
 	for {
 		var prng samplerPRNG
 		initSamplerPRNG(&prng, rng)
-		s2, ok := signTreeAttempt(&prng, priv, c0)
+		s2, ok := signAttempt(&prng, priv, c0)
 		if ok {
 			return s2
 		}
 	}
 }
 
-func signTreeAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPolynomial, bool) {
+// signAttempt mirrors the reference do_sign_dyn, with the Gram matrix and LDL
+// values taken from the precomputed expansion of the key.
+func signAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPolynomial, bool) {
 	var t0, t1 fftPolynomial
 	for i := range t0 {
 		t0[i] = fpr(c0[i])
@@ -292,7 +390,7 @@ func signTreeAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (small
 	fftMulConst(t0[:], fprInverseOfQ, logN)
 
 	var sampleX, sampleY fftPolynomial
-	ffSamplingFFT(prng, sampleX[:], sampleY[:], t0[:], t1[:], priv.tree[:], logN)
+	ffSamplingFFT(sampleFFTPoint, prng, sampleX[:], sampleY[:], t0[:], t1[:], priv.tree[:], logN)
 
 	var latticeX, latticeY, tmp fftPolynomial
 	copy(latticeX[:], sampleX[:])
@@ -319,7 +417,9 @@ func signTreeAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (small
 		sqn += uint32(s1 * s1)
 		ng |= sqn
 
-		s2[i] = -int32(fprRint(latticeY[i]))
+		// The reference stores s2 in 16-bit integers before checking the
+		// norm, so the value is truncated the same way here.
+		s2[i] = int32(int16(-fprRint(latticeY[i])))
 	}
 
 	sqn |= -(ng >> 31)
@@ -333,14 +433,40 @@ func signTreeAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (small
 
 var errInvalidSignature = errors.New("falcon-1024: invalid signature")
 
-func Verify(pub *PublicKey, message, sig []byte) error {
-	nonce, s2, err := sigDecode(sig)
+// Open verifies signedMessage against pub and returns the message it
+// carries, as the reference crypto_sign_open does.
+func Open(pub *PublicKey, signedMessage []byte) ([]byte, error) {
+	nonce, message, s2, err := signedMessageDecode(signedMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	h := sha3.NewSHAKE256()
+	_, _ = h.Write(nonce)
+	_, _ = h.Write(message)
+
+	c0 := hashToPoint(h)
+
+	if !verifyRaw(c0, s2, pub.hNTT) {
+		return nil, errInvalidSignature
+	}
+
+	out := make([]byte, len(message))
+	copy(out, message)
+	return out, nil
+}
+
+// Verify checks a detached signature of message against pub, with the
+// checks the reference library's falcon_verify applies to the compressed
+// format.
+func Verify(pub *PublicKey, message, signature []byte) error {
+	nonce, s2, err := detachedSignatureDecode(signature)
 	if err != nil {
 		return err
 	}
 
 	h := sha3.NewSHAKE256()
-	_, _ = h.Write(nonce[:])
+	_, _ = h.Write(nonce)
 	_, _ = h.Write(message)
 
 	c0 := hashToPoint(h)

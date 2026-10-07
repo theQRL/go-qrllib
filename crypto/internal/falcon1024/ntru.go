@@ -540,7 +540,7 @@ func polyBigToFP(dst []fpr, src []uint32, wordLen, stride, logn int) {
 			cc = w >> 31
 			w &= mask31
 			w -= (w << 1) & neg
-			y += fpr(int32(w)) * scale
+			y += fpr(fpr(int32(w)) * scale)
 			scale *= twoTo31
 		}
 		dst[i] = y

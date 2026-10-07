@@ -1,9 +1,6 @@
 package falcon1024
 
-import (
-	"math"
-	"math/bits"
-)
+import "math"
 
 type fprTree [(logN + 1) * n]fpr
 
@@ -18,11 +15,6 @@ func fftFromSmall(dst []fpr, src smallPolynomial) {
 		dst[i] = fpr(src[i])
 	}
 	fft(dst, logN)
-}
-
-type uint72 struct {
-	hi byte
-	lo uint64
 }
 
 var (
@@ -40,27 +32,28 @@ var (
 		0.00603366966815772378,
 		0.00593864530953311636,
 	}
-	// 72-bit CDT bounds for Falcon's half-Gaussian sampler.
-	gaussian0CDF = [...]uint72{
-		{hi: 0x00, lo: 0x0000000000000000},
-		{hi: 0x00, lo: 0x00000000000000c5},
-		{hi: 0x00, lo: 0x0000000000007097},
-		{hi: 0x00, lo: 0x00000000002f5d7d},
-		{hi: 0x00, lo: 0x000000000ebf6eba},
-		{hi: 0x00, lo: 0x00000003665da997},
-		{hi: 0x00, lo: 0x000000949f8b091e},
-		{hi: 0x00, lo: 0x000012cf24d031fa},
-		{hi: 0x00, lo: 0x0001c3fdb2040c68},
-		{hi: 0x00, lo: 0x001f80d88a7b6427},
-		{hi: 0x00, lo: 0x01a1ffdc65ad63d9},
-		{hi: 0x00, lo: 0x1024dd542b776ae3},
-		{hi: 0x00, lo: 0x774ac754ed74bd5e},
-		{hi: 0x02, lo: 0x95846caef33f1f6e},
-		{hi: 0x0a, lo: 0xd1754377c7994ae3},
-		{hi: 0x22, lo: 0x7dcdd0934829c1fe},
-		{hi: 0x54, lo: 0xd32b181f3f7ddb81},
-		{hi: 0xa3, lo: 0xf7f42ed3ac391801},
-		{hi: 0xff, lo: 0xffffffffffffffff},
+	// gaussian0Dist is the reference gaussian0_sampler table: the 72-bit
+	// cumulative distribution of the half-Gaussian, 18 rows of three 24-bit
+	// limbs, most significant first.
+	gaussian0Dist = [...]uint32{
+		10745844, 3068844, 3741698,
+		5559083, 1580863, 8248194,
+		2260429, 13669192, 2736639,
+		708981, 4421575, 10046180,
+		169348, 7122675, 4136815,
+		30538, 13063405, 7650655,
+		4132, 14505003, 7826148,
+		417, 16768101, 11363290,
+		31, 8444042, 8086568,
+		1, 12844466, 265321,
+		0, 1232676, 13644283,
+		0, 38047, 9111839,
+		0, 870, 6138264,
+		0, 14, 12545723,
+		0, 0, 3104126,
+		0, 0, 28824,
+		0, 0, 198,
+		0, 0, 1,
 	}
 )
 
@@ -73,27 +66,33 @@ func initFFTGM() ([n]fpr, [n]fpr) {
 	return re, im
 }
 
-// gaussian0Sample implements the Falcon reference gaussian0_sampler over the
-// 72-bit half-Gaussian CDT.
+// gaussian0Sample is the reference gaussian0_sampler: it draws 72 random
+// bits as three 24-bit limbs and counts, with a constant-time borrow chain,
+// the table rows the value falls below.
 func gaussian0Sample(prng *samplerPRNG) int {
 	lo := prng.readUint64()
-	hi := uint64(prng.readByte())
+	hi := uint32(prng.readByte())
+	v0 := uint32(lo) & 0xFFFFFF
+	v1 := uint32(lo>>24) & 0xFFFFFF
+	v2 := uint32(lo>>48) | (hi << 16)
 
-	var z int
-	for _, bound := range gaussian0CDF {
-		// bound - sample borrows iff bound < sample. We want the count of
-		// entries where bound >= sample, i.e. where there is no borrow.
-		_, borrow := bits.Sub64(bound.lo, lo, 0)
-		_, borrow = bits.Sub64(uint64(bound.hi), hi, borrow)
-		z += int(1 - borrow)
+	z := 0
+	for u := 0; u < len(gaussian0Dist); u += 3 {
+		w0 := gaussian0Dist[u+2]
+		w1 := gaussian0Dist[u+1]
+		w2 := gaussian0Dist[u]
+		cc := (v0 - w0) >> 31
+		cc = (v1 - w1 - cc) >> 31
+		cc = (v2 - w2 - cc) >> 31
+		z += int(cc)
 	}
-	return z - 1
+	return z
 }
 
 // berExp implements the Falcon reference BerExp rejection step.
 func berExp(prng *samplerPRNG, x, ccs fpr) bool {
 	s := int(fprTrunc(x * invLog2))
-	r := x - fpr(s)*log2
+	r := x - fpr(fpr(s)*log2)
 
 	sw := uint32(s)
 	sw ^= (sw ^ 63) & -((63 - sw) >> 31)
@@ -118,8 +117,8 @@ func berExp(prng *samplerPRNG, x, ccs fpr) bool {
 func sampleFFTPoint(prng *samplerPRNG, mu, isigma fpr) fpr {
 	s := math.Floor(float64(mu))
 	r := mu - fpr(s)
-	dss := 0.5 * isigma * isigma
-	ccs := sigmaMin1024 * isigma
+	dss := fpr(isigma*isigma) * 0.5
+	ccs := isigma * sigmaMin1024
 
 	for {
 		z0 := gaussian0Sample(prng)
@@ -127,7 +126,7 @@ func sampleFFTPoint(prng *samplerPRNG, mu, isigma fpr) fpr {
 		z := b + ((b<<1)-1)*z0
 
 		x := fpr(z) - r
-		x = x*x*dss - fpr(z0*z0)*inv2SqrSigma0
+		x = fpr(fpr(x*x)*dss) - fpr(fpr(z0*z0)*inv2SqrSigma0)
 		if berExp(prng, x, ccs) {
 			return fpr(s + float64(z))
 		}
@@ -191,12 +190,19 @@ func fftLDLMV(d11, l10, g00, g01, g11 []fpr, logn int) {
 		g11Re := g11[i]
 		g11Im := g11[i+hn]
 
-		den := g00Re*g00Re + g00Im*g00Im
-		muRe := (g01Re*g00Re + g01Im*g00Im) / den
-		muIm := (g01Im*g00Re - g01Re*g00Im) / den
+		// mu = g01 / g00, evaluated exactly as the reference FPC_DIV macro:
+		// invert |g00|^2 once, scale conj(g00) by it, then multiply.
+		m := fpr(g00Re*g00Re) + fpr(g00Im*g00Im)
+		m = 1 / m
+		bRe := g00Re * m
+		bIm := (-g00Im) * m
+		muRe := fpr(g01Re*bRe) - fpr(g01Im*bIm)
+		muIm := fpr(g01Re*bIm) + fpr(g01Im*bRe)
 
-		xiRe := muRe*g01Re + muIm*g01Im
-		xiIm := muIm*g01Re - muRe*g01Im
+		// xi = mu * conj(g01), as the reference FPC_MUL with negated g01Im.
+		ng01Im := -g01Im
+		xiRe := fpr(muRe*g01Re) - fpr(muIm*ng01Im)
+		xiIm := fpr(muRe*ng01Im) + fpr(muIm*g01Re)
 
 		d11[i] = g11Re - xiRe
 		d11[i+hn] = g11Im - xiIm
@@ -239,8 +245,8 @@ func splitFFT(f0, f1, f []fpr, logn int) {
 		tIm = aIm - bIm
 		gmRe := fftGMRe[u+hn]
 		gmIm := -fftGMIm[u+hn]
-		f1[u] = 0.5 * (tRe*gmRe - tIm*gmIm)
-		f1[u+qn] = 0.5 * (tRe*gmIm + tIm*gmRe)
+		f1[u] = 0.5 * (fpr(tRe*gmRe) - fpr(tIm*gmIm))
+		f1[u+qn] = 0.5 * (fpr(tRe*gmIm) + fpr(tIm*gmRe))
 	}
 }
 
@@ -258,8 +264,8 @@ func mergeFFT(f, f0, f1 []fpr, logn int) {
 		bIm := f1[u+qn]
 		gmRe := fftGMRe[u+hn]
 		gmIm := fftGMIm[u+hn]
-		cRe := bRe*gmRe - bIm*gmIm
-		cIm := bRe*gmIm + bIm*gmRe
+		cRe := fpr(bRe*gmRe) - fpr(bIm*gmIm)
+		cIm := fpr(bRe*gmIm) + fpr(bIm*gmRe)
 
 		j := u << 1
 		f[j] = aRe + cRe
@@ -269,147 +275,18 @@ func mergeFFT(f, f0, f1 []fpr, logn int) {
 	}
 }
 
-// ffSamplingFFTRecursive mirrors the Falcon reference base cases; the
-// hand-unrolled logn == 2 path avoids another split/merge recursion.
-func ffSamplingFFTRecursive(prng *samplerPRNG, z0, z1, tree, t0, t1, tmp []fpr, logn int) {
-	if logn == 2 {
-		tree0 := tree[4:]
-		tree1 := tree[8:]
-
-		aRe := t1[0]
-		aIm := t1[2]
-		bRe := t1[1]
-		bIm := t1[3]
-
-		cRe := aRe + bRe
-		cIm := aIm + bIm
-		w0 := 0.5 * cRe
-		w1 := 0.5 * cIm
-
-		cRe = aRe - bRe
-		cIm = aIm - bIm
-		w2 := (cRe + cIm) * invSqrt8
-		w3 := (cIm - cRe) * invSqrt8
-
-		x0 := w2
-		x1 := w3
-		w2 = sampleFFTPoint(prng, x0, tree1[3])
-		w3 = sampleFFTPoint(prng, x1, tree1[3])
-
-		aRe = x0 - w2
-		aIm = x1 - w3
-		bRe = tree1[0]
-		bIm = tree1[1]
-		cRe = aRe*bRe - aIm*bIm
-		cIm = aRe*bIm + aIm*bRe
-		x0 = cRe + w0
-		x1 = cIm + w1
-
-		w0 = sampleFFTPoint(prng, x0, tree1[2])
-		w1 = sampleFFTPoint(prng, x1, tree1[2])
-
-		aRe = w0
-		aIm = w1
-		bRe = w2
-		bIm = w3
-		cRe = (bRe - bIm) * invSqrt2
-		cIm = (bRe + bIm) * invSqrt2
-		z1[0] = aRe + cRe
-		z1[2] = aIm + cIm
-		z1[1] = aRe - cRe
-		z1[3] = aIm - cIm
-
-		w0 = t1[0] - z1[0]
-		w1 = t1[1] - z1[1]
-		w2 = t1[2] - z1[2]
-		w3 = t1[3] - z1[3]
-
-		aRe = w0
-		aIm = w2
-		bRe = tree[0]
-		bIm = tree[2]
-		w0 = aRe*bRe - aIm*bIm
-		w2 = aRe*bIm + aIm*bRe
-
-		aRe = w1
-		aIm = w3
-		bRe = tree[1]
-		bIm = tree[3]
-		w1 = aRe*bRe - aIm*bIm
-		w3 = aRe*bIm + aIm*bRe
-
-		w0 += t0[0]
-		w1 += t0[1]
-		w2 += t0[2]
-		w3 += t0[3]
-
-		aRe = w0
-		aIm = w2
-		bRe = w1
-		bIm = w3
-
-		cRe = aRe + bRe
-		cIm = aIm + bIm
-		w0 = 0.5 * cRe
-		w1 = 0.5 * cIm
-
-		cRe = aRe - bRe
-		cIm = aIm - bIm
-		w2 = (cRe + cIm) * invSqrt8
-		w3 = (cIm - cRe) * invSqrt8
-
-		x0 = w2
-		x1 = w3
-		w2 = sampleFFTPoint(prng, x0, tree0[3])
-		w3 = sampleFFTPoint(prng, x1, tree0[3])
-
-		aRe = x0 - w2
-		aIm = x1 - w3
-		bRe = tree0[0]
-		bIm = tree0[1]
-		cRe = aRe*bRe - aIm*bIm
-		cIm = aRe*bIm + aIm*bRe
-		x0 = cRe + w0
-		x1 = cIm + w1
-
-		w0 = sampleFFTPoint(prng, x0, tree0[2])
-		w1 = sampleFFTPoint(prng, x1, tree0[2])
-
-		aRe = w0
-		aIm = w1
-		bRe = w2
-		bIm = w3
-		cRe = (bRe - bIm) * invSqrt2
-		cIm = (bRe + bIm) * invSqrt2
-		z0[0] = aRe + cRe
-		z0[2] = aIm + cIm
-		z0[1] = aRe - cRe
-		z0[3] = aIm - cIm
-		return
-	}
-
-	if logn == 1 {
-		x0 := t1[0]
-		x1 := t1[1]
-		z1[0] = sampleFFTPoint(prng, x0, tree[3])
-		z1[1] = sampleFFTPoint(prng, x1, tree[3])
-
-		aRe := x0 - z1[0]
-		aIm := x1 - z1[1]
-		bRe := tree[0]
-		bIm := tree[1]
-		cRe := aRe*bRe - aIm*bIm
-		cIm := aRe*bIm + aIm*bRe
-
-		z0[0] = sampleFFTPoint(prng, cRe+t0[0], tree[2])
-		z0[1] = sampleFFTPoint(prng, cIm+t0[1], tree[2])
-		return
-	}
-
+// ffSamplingFFTRecursive mirrors the Falcon reference ffSampling_fft_dyntree
+// recursion used by sign_dyn, the signer behind the reference NIST API: every
+// level down to the degree-1 leaves goes through the generic split and merge
+// routines. (The reference's expanded-key signer ffSampling_fft instead
+// inlines the two lowest levels with a different operation order, which
+// rounds differently in the last bit.) The LDL values come from the
+// precomputed tree, which holds exactly what the dynamic version recomputes.
+func ffSamplingFFTRecursive(samp samplerZ, prng *samplerPRNG, z0, z1, tree, t0, t1, tmp []fpr, logn int) {
 	if logn == 0 {
 		isigma := tree[0]
-		z0[0] = sampleFFTPoint(prng, t0[0], isigma)
-		z1[0] = sampleFFTPoint(prng, t1[0], isigma)
+		z0[0] = samp(prng, t0[0], isigma)
+		z1[0] = samp(prng, t1[0], isigma)
 		return
 	}
 
@@ -419,7 +296,7 @@ func ffSamplingFFTRecursive(prng *samplerPRNG, z0, z1, tree, t0, t1, tmp []fpr, 
 	tree1 := tree[degree+ffLDLTreeSize(logn-1):]
 
 	splitFFT(z1[:hn], z1[hn:degree], t1[:degree], logn)
-	ffSamplingFFTRecursive(prng, tmp[:hn], tmp[hn:degree], tree1, z1[:hn], z1[hn:degree], tmp[degree:], logn-1)
+	ffSamplingFFTRecursive(samp, prng, tmp[:hn], tmp[hn:degree], tree1, z1[:hn], z1[hn:degree], tmp[degree:], logn-1)
 	mergeFFT(z1[:degree], tmp[:hn], tmp[hn:degree], logn)
 
 	copy(tmp[:degree], t1[:degree])
@@ -432,7 +309,7 @@ func ffSamplingFFTRecursive(prng *samplerPRNG, z0, z1, tree, t0, t1, tmp []fpr, 
 	}
 
 	splitFFT(z0[:hn], z0[hn:degree], tmp[:degree], logn)
-	ffSamplingFFTRecursive(prng, tmp[:hn], tmp[hn:degree], tree0, z0[:hn], z0[hn:degree], tmp[degree:], logn-1)
+	ffSamplingFFTRecursive(samp, prng, tmp[:hn], tmp[hn:degree], tree0, z0[:hn], z0[hn:degree], tmp[degree:], logn-1)
 	mergeFFT(z0[:degree], tmp[:hn], tmp[hn:degree], logn)
 }
 
@@ -454,7 +331,7 @@ func fft(f []fpr, logn int) {
 				xIm := f[j+hn]
 				yRe := f[j+ht]
 				yIm := f[j+ht+hn]
-				yRe, yIm = yRe*sRe-yIm*sIm, yRe*sIm+yIm*sRe
+				yRe, yIm = fpr(yRe*sRe)-fpr(yIm*sIm), fpr(yRe*sIm)+fpr(yIm*sRe)
 				f[j] = xRe + yRe
 				f[j+hn] = xIm + yIm
 				f[j+ht] = xRe - yRe
@@ -487,8 +364,8 @@ func inverseFFT(f []fpr, logn int) {
 				f[j] = xRe + yRe
 				f[j+hn] = xIm + yIm
 				xRe, xIm = xRe-yRe, xIm-yIm
-				f[j+t] = xRe*sRe - xIm*sIm
-				f[j+t+hn] = xRe*sIm + xIm*sRe
+				f[j+t] = fpr(xRe*sRe) - fpr(xIm*sIm)
+				f[j+t+hn] = fpr(xRe*sIm) + fpr(xIm*sRe)
 			}
 		}
 		t = dt
@@ -508,7 +385,8 @@ func fftInvNorm2(dst, a, b []fpr, logn int) {
 		aIm := a[i+hn]
 		bRe := b[i]
 		bIm := b[i+hn]
-		dst[i] = 1 / (aRe*aRe + aIm*aIm + bRe*bRe + bIm*bIm)
+		// Associate as the reference poly_invnorm2_fft: (|a|^2) + (|b|^2).
+		dst[i] = 1 / ((fpr(aRe*aRe) + fpr(aIm*aIm)) + (fpr(bRe*bRe) + fpr(bIm*bIm)))
 	}
 }
 
@@ -527,8 +405,8 @@ func fftMul(a, b []fpr, logn int) {
 		aIm := a[i+hn]
 		bRe := b[i]
 		bIm := b[i+hn]
-		a[i] = aRe*bRe - aIm*bIm
-		a[i+hn] = aRe*bIm + aIm*bRe
+		a[i] = fpr(aRe*bRe) - fpr(aIm*bIm)
+		a[i+hn] = fpr(aRe*bIm) + fpr(aIm*bRe)
 	}
 }
 
@@ -546,7 +424,7 @@ func fftSelfAdj(dst, src []fpr, logn int) {
 	for i := range hn {
 		aRe := src[i]
 		aIm := src[i+hn]
-		dst[i] = aRe*aRe + aIm*aIm
+		dst[i] = fpr(aRe*aRe) + fpr(aIm*aIm)
 		dst[i+hn] = 0
 	}
 }
@@ -564,8 +442,8 @@ func fftMulAdj(dst, a, b []fpr, logn int) {
 		aIm := a[i+hn]
 		bRe := b[i]
 		bIm := -b[i+hn]
-		dst[i] = aRe*bRe - aIm*bIm
-		dst[i+hn] = aRe*bIm + aIm*bRe
+		dst[i] = fpr(aRe*bRe) - fpr(aIm*bIm)
+		dst[i+hn] = fpr(aRe*bIm) + fpr(aIm*bRe)
 	}
 }
 
@@ -600,21 +478,36 @@ func fftAddMulAdj(dst, F, G, f, g []fpr, logn int) {
 		fIm := -f[i+hn]
 		gRe := g[i]
 		gIm := -g[i+hn]
-		dst[i] = FRe*fRe - FIm*fIm + GRe*gRe - GIm*gIm
-		dst[i+hn] = FRe*fIm + FIm*fRe + GRe*gIm + GIm*gRe
+		// Form F*adj(f) and G*adj(g) separately, then add, as the reference
+		// poly_add_muladj_fft does.
+		aRe := fpr(FRe*fRe) - fpr(FIm*fIm)
+		aIm := fpr(FRe*fIm) + fpr(FIm*fRe)
+		bRe := fpr(GRe*gRe) - fpr(GIm*gIm)
+		bIm := fpr(GRe*gIm) + fpr(GIm*gRe)
+		dst[i] = aRe + bRe
+		dst[i+hn] = aIm + bIm
 	}
 }
 
 func fftDivAutoAdj(a, b []fpr, logn int) {
 	hn := 1 << (logn - 1)
 	for i := range hn {
-		a[i] /= b[i]
-		a[i+hn] /= b[i]
+		// Invert once and multiply, as the reference poly_div_autoadj_fft
+		// does; a/b and a*(1/b) differ in the last bit.
+		ib := 1 / b[i]
+		a[i] *= ib
+		a[i+hn] *= ib
 	}
 }
 
-func ffSamplingFFT(prng *samplerPRNG, z0, z1, t0, t1, tree []fpr, logn int) {
+// samplerZ is the integer sampler the Fast Fourier sampling recursion calls at
+// its leaves, with the signature of the reference samplerZ callback: it
+// returns an integer sampled around center mu with standard deviation
+// 1/isigma. sampleFFTPoint is the real sampler; tests substitute recorders.
+type samplerZ func(prng *samplerPRNG, mu, isigma fpr) fpr
+
+func ffSamplingFFT(samp samplerZ, prng *samplerPRNG, z0, z1, t0, t1, tree []fpr, logn int) {
 	var tmp [2 * n]fpr
 	degree := 1 << logn
-	ffSamplingFFTRecursive(prng, z0[:degree], z1[:degree], tree, t0[:degree], t1[:degree], tmp[:degree<<1], logn)
+	ffSamplingFFTRecursive(samp, prng, z0[:degree], z1[:degree], tree, t0[:degree], t1[:degree], tmp[:degree<<1], logn)
 }

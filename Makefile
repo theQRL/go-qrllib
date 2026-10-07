@@ -1,4 +1,4 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint markdownlint markdownlint-fix
+.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast test-falcon-fma bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint markdownlint markdownlint-fix
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
@@ -123,6 +123,15 @@ test-kat:
 test-kat-fast:
 	@echo "Running KAT tests (fast packages only)..."
 	@go test -v ./crypto/ml_dsa_87/... -run 'KAT'
+
+# Run the Falcon-1024 tests with fused multiply-add instructions (GOAMD64=v3).
+# The default amd64 build never fuses, so this is the only way to exercise the
+# explicit-rounding guards that keep keys and signatures bit-identical to the
+# Falcon reference implementation on an x86-64 machine; arm64 builds fuse by
+# default. Keep in sync with .github/workflows/test.yml.
+test-falcon-fma:
+	@echo "Running Falcon-1024 tests with GOAMD64=v3 (fused multiply-add)..."
+	@GOAMD64=v3 go test -count=1 ./crypto/internal/falcon1024/... ./crypto/falcon1024/...
 
 # Run edge case tests
 test-edge:
@@ -255,6 +264,7 @@ help:
 	@echo "  test-coverage-fast - Run fast tests with coverage (excludes SPHINCS+)"
 	@echo "  test-kat      - Run KAT tests only"
 	@echo "  test-kat-fast - Run KAT tests (fast packages only)"
+	@echo "  test-falcon-fma - Run Falcon-1024 tests with GOAMD64=v3 (fused multiply-add)"
 	@echo "  test-edge     - Run edge case tests"
 	@echo "  test-edge-fast- Run edge case tests (fast packages only)"
 	@echo "  test-thread   - Run thread safety tests with race detector"
