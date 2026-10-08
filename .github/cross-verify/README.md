@@ -135,9 +135,10 @@ commit users to a choice QRL has not made.
   detached signatures (the compressed form) from both implementations, in
   both directions, and then opens and verifies each side's output with the
   other.
-- Runs on amd64, on amd64 with `GOAMD64=v3` and on an arm64 runner, because
-  the Go sampler's exactness depends on the compiler not fusing
-  multiply-adds, which only those targets would do.
+- Runs on amd64 (`GOAMD64=v1`, which never fuses multiply-adds), on amd64
+  with `GOAMD64=v3` and on an arm64 runner. The last two targets would fuse
+  multiply-adds unless the code prevents it, which the Go sampler does with
+  explicit conversions; running there checks that the guards hold.
 - Key sizes: PK=1793, SK=2305 bytes; signed message overhead at most 1330,
   detached signature at most 1462 bytes
 
