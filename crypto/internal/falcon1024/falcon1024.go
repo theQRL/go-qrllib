@@ -231,6 +231,12 @@ func NewPrivateKey(privateKey []byte) (*PrivateKey, error) {
 		return nil, errInvalidPrivateKey
 	}
 
+	// The public half an encoding derives is held to the same rule as a key
+	// received on its own.
+	if err := validatePublicPolynomial(h); err != nil {
+		return nil, err
+	}
+
 	// The five-bit encoding cannot hold a coefficient outside [-15, 15], so
 	// the coefficient bound of key generation needs no re-check here.
 	if squaredNormExceedsBound(f, g, keygenSqNormBound) ||
@@ -274,6 +280,14 @@ func generateKeyComponents(rng *sha3.SHAKE) (f, g, ntruF, ntruG smallPolynomial,
 		var ok bool
 		h, ok = computePublic(f, g)
 		if !ok {
+			continue
+		}
+
+		if c, _ := weakPublicKeyMultiplier(h); c != 0 {
+			//coverage:ignore
+			//rationale: h = g/f is uniform for sampled f and g, so a weak public
+			//           half is a sub-2^-1562 event; the check keeps key generation
+			//           under the same rule as import (see ValidatePublicKey).
 			continue
 		}
 
@@ -420,13 +434,15 @@ func completePrivateCenter(w uint32) int32 {
 	return int32(w)
 }
 
-// NewPublicKey decodes a PublicKeySize-byte public key: the header byte, the
-// length and the range of every coefficient are checked, nothing else. See
-// the package documentation of crypto/falcon1024 on what that means for keys
-// received from other parties.
+// NewPublicKey decodes a PublicKeySize-byte public key and applies the
+// weak-key rule of [ValidatePublicKey]; a key under which anyone could sign
+// is refused with an error wrapping ErrWeakPublicKey.
 func NewPublicKey(pubBytes []byte) (*PublicKey, error) {
 	h, err := pkDecode(pubBytes)
 	if err != nil {
+		return nil, err
+	}
+	if err := validatePublicPolynomial(h); err != nil {
 		return nil, err
 	}
 

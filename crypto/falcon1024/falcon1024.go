@@ -31,14 +31,16 @@
 //
 // # Public keys
 //
-// [NewPublicKey] checks the encoding: the header byte, the length and that
-// every coefficient is below q. It does not check the shape of the
-// polynomial. A public key whose polynomial is a small constant or monomial
-// lets anyone produce signatures the verifier accepts, so a signature proves
-// nothing about who generated the key it verifies under. Keys from
-// [GenerateKey] never have that shape. Callers that accept keys from other
-// parties should treat key generation as part of the trust decision; see
-// SECURITY.md.
+// [NewPublicKey] checks the encoding (header byte, length, every coefficient
+// below q) and then applies the weak-key rule of [ValidatePublicKey]: a key
+// whose polynomial has a small integer multiple that is short (every
+// constant and monomial, and every a/c with small a and c up to 1024) hands
+// out a short lattice basis, so anyone could produce signatures the verifier
+// accepts under it. Such keys are refused with an error wrapping
+// cryptoerrors.ErrWeakPublicKey; keys from [GenerateKey] never have that
+// shape (the false-reject probability is below 2^-1562). The same rule runs
+// on the public half of an imported private key. Like the ML-DSA-87 rule it
+// is sufficient, not complete; see SECURITY.md, "Falcon-1024".
 //
 // # Private keys, zeroization and timing
 //
@@ -115,8 +117,17 @@ type PublicKey struct {
 	key *falcon1024.PublicKey
 }
 
+// ValidatePublicKey checks an encoded public key without constructing it. It
+// returns an error wrapping cryptoerrors.ErrInvalidPublicKey for a malformed
+// encoding and one wrapping cryptoerrors.ErrWeakPublicKey for a weak key, one
+// under which anyone could sign; see the package documentation. [NewPublicKey]
+// applies the same check, so this is for callers holding raw bytes.
+func ValidatePublicKey(publicKey []byte) error {
+	return falcon1024.ValidatePublicKey(publicKey)
+}
+
 // NewPublicKey constructs a public key from its PublicKeySize-byte encoded
-// form. See the package documentation for what is and is not checked.
+// form, refusing malformed encodings and weak keys; see [ValidatePublicKey].
 func NewPublicKey(publicKey []byte) (*PublicKey, error) {
 	key, err := falcon1024.NewPublicKey(publicKey)
 	if err != nil {

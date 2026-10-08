@@ -220,19 +220,20 @@ func TestPublicKeyIsACopy(t *testing.T) {
 func TestNewPrivateKeyAppliesKeygenBounds(t *testing.T) {
 	valid := testPrivateKey(t).Bytes()
 
-	// f = 1, g = 0, F = 0: the Gram-Schmidt norm bound fails.
+	// f = 1, g = 0, F = 0 and f = 15 everywhere, g = 0, F = 0 both derive
+	// h = 0, so the weak-key rule refuses them before the key-generation
+	// bounds are reached (TestNewPrivateKeyAppliesWeakKeyRuleThenBounds
+	// covers the bounds with a strong public half).
 	degenerate := make([]byte, PrivateKeySize)
 	degenerate[0], degenerate[1] = privateKeyHeader, 0x08
-	if _, err := NewPrivateKey(degenerate); !errors.Is(err, cryptoerrors.ErrInvalidSecretKey) {
-		t.Errorf("degenerate key: error = %v; want ErrInvalidSecretKey", err)
+	if _, err := NewPrivateKey(degenerate); !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+		t.Errorf("degenerate key: error = %v; want ErrWeakPublicKey", err)
 	}
-
-	// f = 15 everywhere, g = 0, F = 0: the squared norm bound fails first.
 	large := make([]byte, PrivateKeySize)
 	large[0] = privateKeyHeader
 	copy(large[1:], bytes.Repeat([]byte{0x7B, 0xDE, 0xF7, 0xBD, 0xEF}, 128))
-	if _, err := NewPrivateKey(large); !errors.Is(err, cryptoerrors.ErrInvalidSecretKey) {
-		t.Errorf("large-norm key: error = %v; want ErrInvalidSecretKey", err)
+	if _, err := NewPrivateKey(large); !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+		t.Errorf("large-norm key: error = %v; want ErrWeakPublicKey", err)
 	}
 
 	// An F that does not belong to (f, g) fails the G recomputation.
@@ -467,12 +468,10 @@ func TestDegreeOneAndEmptyPaths(t *testing.T) {
 	}
 }
 
-// Falcon public keys carry no structural check: a constant polynomial close
-// to sqrt(q) lets anyone round a hash to a short lattice point and produce a
-// signature the verifier accepts. Keys from GenerateKey never have this
-// shape. This test pins the documented absence of validation; if a rule for
-// such keys is adopted, it must change to expect rejection.
-func TestConstantPublicKeyIsNotRejected(t *testing.T) {
+// A constant polynomial close to sqrt(q) lets anyone round a hash to a short
+// lattice point and produce a signature the primitive verifier accepts; the
+// weak-key rule keeps such a key from ever becoming a PublicKey.
+func TestConstantPublicKeyIsRejected(t *testing.T) {
 	const k = 111
 	var h ringElement
 	h[0] = k
@@ -480,8 +479,8 @@ func TestConstantPublicKeyIsNotRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, parseErr := NewPublicKey(pub.Bytes()); parseErr != nil {
-		t.Fatalf("constant key rejected by NewPublicKey: %v", parseErr)
+	if _, parseErr := NewPublicKey(pub.Bytes()); !errors.Is(parseErr, cryptoerrors.ErrWeakPublicKey) {
+		t.Fatalf("constant key: NewPublicKey error = %v, want ErrWeakPublicKey", parseErr)
 	}
 
 	message := []byte("constant public key")
@@ -507,7 +506,9 @@ func TestConstantPublicKeyIsNotRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The primitive verifier itself is unchanged: bypassing NewPublicKey, the
+	// forgery still verifies, which is why the rule exists.
 	if err := Verify(&pub, message, sig); err != nil {
-		t.Fatalf("forged signature under a constant key rejected: %v (adopting a key rule? update this test)", err)
+		t.Fatalf("forged signature under a constant key rejected by the primitive: %v", err)
 	}
 }

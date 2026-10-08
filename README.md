@@ -398,8 +398,10 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   amd64, amd64 with fused multiply-add and arm64. NIST's standard for Falcon,
   FIPS 206 (FN-DSA), is still a draft and is announced to differ from the
   submission in details, so key, signature and hashing formats may change
-  when it is final. Public keys are checked for their encoding, not their
-  shape (see [SECURITY.md](SECURITY.md), "Falcon-1024").
+  when it is final. As for ML-DSA-87, `NewPublicKey` rejects weak keys, ones
+  anyone could sign under (every constant or monomial polynomial, and every
+  `a/c` with small `a` and `c` up to 1024); see [SECURITY.md](SECURITY.md),
+  "Falcon-1024".
 - **SPHINCS+-256s** (notes): The implementation in this library is the
   **SPHINCS+
   submission** (pre-FIPS 205), specifically `SHAKE-256s-robust`. NIST published

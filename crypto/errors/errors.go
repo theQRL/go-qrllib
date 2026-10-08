@@ -26,12 +26,13 @@ var (
 	// never went through a constructor, is asked to sign.
 	ErrKeyUninitialised = errors.New("keypair is uninitialised")
 	ErrKeyGeneration    = errors.New("key generation failed")
-	// ErrWeakPublicKey is returned by key validation when an ML-DSA-87
-	// public key is weak: fewer than 76 of its 2048 t1 coefficients are
-	// large, so the verifier would accept a signature anyone can compute.
-	// Key generation never produces such a key; see
-	// ml_dsa_87.ValidatePublicKey for the rule.
-	ErrWeakPublicKey = errors.New("public key is weak: fewer than 76 of 2048 t1 coefficients are large")
+	// ErrWeakPublicKey is wrapped by key validation when a public key is
+	// weak: the verifier would accept a signature anyone can compute from
+	// the key alone. Key generation never produces such a key. Each scheme
+	// wraps it with its own rule: ml_dsa_87.ValidatePublicKey (fewer than 76
+	// of 2048 t1 coefficients are large) and falcon1024.ValidatePublicKey
+	// (a small integer multiple of the public polynomial is short).
+	ErrWeakPublicKey = errors.New("public key is weak")
 )
 
 // Signature errors
