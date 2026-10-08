@@ -1,6 +1,13 @@
 // Package ml_dsa_87 implements the ML-DSA-87 digital signature algorithm
 // as specified in FIPS 204 (Module-Lattice-Based Digital Signature Standard).
 //
+// Section numbers in this repository refer to the final standard (NIST FIPS
+// 204, published 2024-08-13): §3.4 "Hedged and Deterministic Signing",
+// §3.6.1 "Randomness Generation", §3.6.2 "Public-Key and Signature Length
+// Checks". The 2023 initial public draft had no §3.4 of that name; it covered
+// hedged and deterministic signing under §3.5.1 "Randomness Generation", which
+// is where older "§3.5" citations came from. Do not cite the draft.
+//
 // # API Difference: Context Parameter
 //
 // Unlike the other signature packages in go-qrllib (SPHINCS+, XMSS),
@@ -295,7 +302,7 @@ func (d *MLDSA87) Sign(ctx, message []uint8) ([CRYPTO_BYTES]uint8, error) {
 }
 
 // SignDeterministic produces an ML-DSA-87 signature using the FIPS 204
-// §3.5 deterministic mode (per-signature RND_BYTES = 32 zero bytes).
+// §3.4 deterministic mode (per-signature RND_BYTES = 32 zero bytes).
 // Two SignDeterministic calls with the same (key, ctx, message) produce
 // byte-identical signatures.
 //
@@ -321,7 +328,7 @@ func (d *MLDSA87) SignDeterministic(ctx, message []uint8) ([CRYPTO_BYTES]uint8, 
 	if err := d.signable(); err != nil {
 		return signature, err
 	}
-	var rnd [RND_BYTES]uint8 // zero — FIPS 204 §3.5 deterministic mode
+	var rnd [RND_BYTES]uint8 // zero — FIPS 204 §3.4 deterministic mode
 	if err := cryptoSignSignatureWithRnd(signature[:], message, ctx, &d.sk, rnd); err != nil {
 		return signature, err
 	}

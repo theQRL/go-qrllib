@@ -334,7 +334,7 @@ func cryptoSignSignature(sig, m []uint8, ctx []uint8, sk *[CRYPTO_SECRET_KEY_BYT
 }
 
 // cryptoSignSignatureWithRnd signs m using the explicit rnd value
-// (FIPS 204 §3.5; rnd is mixed into the deterministic signing nonce).
+// (FIPS 204 §3.4; rnd is mixed into the deterministic signing nonce).
 // Pass an all-zero rnd for FIPS-204-deterministic signing (used by
 // ACVP / KAT vectors); pass entropy from crypto/rand or an
 // authenticated source for hedged signing. The crypto.Signer wrapper

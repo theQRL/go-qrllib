@@ -39,10 +39,32 @@ jobs:
       - name: Build
         run: go build -v ./...
 
+      - name: Vet build-tagged tests
+        # The ACVP, Wycheproof and metamorphic tests sit behind build tags, so
+        # the plain build, test and lint runs never compile them. Vet them
+        # with their tags here so that an API change cannot break those
+        # workflows unnoticed.
+        run: |
+          go vet -tags acvp ./crypto/ml_dsa_87/
+          go vet -tags wycheproof ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
+          go vet -tags metamorphic ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
+
       - name: Test
         # Note: SPHINCS+ wallet tests are slow and can take several minutes.
         # No pipes here: they would mask go test's exit status (default shell has no pipefail).
         run: go clean -testcache && go test -v ./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Test Falcon-1024 with fused multiply-add instructions
+        # The Falcon-1024 floating-point code must round every operation
+        # individually to reproduce the reference implementation bit for bit.
+        # The default amd64 build (GOAMD64=v1) never fuses multiply-adds, so
+        # the explicit-rounding guards are only exercised on targets that do:
+        # arm64, ppc64, s390x, riscv64 and amd64 with GOAMD64=v3. Without
+        # those guards the round-3 KAT suite fails here (seed 65 generates a
+        # different key) while passing in the default build above.
+        env:
+          GOAMD64: v3
+        run: go test -count=1 ./crypto/internal/falcon1024/... ./crypto/falcon1024/...
 
       - name: Process coverage exclusions
         run: |
@@ -63,7 +85,7 @@ jobs:
           set -euo pipefail
           # Use a fixed iteration budget so CI does not cancel a slow crypto
           # operation mid-call and report a fuzz-worker context deadline.
-          for pkg in ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./wallet/misc; do
+          for pkg in ./crypto/xmss ./crypto/sphincsplus_256s ./crypto/ml_dsa_87 ./crypto/internal/mlkem1024 ./crypto/falcon1024 ./wallet/misc; do
             echo "Fuzzing $pkg..."
             targets=$(go test "$pkg" -list 'Fuzz.*' | grep '^Fuzz' || true)
             if [ -z "$targets" ]; then

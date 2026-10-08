@@ -13,15 +13,23 @@ Input format (ACVP-Server):
 
 Output format (simplified):
   keygen.json: [{ tcId, seed, pk, sk }]
-  siggen.json: [{ tcId, sk, message, context, signature }]
+  siggen.json: [{ tcId, deterministic, signatureInterface, sk, message, context, rnd, signature }]
+  sigver.json: [{ tcId, signatureInterface, pk, message, context, signature, testPassed }]
+
+Signature groups are kept when the implementation can serve them: the
+pure (non-preHash) external interface and the internal interface without
+externalMu, in both the deterministic and the hedged variant (the hedged
+vectors carry the rnd value NIST used). HashML-DSA (preHash) and
+ExternalMu-ML-DSA groups are skipped.
 """
 
 import argparse
 import json
+import os
 import sys
 
 
-def merge_keygen(prompt_path, results_path, param_set):
+def load_pair(prompt_path, results_path):
     with open(prompt_path) as f:
         prompt = json.load(f)
     with open(results_path) as f:
@@ -32,6 +40,26 @@ def merge_keygen(prompt_path, results_path, param_set):
     for tg in results["testGroups"]:
         for tc in tg["tests"]:
             expected[tc["tcId"]] = tc
+
+    return prompt, expected
+
+
+def supported_signature_group(tg):
+    """Reports whether go-qrllib can serve a sigGen/sigVer test group."""
+    # Newer ACVP revisions add keyFormat (expanded | seed); the merged sk
+    # field below is the expanded key, so seed-format groups are skipped.
+    if tg.get("keyFormat", "expanded") != "expanded":
+        return False
+    interface = tg.get("signatureInterface", "")
+    if interface == "external":
+        return tg.get("preHash", "") == "pure"
+    if interface == "internal":
+        return not tg.get("externalMu", False)
+    return False
+
+
+def merge_keygen(prompt_path, results_path, param_set):
+    prompt, expected = load_pair(prompt_path, results_path)
 
     merged = []
     for tg in prompt["testGroups"]:
@@ -54,35 +82,44 @@ def merge_keygen(prompt_path, results_path, param_set):
 
 
 def merge_siggen(prompt_path, results_path, param_set):
-    with open(prompt_path) as f:
-        prompt = json.load(f)
-    with open(results_path) as f:
-        results = json.load(f)
-
-    # Build tcId -> expected result lookup
-    expected = {}
-    for tg in results["testGroups"]:
-        for tc in tg["tests"]:
-            expected[tc["tcId"]] = tc
+    prompt, expected = load_pair(prompt_path, results_path)
 
     merged = []
     for tg in prompt["testGroups"]:
         if tg["parameterSet"] != param_set:
             continue
+        if not supported_signature_group(tg):
+            continue
 
-        # Only test deterministic, external, pure (non-preHash) vectors.
-        # - deterministic: go-qrllib uses deterministic signing (rnd=zeros)
-        # - external: tests the full Sign() API including context encoding
-        # - pure: go-qrllib implements pure ML-DSA, not pre-hash variant
         deterministic = tg.get("deterministic", False)
-        interface = tg.get("signatureInterface", "")
-        pre_hash = tg.get("preHash", "")
+        for tc in tg["tests"]:
+            tcid = tc["tcId"]
+            if tcid not in expected:
+                print(f"WARNING: tcId {tcid} missing from expectedResults", file=sys.stderr)
+                continue
+            exp = expected[tcid]
+            merged.append({
+                "tcId": tcid,
+                "deterministic": deterministic,
+                "signatureInterface": tg["signatureInterface"],
+                "sk": tc["sk"],
+                "message": tc.get("message", ""),
+                "context": tc.get("context", ""),
+                "rnd": "" if deterministic else tc["rnd"],
+                "signature": exp["signature"],
+            })
 
-        if not deterministic:
+    return merged
+
+
+def merge_sigver(prompt_path, results_path, param_set):
+    prompt, expected = load_pair(prompt_path, results_path)
+
+    merged = []
+    for tg in prompt["testGroups"]:
+        if tg["parameterSet"] != param_set:
             continue
-        if interface != "external":
-            continue
-        if pre_hash != "pure":
+        if not supported_signature_group(tg):
             continue
 
         for tc in tg["tests"]:
@@ -93,10 +130,12 @@ def merge_siggen(prompt_path, results_path, param_set):
             exp = expected[tcid]
             merged.append({
                 "tcId": tcid,
-                "sk": tc["sk"],
+                "signatureInterface": tg["signatureInterface"],
+                "pk": tc["pk"],
                 "message": tc.get("message", ""),
                 "context": tc.get("context", ""),
-                "signature": exp["signature"],
+                "signature": tc["signature"],
+                "testPassed": exp["testPassed"],
             })
 
     return merged
@@ -108,38 +147,33 @@ def main():
     parser.add_argument("--keygen-results", required=True)
     parser.add_argument("--siggen-prompt", required=True)
     parser.add_argument("--siggen-results", required=True)
+    parser.add_argument("--sigver-prompt", required=True)
+    parser.add_argument("--sigver-results", required=True)
     parser.add_argument("--parameter-set", required=True,
                         help="e.g. ML-DSA-87")
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
-    import os
     os.makedirs(args.output_dir, exist_ok=True)
 
-    keygen = merge_keygen(args.keygen_prompt, args.keygen_results,
-                          args.parameter_set)
-    siggen = merge_siggen(args.siggen_prompt, args.siggen_results,
-                          args.parameter_set)
+    outputs = {
+        "keygen.json": merge_keygen(args.keygen_prompt, args.keygen_results,
+                                    args.parameter_set),
+        "siggen.json": merge_siggen(args.siggen_prompt, args.siggen_results,
+                                    args.parameter_set),
+        "sigver.json": merge_sigver(args.sigver_prompt, args.sigver_results,
+                                    args.parameter_set),
+    }
 
-    keygen_path = os.path.join(args.output_dir, "keygen.json")
-    siggen_path = os.path.join(args.output_dir, "siggen.json")
-
-    with open(keygen_path, "w") as f:
-        json.dump(keygen, f, indent=2)
-    with open(siggen_path, "w") as f:
-        json.dump(siggen, f, indent=2)
-
-    print(f"Wrote {len(keygen)} keygen vectors to {keygen_path}")
-    print(f"Wrote {len(siggen)} siggen vectors to {siggen_path}")
-
-    if len(keygen) == 0:
-        print(f"ERROR: No keygen vectors found for {args.parameter_set}",
-              file=sys.stderr)
-        sys.exit(1)
-    if len(siggen) == 0:
-        print(f"ERROR: No siggen vectors found for {args.parameter_set}",
-              file=sys.stderr)
-        sys.exit(1)
+    for name, vectors in outputs.items():
+        path = os.path.join(args.output_dir, name)
+        with open(path, "w") as f:
+            json.dump(vectors, f, indent=2)
+        print(f"Wrote {len(vectors)} vectors to {path}")
+        if len(vectors) == 0:
+            print(f"ERROR: No {name} vectors found for {args.parameter_set}",
+                  file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -57,7 +57,7 @@
 // [Wallet.SignDeterministic] is available for protocol flows and test
 // fixtures that require byte-identical signatures for the same wallet
 // and message. It binds the same descriptor-derived context as
-// [Wallet.Sign] and delegates to the crypto package's FIPS 204 §3.5
+// [Wallet.Sign] and delegates to the crypto package's FIPS 204 §3.4
 // deterministic mode, so the two are interchangeable at verification
 // time. Prefer [Wallet.Sign] unless determinism is itself a requirement.
 //

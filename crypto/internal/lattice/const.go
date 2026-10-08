@@ -9,7 +9,7 @@ const (
 	// Q is the modulus
 	Q = 8380417
 
-	// QInv is -q^(-1) mod 2^32
+	// QInv is q^(-1) mod 2^32 (the reference QINV), used by MontgomeryReduce.
 	QInv = 58728449
 
 	// D is the dropped bits from t

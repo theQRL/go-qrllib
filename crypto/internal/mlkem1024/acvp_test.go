@@ -2,14 +2,12 @@ package mlkem1024
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"io"
-	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/theQRL/go-qrllib/crypto/internal/testutil"
 )
 
 // These tests consume the official NIST ACVP sample JSON files for ML-KEM.
@@ -215,42 +213,8 @@ type acvpExpectedTest struct {
 func readACVPFile[T any](t *testing.T, suite, name string) T {
 	t.Helper()
 
-	path := filepath.Join("testdata", "acvp", suite, name)
-	b, path := readACVPBytes(t, path)
-
-	var f T
-	if err := json.Unmarshal(b, &f); err != nil {
-		t.Fatalf("parse ACVP JSON %q: %v", path, err)
-	}
-	return f
-}
-
-func readACVPBytes(t *testing.T, path string) ([]byte, string) {
-	t.Helper()
-
-	b, err := os.ReadFile(path)
-	if err == nil {
-		return b, path
-	}
-
-	gzPath := path + ".gz"
-	f, err := os.Open(gzPath)
-	if err != nil {
-		t.Fatalf("read ACVP JSON %q: %v", path, err)
-	}
-	defer func() { _ = f.Close() }()
-
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		t.Fatalf("open compressed ACVP JSON %q: %v", gzPath, err)
-	}
-	defer func() { _ = gz.Close() }()
-
-	b, err = io.ReadAll(gz)
-	if err != nil {
-		t.Fatalf("read compressed ACVP JSON %q: %v", gzPath, err)
-	}
-	return b, gzPath
+	rootDir := filepath.Join("testdata", "acvp", suite)
+	return testutil.ReadJSON[T](t, rootDir, name)
 }
 
 func (f acvpExpectedFile) group(t *testing.T, tgID int) acvpExpectedGroup {

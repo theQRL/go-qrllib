@@ -2,6 +2,7 @@ package ml_dsa_87
 
 import (
 	"crypto/sha3"
+	"io"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
@@ -113,10 +114,9 @@ func polyChkNorm(a *poly, B int32) int {
 	return int(uint32(violation) >> 31)
 }
 
+// polyUniform samples a uniformly from the SHAKE128 stream of seed || nonce,
+// as the reference poly_uniform and FIPS 204 Algorithm 30 (RejNTTPoly) do.
 func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
-	bufLen := POLY_UNIFORM_N_BLOCKS * STREAM128_BLOCK_BYTES
-	var buf [POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES + 2]uint8
-
 	state := sha3.NewSHAKE128()
 	if _, err := state.Write(seed[:]); err != nil {
 		//coverage:ignore
@@ -128,32 +128,47 @@ func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
 		//rationale: sha3.ShakeHash.Write never returns an error per Go's hash.Hash contract
 		return err
 	}
-	if _, err := state.Read(buf[:]); err != nil {
+	return polyUniformFromXOF(a, state)
+}
+
+// polyUniformFromXOF runs the rejection sampling of the reference
+// poly_uniform over an arbitrary byte stream, so that tests can drive the
+// refill path, which no real seed reaches in practice: it needs at least 25
+// rejected candidates among the first 280, where 0.27 are expected, a
+// 2^-132 event per polynomial.
+//
+// The first read takes exactly POLY_UNIFORM_N_BLOCKS blocks of the stream, as
+// the reference squeezes them. The two spare bytes of the buffer only hold a
+// leftover carry on refills; reading them on the first pass would shift every
+// later read of the stream by two bytes relative to the reference and to
+// FIPS 204, which takes three bytes at a time from one continuous stream.
+func polyUniformFromXOF(a *poly, xof io.Reader) error {
+	bufLen := POLY_UNIFORM_N_BLOCKS * STREAM128_BLOCK_BYTES
+	var buf [POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES + 2]uint8
+
+	if _, err := io.ReadFull(xof, buf[:bufLen]); err != nil {
 		//coverage:ignore
 		//rationale: sha3.ShakeHash.Read never returns an error for XOF
 		return err
 	}
 
-	ctr := rejUniform(a.coeffs[:], buf[:])
+	ctr := rejUniform(a.coeffs[:], buf[:bufLen])
 
 	for ctr < N {
-		//coverage:ignore
-		//rationale: rejection sampling loop rarely executes; initial buffer is sized to
-		//           contain enough valid samples with overwhelming probability (rejection rate ~0.02%)
 		off := bufLen % 3
-		//coverage:ignore
 		for i := 0; i < off; i++ {
 			//coverage:ignore
+			//rationale: 5 blocks (840 bytes) and a block (168 bytes) are multiples
+			//           of 3, so no candidate bytes are ever carried over for these
+			//           parameters; the carry mirrors the reference poly_uniform.
 			buf[i] = buf[bufLen-off+i]
 		}
 
-		//coverage:ignore
-		if _, err := state.Read(buf[off : STREAM128_BLOCK_BYTES+off]); err != nil {
+		if _, err := io.ReadFull(xof, buf[off:STREAM128_BLOCK_BYTES+off]); err != nil {
 			//coverage:ignore
 			//rationale: sha3.ShakeHash.Read never returns an error for XOF
 			return err
 		}
-		//coverage:ignore
 		bufLen = STREAM128_BLOCK_BYTES + off
 		ctr += rejUniform(a.coeffs[ctr:], buf[:bufLen])
 	}
