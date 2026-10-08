@@ -202,9 +202,13 @@ gcc -DDILITHIUM_MODE=5 -I. -O2 -o /tmp/verify \
 /tmp/verify
 
 # Falcon-1024 (bidirectional, byte-identical from a shared stream)
-git clone --depth 1 --no-checkout --filter=blob:none https://github.com/PQClean/PQClean.git /tmp/pqclean
-cd /tmp/pqclean && git sparse-checkout init --cone && \
-    git sparse-checkout set crypto_sign/falcon-1024/clean common && git checkout
+# Pinned to the same PQClean commit as CI.
+git init /tmp/pqclean
+cd /tmp/pqclean && git remote add origin https://github.com/PQClean/PQClean.git
+git sparse-checkout init --cone && \
+    git sparse-checkout set crypto_sign/falcon-1024/clean common
+git fetch --depth 1 --filter=blob:none origin 0586a824fc0d49df0b6b6e9179d8d15d06d0974f
+git checkout FETCH_HEAD
 cd /path/to/go-qrllib
 go run .github/cross-verify/falcon1024_crossverify.go generate /tmp/falcon1024_go.bin
 cd /tmp/pqclean
