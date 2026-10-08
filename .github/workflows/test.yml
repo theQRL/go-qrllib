@@ -39,6 +39,16 @@ jobs:
       - name: Build
         run: go build -v ./...
 
+      - name: Vet build-tagged tests
+        # The ACVP, Wycheproof and metamorphic tests sit behind build tags, so
+        # the plain build, test and lint runs never compile them. Vet them
+        # with their tags here so that an API change cannot break those
+        # workflows unnoticed.
+        run: |
+          go vet -tags acvp ./crypto/ml_dsa_87/
+          go vet -tags wycheproof ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
+          go vet -tags metamorphic ./crypto/ml_dsa_87/ ./crypto/internal/mlkem1024/
+
       - name: Test
         # Note: SPHINCS+ wallet tests are slow and can take several minutes.
         # No pipes here: they would mask go test's exit status (default shell has no pipefail).

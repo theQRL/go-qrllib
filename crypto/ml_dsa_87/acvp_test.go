@@ -205,15 +205,18 @@ func TestACVPSigGen(t *testing.T) {
 			}
 
 			// The signature must also verify under the key's public key.
+			// ParsePublicKey applies the package's weak-key rule on the way;
+			// an honest NIST key must pass it.
 			pk := acvpPublicKeyFromSecretKey(&sk)
-			if err := ValidatePublicKey(&pk); err != nil {
-				t.Errorf("NIST key rejected by ValidatePublicKey: %v", err)
+			pub, err := ParsePublicKey(pk[:])
+			if err != nil {
+				t.Fatalf("NIST key rejected by ParsePublicKey: %v", err)
 			}
 			var sigArr [CRYPTO_BYTES]uint8
 			copy(sigArr[:], sig)
 			var ok bool
 			if vec.Interface == "external" {
-				ok = Verify(ctx, msg, sigArr, &pk)
+				ok = Verify(ctx, msg, sigArr, pub)
 			} else {
 				ok, err = cryptoSignVerifyInternal(sigArr, msg, nil, &pk)
 				if err != nil {
@@ -246,6 +249,10 @@ func TestACVPSigVer(t *testing.T) {
 
 			var pk [CRYPTO_PUBLIC_KEY_BYTES]uint8
 			copy(pk[:], pkBytes)
+			// The external interface goes through ParsePublicKey, which also
+			// applies the package's weak-key rule; a key it rejects verifies
+			// nothing. The internal interface takes the raw bytes.
+			pub, parseErr := ParsePublicKey(pkBytes)
 
 			// A signature of the wrong length is invalid (FIPS 204 §3.6.2);
 			// the fixed-size signature type enforces this for callers.
@@ -255,7 +262,7 @@ func TestACVPSigVer(t *testing.T) {
 				copy(sig[:], sigBytes)
 				switch vec.Interface {
 				case "external":
-					got = Verify(ctx, msg, sig, &pk)
+					got = parseErr == nil && Verify(ctx, msg, sig, pub)
 				case "internal":
 					ok, err := cryptoSignVerifyInternal(sig, msg, nil, &pk)
 					got = err == nil && ok
