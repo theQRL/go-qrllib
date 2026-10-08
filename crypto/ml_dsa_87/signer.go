@@ -48,7 +48,7 @@ func (s *CryptoSigner) Public() crypto.PublicKey {
 // any other SignerOpts type returns an error.
 //
 // The rand parameter, when non-nil, is honoured as the source of the
-// per-signature RND_BYTES (FIPS 204 §3.5 hedged signing); when nil,
+// per-signature RND_BYTES (FIPS 204 §3.4 hedged signing); when nil,
 // crypto/rand is used. Either way signing is hedged — the deterministic
 // path was removed in TOB-QRLLIB-6 alongside the rand-discarding bug.
 func (s *CryptoSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {

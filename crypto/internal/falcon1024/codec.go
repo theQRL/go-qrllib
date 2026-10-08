@@ -1,8 +1,22 @@
 package falcon1024
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
+)
 
 const headerSize = 1
+
+// Key-encoding errors wrap the library's sentinels so callers can test for
+// cryptoerrors.ErrInvalidSecretKey and cryptoerrors.ErrInvalidPublicKey.
+var (
+	errInvalidPrivateKeyLength   = fmt.Errorf("falcon-1024: invalid private key length: %w", cryptoerrors.ErrInvalidSecretKey)
+	errInvalidPrivateKeyEncoding = fmt.Errorf("falcon-1024: invalid private key encoding: %w", cryptoerrors.ErrInvalidSecretKey)
+	errInvalidPublicKeyLength    = fmt.Errorf("falcon-1024: invalid public key length: %w", cryptoerrors.ErrInvalidPublicKey)
+	errInvalidPublicKeyEncoding  = fmt.Errorf("falcon-1024: invalid public key encoding: %w", cryptoerrors.ErrInvalidPublicKey)
+)
 
 type compressedBitReader struct {
 	src     []byte
@@ -45,9 +59,9 @@ func (r *compressedBitReader) trailingBits() byte {
 }
 
 var (
-	errInvalidSignatureEncoding        = errors.New("falcon-1024: invalid signature encoding")
-	errCompressedSignatureTooLarge     = errors.New("falcon-1024: compressed signature too large")
-	errCompressedCoefficientOutOfRange = errors.New("falcon-1024: compressed coefficient out of range")
+	errInvalidSignatureEncoding        = fmt.Errorf("falcon-1024: invalid signature encoding: %w", cryptoerrors.ErrInvalidSignature)
+	errCompressedSignatureTooLarge     = fmt.Errorf("falcon-1024: compressed signature too large: %w", cryptoerrors.ErrSigningFailed)
+	errCompressedCoefficientOutOfRange = fmt.Errorf("falcon-1024: compressed coefficient out of range: %w", cryptoerrors.ErrSigningFailed)
 )
 
 const maxCompressedCoefficient = 2047
@@ -157,7 +171,7 @@ const (
 
 func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
 	if len(dst) != PrivateKeySize {
-		return errors.New("falcon-1024: invalid private key length")
+		return errInvalidPrivateKeyLength
 	}
 
 	dst[0] = privateKeyHeader
@@ -182,7 +196,10 @@ func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
 	offset += written
 
 	if offset != PrivateKeySize {
-		return errors.New("falcon-1024: invalid private key encoding")
+		//coverage:ignore
+		//rationale: 1 + 640 + 640 + 1024 is PrivateKeySize by construction; the
+		//           three trim_i8 lengths are compile-time functions of n.
+		return errInvalidPrivateKeyEncoding
 	}
 
 	return nil
@@ -190,12 +207,10 @@ func skEncode(dst []byte, f, g, ntruF smallPolynomial) error {
 
 func skDecode(src []byte) (f, g, ntruF smallPolynomial, err error) {
 	if len(src) != PrivateKeySize {
-		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{},
-			errors.New("falcon-1024: invalid private key length")
+		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{}, errInvalidPrivateKeyLength
 	}
 	if src[0] != privateKeyHeader {
-		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{},
-			errors.New("falcon-1024: invalid private key")
+		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{}, errInvalidPrivateKeyEncoding
 	}
 
 	offset := headerSize
@@ -220,8 +235,10 @@ func skDecode(src []byte) (f, g, ntruF smallPolynomial, err error) {
 	offset += consumed
 
 	if offset != PrivateKeySize {
-		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{},
-			errors.New("falcon-1024: invalid private key")
+		//coverage:ignore
+		//rationale: the three trim_i8 lengths sum to PrivateKeySize - 1 for n = 1024;
+		//           the length check above already pinned len(src).
+		return smallPolynomial{}, smallPolynomial{}, smallPolynomial{}, errInvalidPrivateKeyEncoding
 	}
 
 	return f, g, ntruF, nil
@@ -231,7 +248,7 @@ const publicKeyHeader byte = 0x00 + logN
 
 func pkEncode(dst []byte, h ringElement) error {
 	if len(dst) != PublicKeySize {
-		return errors.New("falcon-1024: invalid public key length")
+		return errInvalidPublicKeyLength
 	}
 
 	dst[0] = publicKeyHeader
@@ -242,10 +259,10 @@ func pkEncode(dst []byte, h ringElement) error {
 
 func pkDecode(src []byte) (h ringElement, err error) {
 	if len(src) != PublicKeySize {
-		return ringElement{}, errors.New("falcon-1024: invalid public key length")
+		return ringElement{}, errInvalidPublicKeyLength
 	}
 	if src[0] != publicKeyHeader {
-		return ringElement{}, errors.New("falcon-1024: invalid public key")
+		return ringElement{}, errInvalidPublicKeyEncoding
 	}
 
 	return polyByteDecode(src[headerSize:])
@@ -265,7 +282,11 @@ const (
 	maxCompressedSignatureSize = MaxSignedMessageOverhead - signedMessagePrefixSize - headerSize
 )
 
-var errInvalidSignedMessage = errors.New("falcon-1024: invalid signed message")
+var (
+	errInvalidSignedMessage  = fmt.Errorf("falcon-1024: invalid signed message: %w", cryptoerrors.ErrInvalidSignature)
+	errSignedMessageTooShort = fmt.Errorf("falcon-1024: signed message shorter than %d bytes: %w", signedMessagePrefixSize, cryptoerrors.ErrInvalidSignatureSize)
+	errSignatureTooShort     = fmt.Errorf("falcon-1024: detached signature shorter than %d bytes: %w", detachedSignaturePrefixSize, cryptoerrors.ErrInvalidSignatureSize)
+)
 
 // signedMessageEncode builds the reference crypto_sign output: a two-byte
 // big-endian signature length, the nonce, the message and the signature
@@ -293,7 +314,7 @@ func signedMessageEncode(nonce [nonceSize]byte, message []byte, s2 smallPolynomi
 // reference crypto_sign_open. The returned nonce and message alias sm.
 func signedMessageDecode(sm []byte) (nonce, message []byte, s2 smallPolynomial, err error) {
 	if len(sm) < signedMessagePrefixSize {
-		return nil, nil, smallPolynomial{}, errInvalidSignedMessage
+		return nil, nil, smallPolynomial{}, errSignedMessageTooShort
 	}
 
 	sigLen := int(sm[0])<<8 | int(sm[1])
@@ -355,7 +376,10 @@ func detachedSignatureEncode(nonce [nonceSize]byte, s2 smallPolynomial) ([]byte,
 // and a compressed polynomial that consumes exactly the remaining bytes. The
 // returned nonce aliases sig.
 func detachedSignatureDecode(sig []byte) (nonce []byte, s2 smallPolynomial, err error) {
-	if len(sig) < detachedSignaturePrefixSize || sig[0] != detachedSignatureHeader {
+	if len(sig) < detachedSignaturePrefixSize {
+		return nil, smallPolynomial{}, errSignatureTooShort
+	}
+	if sig[0] != detachedSignatureHeader {
 		return nil, smallPolynomial{}, errInvalidSignatureEncoding
 	}
 
@@ -415,6 +439,9 @@ func trimI8Encode(dst []byte, p smallPolynomial, bits int) (int, error) {
 	}
 
 	if accBits > 0 {
+		//coverage:ignore
+		//rationale: for n = 1024 both widths (5 and 8 bits) fill whole bytes,
+		//           so no partial final byte exists; kept to mirror trim_i8_encode.
 		dst[written] = byte(acc << (8 - accBits))
 		written++
 	}
@@ -438,7 +465,7 @@ func trimI8Decode(src []byte, bits int) (smallPolynomial, int, error) {
 		for i := range p {
 			x := int8(src[i])
 			if x == -128 {
-				return smallPolynomial{}, 0, errors.New("falcon-1024: invalid trim_i8 encoding")
+				return smallPolynomial{}, 0, errInvalidPrivateKeyEncoding
 			}
 			p[i] = int32(x)
 		}
@@ -465,7 +492,7 @@ func trimI8Decode(src []byte, bits int) (smallPolynomial, int, error) {
 
 		if x >= signBit {
 			if x == signBit {
-				return smallPolynomial{}, 0, errors.New("falcon-1024: invalid trim_i8 encoding")
+				return smallPolynomial{}, 0, errInvalidPrivateKeyEncoding
 			}
 			x -= fullRange
 		}
@@ -480,7 +507,11 @@ func trimI8Decode(src []byte, bits int) (smallPolynomial, int, error) {
 	}
 
 	if acc != 0 {
-		return smallPolynomial{}, 0, errors.New("falcon-1024: invalid trim_i8 encoding")
+		//coverage:ignore
+		//rationale: 1024 five-bit fields fill exactly 640 bytes, so the final
+		//           accumulator is always empty; kept to mirror trim_i8_decode's
+		//           check of unused bits for degrees where they exist.
+		return smallPolynomial{}, 0, errInvalidPrivateKeyEncoding
 	}
 
 	return p, inLen, nil

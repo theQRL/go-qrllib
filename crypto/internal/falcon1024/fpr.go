@@ -32,6 +32,11 @@ const (
 // that feeds an addition or subtraction in this package is wrapped in an
 // explicit fpr(...) conversion, and the operation order mirrors the C source.
 // fprExpmP63 follows the reference's integer (falcon1024int) form.
+//
+// The targets do not fuse the same shapes. The amd64 backend fuses only the
+// add form x*y+z; the arm64 backend also fuses x*y-z and z-x*y. A guard
+// dropped from a subtract-form site therefore shows up only on arm64, which
+// is why the test suite runs on both the GOAMD64=v3 and the arm64 CI legs.
 type fpr float64
 
 var fprP2Tab = [...]fpr{

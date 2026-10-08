@@ -3,8 +3,10 @@ package falcon1024
 import (
 	"crypto/sha3"
 	"crypto/subtle"
-	"errors"
+	"fmt"
 	"io"
+
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
 // This package follows the NIST API of the Falcon round-3 reference
@@ -39,28 +41,110 @@ const (
 	MaxSignatureSize = 1462
 )
 
+// Every error the package returns wraps a sentinel from crypto/errors, so
+// callers can route on errors.Is(err, cryptoerrors.ErrInvalidSignature) and
+// the like, as they can for the other schemes in the library. A failing
+// randomness reader is reported through randomnessError, which wraps
+// ErrSeedGeneration together with the reader's own error; a signature that
+// does not fit its encoding wraps ErrSigningFailed (codec.go).
+var (
+	errInvalidSeedLength = fmt.Errorf("falcon-1024: invalid seed length: %w", cryptoerrors.ErrInvalidSeed)
+	errInvalidPrivateKey = fmt.Errorf("falcon-1024: invalid private key: %w", cryptoerrors.ErrInvalidSecretKey)
+	errPublicKeyNil      = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrPublicKeyNil)
+	errSecretKeyNil      = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrSecretKeyNil)
+	errSecretKeyZeroized = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrSecretKeyZeroized)
+	errKeyUninitialised  = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrKeyUninitialised)
+	errSigningFailed     = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrSigningFailed)
+	errInvalidSignature  = fmt.Errorf("falcon-1024: %w", cryptoerrors.ErrInvalidSignature)
+)
+
+// randomnessError reports a failure of the caller's io.Reader. The reader's
+// error stays in the chain for inspection; ErrSeedGeneration is the sentinel
+// the other schemes use for the same failure.
+func randomnessError(err error) error {
+	return fmt.Errorf("falcon-1024: reading randomness: %w: %w", cryptoerrors.ErrSeedGeneration, err)
+}
+
+// keyState is the keypair lifecycle, the same three states the ML-DSA-87
+// package uses (SECURITY.md, "Keypair lifecycle"): a zero value that never
+// went through a constructor is uninitialised, a constructed key is ready,
+// and a key stays zeroized after Zeroize.
+type keyState uint8
+
+const (
+	keyStateUninitialised keyState = iota
+	keyStateReady
+	keyStateZeroized
+)
+
+// PrivateKey holds the encoded key together with the FFT basis and LDL tree
+// signing uses. It is read-only after construction, so concurrent Sign calls
+// on one key are safe; Zeroize is the one mutation and must not run
+// concurrently with them.
 type PrivateKey struct {
 	raw                [PrivateKeySize]byte
 	pub                PublicKey
 	b00, b01, b10, b11 fftPolynomial
 	tree               fprTree
+	state              keyState
 }
 
+// signable reports whether the key may sign: nil for a ready key, an error
+// wrapping ErrKeyUninitialised or ErrSecretKeyZeroized otherwise.
+func (priv *PrivateKey) signable() error {
+	switch priv.state {
+	case keyStateReady:
+		return nil
+	case keyStateZeroized:
+		return errSecretKeyZeroized
+	default:
+		return errKeyUninitialised
+	}
+}
+
+// Equal reports whether priv and x hold the same key. A key that is nil,
+// uninitialised or zeroized equals nothing.
 func (priv *PrivateKey) Equal(x *PrivateKey) bool {
+	if priv == nil || x == nil || priv.state != keyStateReady || x.state != keyStateReady {
+		return false
+	}
 	return subtle.ConstantTimeCompare(priv.raw[:], x.raw[:]) == 1
 }
 
 // Bytes returns the PrivateKeySize-byte encoding of priv: the header byte
-// 0x5A, then f and g at five bits per coefficient and F at eight.
+// 0x5A, then f and g at five bits per coefficient and F at eight. It returns
+// nil for a key that is nil, uninitialised or zeroized.
 func (priv *PrivateKey) Bytes() []byte {
+	if priv == nil || priv.state != keyStateReady {
+		return nil
+	}
 	sk := priv.raw
 	return sk[:]
 }
 
+// PublicKey returns a copy of the public key, so that holding it does not
+// keep the private key reachable. It returns nil for a nil or uninitialised
+// key, and stays available after Zeroize.
 func (priv *PrivateKey) PublicKey() *PublicKey {
-	// Returning a pointer to the embedded public key can keep the whole
-	// PrivateKey reachable for as long as the PublicKey is retained.
-	return &priv.pub
+	if priv == nil || priv.state == keyStateUninitialised {
+		return nil
+	}
+	pub := priv.pub
+	return &pub
+}
+
+// Zeroize overwrites the secret material of priv: the encoded key, the FFT
+// basis and the LDL tree. The public key stays available. Signing with a
+// zeroized key returns an error wrapping ErrSecretKeyZeroized. Calling it on
+// a nil key or more than once is harmless.
+func (priv *PrivateKey) Zeroize() {
+	if priv == nil {
+		return
+	}
+	zeroBytes(priv.raw[:])
+	zeroFFTPolynomials(&priv.b00, &priv.b01, &priv.b10, &priv.b11)
+	zeroFPRs(priv.tree[:])
+	priv.state = keyStateZeroized
 }
 
 type PublicKey struct {
@@ -68,26 +152,31 @@ type PublicKey struct {
 	hNTT ringElement
 }
 
+// Equal reports whether pub and x hold the same key; a nil key equals
+// nothing.
 func (pub *PublicKey) Equal(x *PublicKey) bool {
+	if pub == nil || x == nil {
+		return false
+	}
 	return subtle.ConstantTimeCompare(pub.raw[:], x.raw[:]) == 1
 }
 
+// Bytes returns the PublicKeySize-byte encoding of pub, or nil for a nil key.
 func (pub *PublicKey) Bytes() []byte {
+	if pub == nil {
+		return nil
+	}
 	pk := pub.raw
 	return pk[:]
 }
-
-var (
-	errInvalidSeedLength = errors.New("falcon-1024: invalid seed length")
-	errInvalidPrivateKey = errors.New("falcon-1024: invalid private key")
-)
 
 // GenerateKey reads SeedSize bytes from random and generates the private key
 // from them, as the reference crypto_sign_keypair does with randombytes.
 func GenerateKey(random io.Reader) (*PrivateKey, error) {
 	var seed [SeedSize]byte
+	defer zeroBytes(seed[:])
 	if _, err := io.ReadFull(random, seed[:]); err != nil {
-		return nil, err
+		return nil, randomnessError(err)
 	}
 	return NewPrivateKeyFromSeed(seed[:])
 }
@@ -101,28 +190,46 @@ func NewPrivateKeyFromSeed(seed []byte) (*PrivateKey, error) {
 	}
 
 	rng := sha3.NewSHAKE256()
+	defer rng.Reset()
 	_, _ = rng.Write(seed)
 
 	f, g, ntruF, ntruG, h := generateKeyComponents(rng)
+	defer zeroSmallPolynomials(&f, &g, &ntruF, &ntruG)
 	return initPrivateKey(&PrivateKey{}, f, g, ntruF, ntruG, h)
 }
 
 // NewPrivateKey decodes a PrivateKeySize-byte private key. As the reference
 // crypto_sign does, it recomputes G from f, g and F and rejects encodings for
-// which that fails.
+// which that fails. It also rejects an encoding whose (f, g) fails the bounds
+// key generation enforces, which the reference does not check on import: such
+// a key keeps the signing loop rejecting for ever or drives the sampler out
+// of the domain in which its arithmetic matches the reference. Every key the
+// reference or this package generates passes these checks.
 func NewPrivateKey(privateKey []byte) (*PrivateKey, error) {
 	f, g, ntruF, err := skDecode(privateKey)
 	if err != nil {
 		return nil, err
 	}
+	defer zeroSmallPolynomials(&f, &g, &ntruF)
 
 	ntruG, ok := completePrivate(f, g, ntruF)
 	if !ok {
 		return nil, errInvalidPrivateKey
 	}
+	defer zeroSmallPolynomials(&ntruG)
 
 	h, ok := computePublic(f, g)
 	if !ok {
+		//coverage:ignore
+		//rationale: completePrivate has already inverted f mod q; computePublic
+		//           inverts the same NTT coefficients and cannot fail after it.
+		return nil, errInvalidPrivateKey
+	}
+
+	// The five-bit encoding cannot hold a coefficient outside [-15, 15], so
+	// the coefficient bound of key generation needs no re-check here.
+	if squaredNormExceedsBound(f, g, keygenSqNormBound) ||
+		orthogonalizedNormExceedsBound(f, g, keygenBNormBound) {
 		return nil, errInvalidPrivateKey
 	}
 
@@ -144,6 +251,10 @@ func generateKeyComponents(rng *sha3.SHAKE) (f, g, ntruF, ntruG smallPolynomial,
 
 		if coefficientsExceedBound(f, fgBound) ||
 			coefficientsExceedBound(g, fgBound) {
+			//coverage:ignore
+			//rationale: one draw of the keygen Gaussian is at most 26 in magnitude
+			//           (field.go gauss1024Q12289), so a sampled polynomial exceeds
+			//           15 only on a tail event; the check mirrors the reference.
 			continue
 		}
 
@@ -172,6 +283,7 @@ func generateKeyComponents(rng *sha3.SHAKE) (f, g, ntruF, ntruG smallPolynomial,
 
 func computePublic(f, g smallPolynomial) (ringElement, bool) {
 	var fNTT, hNTT ringElement
+	defer zeroRingElements(&fNTT)
 	for i := range fNTT {
 		fNTT[i] = fieldFromSmall(f[i])
 		hNTT[i] = fieldFromSmall(g[i])
@@ -189,17 +301,25 @@ func computePublic(f, g smallPolynomial) (ringElement, bool) {
 }
 
 func initPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial, h ringElement) (*PrivateKey, error) {
+	defer zeroSmallPolynomials(&f, &g, &ntruF, &ntruG)
+
 	if err := skEncode(priv.raw[:], f, g, ntruF); err != nil {
+		//coverage:ignore
+		//rationale: priv.raw has exactly PrivateKeySize bytes and f, g, F come
+		//           from the sampler or the decoder, which keep them in range.
 		return nil, err
 	}
 
 	pub, err := newPublicKeyFromH(h)
 	if err != nil {
+		//coverage:ignore
+		//rationale: pub.raw has exactly PublicKeySize bytes; pkEncode cannot fail.
 		return nil, err
 	}
 	priv.pub = pub
 
 	expandPrivateKey(priv, f, g, ntruF, ntruG)
+	priv.state = keyStateReady
 
 	return priv, nil
 }
@@ -207,6 +327,8 @@ func initPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial, h ring
 func newPublicKeyFromH(h ringElement) (PublicKey, error) {
 	var pub PublicKey
 	if err := pkEncode(pub.raw[:], h); err != nil {
+		//coverage:ignore
+		//rationale: pub.raw has exactly PublicKeySize bytes; pkEncode cannot fail.
 		return PublicKey{}, err
 	}
 	pub.hNTT = h
@@ -218,6 +340,8 @@ func newPublicKeyFromH(h ringElement) (PublicKey, error) {
 // arithmetic as the reference expand_privkey and, equivalently, the Gram
 // matrix and on-the-fly LDL of the reference sign_dyn.
 func expandPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial) {
+	defer zeroSmallPolynomials(&f, &g, &ntruF, &ntruG)
+
 	fftFromSmall(priv.b01[:], f)
 	fftFromSmall(priv.b00[:], g)
 	fftFromSmall(priv.b11[:], ntruF)
@@ -227,6 +351,7 @@ func expandPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial) {
 	fftNeg(priv.b11[:], logN)
 
 	var g00, g01, g11, tmp fftPolynomial
+	defer zeroFFTPolynomials(&g00, &g01, &g11, &tmp)
 
 	fftSelfAdj(g00[:], priv.b00[:], logN)
 	fftSelfAdj(tmp[:], priv.b01[:], logN)
@@ -241,12 +366,14 @@ func expandPrivateKey(priv *PrivateKey, f, g, ntruF, ntruG smallPolynomial) {
 	fftAdd(g11[:], tmp[:], logN)
 
 	var ffLDLScratch [3 * n]fpr
+	defer zeroFPRs(ffLDLScratch[:])
 	ffLDLFFT(priv.tree[:], g00[:], g01[:], g11[:], logN, ffLDLScratch[:])
 	ffLDLBinaryNormalize(priv.tree[:], logN, logN)
 }
 
 func completePrivate(f, g, ntruF smallPolynomial) (smallPolynomial, bool) {
 	var gNTT, ntruFNTT, fNTT ringElement
+	defer zeroRingElements(&gNTT, &ntruFNTT, &fNTT)
 	for i := range gNTT {
 		gNTT[i] = fieldFromSmall(g[i])
 		ntruFNTT[i] = fieldFromSmall(ntruF[i])
@@ -288,6 +415,10 @@ func completePrivateCenter(w uint32) int32 {
 	return int32(w)
 }
 
+// NewPublicKey decodes a PublicKeySize-byte public key: the header byte, the
+// length and the range of every coefficient are checked, nothing else. See
+// the package documentation of crypto/falcon1024 on what that means for keys
+// received from other parties.
 func NewPublicKey(pubBytes []byte) (*PublicKey, error) {
 	h, err := pkDecode(pubBytes)
 	if err != nil {
@@ -307,8 +438,15 @@ const nonceSize = 40
 // the order the reference crypto_sign calls randombytes, hashes the nonce and
 // message to a point and signs it.
 func signCore(random io.Reader, priv *PrivateKey, message []byte) (nonce [nonceSize]byte, s2 smallPolynomial, err error) {
-	if _, err = io.ReadFull(random, nonce[:]); err != nil {
+	if priv == nil {
+		return nonce, smallPolynomial{}, errSecretKeyNil
+	}
+	if err = priv.signable(); err != nil {
 		return nonce, smallPolynomial{}, err
+	}
+
+	if _, err = io.ReadFull(random, nonce[:]); err != nil {
+		return nonce, smallPolynomial{}, randomnessError(err)
 	}
 
 	hashData := sha3.NewSHAKE256()
@@ -317,15 +455,20 @@ func signCore(random io.Reader, priv *PrivateKey, message []byte) (nonce [nonceS
 
 	c0 := hashToPoint(hashData)
 
+	// The sampler seed determines the Gaussian samples, which together with
+	// the signature reveal the private basis; it is wiped like the key.
 	var seed [SeedSize]byte
+	defer zeroBytes(seed[:])
 	if _, err = io.ReadFull(random, seed[:]); err != nil {
-		return nonce, smallPolynomial{}, err
+		return nonce, smallPolynomial{}, randomnessError(err)
 	}
 
 	rng := sha3.NewSHAKE256()
+	defer rng.Reset()
 	_, _ = rng.Write(seed[:])
 
-	return nonce, sign(rng, priv, c0), nil
+	s2, err = sign(rng, priv, c0)
+	return nonce, s2, err
 }
 
 // Sign signs message with priv and returns the signed message in the format
@@ -359,25 +502,37 @@ func SignDetached(random io.Reader, priv *PrivateKey, message []byte) ([]byte, e
 	return detachedSignatureEncode(nonce, s2)
 }
 
+// maxSignAttempts bounds the rejection loop of sign. For a key within the
+// key-generation bounds the norm check rejects an attempt with probability
+// well below one in a thousand (the bound is 1.1 times the expected norm of
+// a 2048-dimensional Gaussian), so 128 consecutive rejections cannot happen
+// in honest use even at a far higher rate; the bound exists so that a key
+// constructed outside those bounds cannot make signing spin. The reference
+// loops without bound.
+const maxSignAttempts = 128
+
 // sign mirrors the reference sign_dyn loop: each attempt seeds a fresh
 // sampler PRNG from the continuing SHAKE stream.
-func sign(rng *sha3.SHAKE, priv *PrivateKey, c0 ringElement) smallPolynomial {
-	// Falcon's signing step is rejection-based; this loop is intentionally
-	// unbounded to match the reference.
-	for {
-		var prng samplerPRNG
+func sign(rng *sha3.SHAKE, priv *PrivateKey, c0 ringElement) (smallPolynomial, error) {
+	var prng samplerPRNG
+	defer prng.zeroize()
+
+	for range maxSignAttempts {
 		initSamplerPRNG(&prng, rng)
 		s2, ok := signAttempt(&prng, priv, c0)
 		if ok {
-			return s2
+			return s2, nil
 		}
 	}
+
+	return smallPolynomial{}, errSigningFailed
 }
 
 // signAttempt mirrors the reference do_sign_dyn, with the Gram matrix and LDL
 // values taken from the precomputed expansion of the key.
 func signAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPolynomial, bool) {
 	var t0, t1 fftPolynomial
+	defer zeroFFTPolynomials(&t0, &t1)
 	for i := range t0 {
 		t0[i] = fpr(c0[i])
 	}
@@ -390,9 +545,11 @@ func signAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPoly
 	fftMulConst(t0[:], fprInverseOfQ, logN)
 
 	var sampleX, sampleY fftPolynomial
+	defer zeroFFTPolynomials(&sampleX, &sampleY)
 	ffSamplingFFT(sampleFFTPoint, prng, sampleX[:], sampleY[:], t0[:], t1[:], priv.tree[:], logN)
 
 	var latticeX, latticeY, tmp fftPolynomial
+	defer zeroFFTPolynomials(&latticeX, &latticeY, &tmp)
 	copy(latticeX[:], sampleX[:])
 	fftMul(latticeX[:], priv.b00[:], logN)
 	copy(tmp[:], sampleY[:])
@@ -431,11 +588,14 @@ func signAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPoly
 	return s2, true
 }
 
-var errInvalidSignature = errors.New("falcon-1024: invalid signature")
-
 // Open verifies signedMessage against pub and returns the message it
-// carries, as the reference crypto_sign_open does.
+// carries, as the reference crypto_sign_open does. A nil pub is refused with
+// an error wrapping ErrPublicKeyNil.
 func Open(pub *PublicKey, signedMessage []byte) ([]byte, error) {
+	if pub == nil {
+		return nil, errPublicKeyNil
+	}
+
 	nonce, message, s2, err := signedMessageDecode(signedMessage)
 	if err != nil {
 		return nil, err
@@ -458,8 +618,12 @@ func Open(pub *PublicKey, signedMessage []byte) ([]byte, error) {
 
 // Verify checks a detached signature of message against pub, with the
 // checks the reference library's falcon_verify applies to the compressed
-// format.
+// format. A nil pub is refused with an error wrapping ErrPublicKeyNil.
 func Verify(pub *PublicKey, message, signature []byte) error {
+	if pub == nil {
+		return errPublicKeyNil
+	}
+
 	nonce, s2, err := detachedSignatureDecode(signature)
 	if err != nil {
 		return err

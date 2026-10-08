@@ -38,16 +38,16 @@ func mustDecodeSmallPolynomialHex(t *testing.T, s string) smallPolynomial {
 	return p
 }
 
-type signTreeRound3KATVector struct {
+type signDynRound3KATVector struct {
 	Count            int    `json:"count"`
 	CompressedLength int    `json:"compressedLength"`
 	CompressedSHA256 string `json:"compressedSHA256"`
 }
 
-func readSignTreeRound3KATVectors(t *testing.T) []signTreeRound3KATVector {
+func readSignDynRound3KATVectors(t *testing.T) []signDynRound3KATVector {
 	t.Helper()
 
-	vectors := testutil.ReadJSON[[]signTreeRound3KATVector](t, "testdata", "sign_tree_round3_kat.json.gz")
+	vectors := testutil.ReadJSON[[]signDynRound3KATVector](t, "testdata", "sign_dyn_round3_kat.json.gz")
 	if len(vectors) != 100 {
 		t.Fatalf("sign tree Round 3 KAT vector count = %d, want 100", len(vectors))
 	}

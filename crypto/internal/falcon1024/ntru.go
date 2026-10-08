@@ -11,6 +11,7 @@ var (
 
 func solveNTRU(f, g smallPolynomial) (ntruF, ntruG smallPolynomial, ok bool) {
 	wk := newNTRUWorkspace()
+	defer wk.zeroize()
 
 	if !solveNTRUDeepest(f, g, wk.solution) {
 		return smallPolynomial{}, smallPolynomial{}, false
@@ -23,19 +24,38 @@ func solveNTRU(f, g smallPolynomial) (ntruF, ntruG smallPolynomial, ok bool) {
 		}
 	}
 	if !solveNTRUBinaryDepth1(f, g, wk) {
+		//coverage:ignore
+		//rationale: solver rejection that key generation retries. Measured over
+		//           4000 Gaussian draws (255 within the keygen bounds) this stage
+		//           never rejected; the intermediate stage, the most frequent
+		//           rejection, is covered by TestSolveNTRUIntermediateRejection
+		//           and the deepest stage by TestSolveNTRURejectsEqualFG.
 		return smallPolynomial{}, smallPolynomial{}, false
 	}
 	solveNTRUBinaryDepth0(f, g, wk)
 
 	ntruF, ok = polyBigToSmall(wk.solution[:n], ntruCoeffBound)
 	if !ok {
+		//coverage:ignore
+		//rationale: an F coefficient outside [-127, 127]; key generation retries.
+		//           Not observed in 255 in-bound inputs (see above).
 		return smallPolynomial{}, smallPolynomial{}, false
 	}
 	ntruG, ok = polyBigToSmall(wk.solution[n:2*n], ntruCoeffBound)
 	if !ok {
+		//coverage:ignore
+		//rationale: a G coefficient outside [-127, 127]; key generation retries.
+		//           Observed once in 255 in-bound inputs, too rare for a bounded
+		//           deterministic search in the unit tests.
 		return smallPolynomial{}, smallPolynomial{}, false
 	}
 	if !checkNTRUEquation(f, g, ntruF, ntruG, wk.scratch.u32) {
+		//coverage:ignore
+		//rationale: the reference's final consistency check f*G - g*F = q mod p;
+		//           it fails only if an earlier stage returned an inconsistent
+		//           solution, which was not observed in 255 in-bound inputs.
+		//           TestSolveNTRU exercises the check itself with
+		//           perturbed F and G.
 		return smallPolynomial{}, smallPolynomial{}, false
 	}
 	return ntruF, ntruG, true
@@ -516,6 +536,11 @@ func solveNTRUDeepest(f, g smallPolynomial, tmp []uint32) bool {
 	}
 
 	if zintMulSmall(layout.Fp, q) != 0 || zintMulSmall(layout.Gp, q) != 0 {
+		//coverage:ignore
+		//rationale: the reference's overflow guard on q*Fp and q*Gp; the Bezout
+		//           coefficients of two in-bound resultants fit the word length
+		//           by construction, and no input reaching this point is known
+		//           to overflow it.
 		return false
 	}
 
@@ -1084,6 +1109,11 @@ func solveNTRUBinaryDepth1(f, g smallPolynomial, wk *ntruWorkspace) bool {
 		// Bounds written with !(<) on both sides to also reject NaN
 		// (NaN comparisons all return false; the negation captures them).
 		if !(z < twoTo63Minus1) || !(negTwoTo63Minus1 < z) {
+			//coverage:ignore
+			//rationale: the reference's guard against a NaN or out-of-range
+			//           reduction coefficient; for (f, g) within the keygen bounds
+			//           the value is a small integer, and no input reaching this
+			//           depth is known to produce otherwise.
 			return false
 		}
 		rt5[i] = fpr(fprRint(z))

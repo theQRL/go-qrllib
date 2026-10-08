@@ -67,7 +67,10 @@ func signLoop(t *testing.T, priv *PrivateKey, pub *PublicKey) *sha3.SHAKE {
 		_, _ = sc.Write(msg[:])
 		c0 := hashToPoint(sc)
 
-		s2 := sign(rng, priv, c0)
+		s2, err := sign(rng, priv, c0)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !verifyRaw(c0, s2, pub.hNTT) {
 			t.Fatalf("signature %d not verified", i)
 		}
@@ -161,9 +164,15 @@ func TestKeygenSelfSignLoop(t *testing.T) {
 		_, _ = sc.Write(msg[:])
 		c0 := hashToPoint(sc)
 
-		s2 := sign(rng, priv, c0)
+		s2, err := sign(rng, priv, c0)
+		if err != nil {
+			t.Fatal(err)
+		}
 		for !isInvertible(s2) {
-			s2 = sign(rng, priv, c0)
+			s2, err = sign(rng, priv, c0)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 		if !verifyRaw(c0, s2, pub.hNTT) {
 			t.Fatalf("key %d: self signature not verified", i)

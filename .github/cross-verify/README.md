@@ -125,9 +125,13 @@ commit users to a choice QRL has not made.
 ### Falcon-1024 (round-3 reference, via PQClean)
 
 - Reference: <https://github.com/PQClean/PQClean> `crypto_sign/falcon-1024/clean`
-  (current master). This is the Falcon round-3 reference code behind the
-  NIST API: integer-emulated floating point and the `sign_dyn` signer, which
-  go-qrllib reproduces bit for bit.
+  at commit `0586a824fc0d49df0b6b6e9179d8d15d06d0974f` (pinned in the
+  workflow; bump it deliberately). This is the Falcon round-3 reference code
+  behind the NIST API: integer-emulated floating point and the `sign_dyn`
+  signer, which go-qrllib reproduces bit for bit.
+- The job also runs the Falcon test suite on each matrix target before the
+  comparison. amd64 fuses only `x*y+z`; arm64 also fuses the subtract forms,
+  so the fusion-boundary tests and the KAT must run on both.
 - Both sides draw every random byte from the same SHAKE256 stream (the C
   harness defines `randombytes()` over PQClean's SHAKE256), so the check is
   stronger than mutual verification: for 8 entries it requires byte-identical
@@ -140,7 +144,10 @@ commit users to a choice QRL has not made.
   multiply-adds unless the code prevents it, which the Go sampler does with
   explicit conversions; running there checks that the guards hold.
 - Key sizes: PK=1793, SK=2305 bytes; signed message overhead at most 1330,
-  detached signature at most 1462 bytes
+  detached signature at most 1462 bytes. PQClean's `crypto_sign_signature`
+  caps the compressed body at 1,287 bytes (1,328 in total) where go-qrllib's
+  `SignDetached` allows the library-API maximum; in the rare tail above that
+  cap the byte comparison fails on PQClean's side, not go-qrllib's.
 
 ### ML-KEM-1024 (FIPS 203) — vs Go stdlib `crypto/mlkem`
 

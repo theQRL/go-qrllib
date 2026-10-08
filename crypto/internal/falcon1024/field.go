@@ -3,7 +3,6 @@ package falcon1024
 import (
 	"crypto/sha3"
 	"encoding/binary"
-	"errors"
 )
 
 const (
@@ -115,7 +114,7 @@ const encodingSize14 = 1792
 
 func polyByteDecode(b []byte) (ringElement, error) {
 	if len(b) != encodingSize14 {
-		return ringElement{}, errors.New("falcon-1024: invalid encoding length")
+		return ringElement{}, errInvalidPublicKeyLength
 	}
 
 	var p ringElement
@@ -134,7 +133,7 @@ func polyByteDecode(b []byte) (ringElement, error) {
 		p[i+3] = fieldElement(x & 0x3FFF)
 
 		if p[i] >= q || p[i+1] >= q || p[i+2] >= q || p[i+3] >= q {
-			return ringElement{}, errors.New("falcon-1024: invalid polynomial encoding")
+			return ringElement{}, errInvalidPublicKeyEncoding
 		}
 
 		b = b[7:]
@@ -261,6 +260,10 @@ func sampleGaussianPolynomial(rng *sha3.SHAKE) smallPolynomial {
 	for i := 0; i < n; {
 		x := sampleKeygenGaussian(rng)
 		if x < -ntruCoeffBound || x > ntruCoeffBound {
+			//coverage:ignore
+			//rationale: at degree 1024 mkgauss is a single draw from a table whose
+			//           largest value is 26, so |x| > 127 cannot occur; the check is
+			//           the reference's and matters only for small degrees.
 			continue
 		}
 
@@ -338,10 +341,12 @@ func squaredNormExceedsBound(f, g smallPolynomial, bound uint32) bool {
 
 func orthogonalizedNormExceedsBound(f, g smallPolynomial, bound float64) bool {
 	var rf, rg fftPolynomial
+	defer zeroFFTPolynomials(&rf, &rg)
 	fftFromSmall(rf[:], f)
 	fftFromSmall(rg[:], g)
 
 	var invNorm fftPolynomial
+	defer zeroFFTPolynomials(&invNorm)
 	fftInvNorm2(invNorm[:], rf[:], rg[:], logN)
 
 	fftAdj(rf[:], logN)

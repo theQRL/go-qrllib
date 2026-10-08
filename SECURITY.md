@@ -194,6 +194,22 @@ or address layer.
 
 ---
 
+### Falcon-1024 (round-3 submission, pre-FIPS 206)
+
+| Property | Status |
+| --- | --- |
+| Post-quantum secure | Yes (NTRU lattice assumptions) |
+| EUF-CMA secure | Yes, per the Falcon specification |
+| Deterministic signing | No. Each signature draws a 40-byte nonce and then a 48-byte sampler seed from the caller's `io.Reader` (nil selects `crypto/rand`). The sampler seed is as sensitive as the private key for the signature it produces; a reader that repeats bytes belongs in tests only. |
+| Stateless | Yes |
+| Side-channel resistant | Verification is integer-only. Key generation and signing use native `float64` and, like the reference, are not constant-time; see [details below](#constant-time-operations). |
+| Signature malleability | No: the compressed encoding rejects a `-0` coefficient, magnitudes above 2047, non-zero padding bits and trailing bytes, and both framings require the signature to consume exactly the bytes it claims. |
+| Public-key validation | Encoding only: header byte, length and every coefficient below q. The shape of the polynomial is not checked. A public key whose polynomial is a small constant or monomial (any `±k·x^j` with k roughly between 14 and 907) lets anyone round a message hash to a short lattice point and produce a signature the verifier accepts, so a signature proves nothing about who generated such a key. Keys from `GenerateKey` never have this shape (`h = g/f` is uniform). Whether to adopt a rejection rule, as the library does for ML-DSA-87, is an open decision; any rule must be identical across clients and frozen with shared vectors. `TestConstantPublicKeyIsNotRejected` pins the current behaviour so the decision is deliberate. |
+| Private-key import | `NewPrivateKey` recomputes G as the reference `crypto_sign` does and additionally applies the key-generation bounds to the decoded (f, g): squared norm below 16823 and orthogonalised Gram-Schmidt norm below 16822.4121. Every key the reference or this package generates passes; an encoding outside the bounds would keep the signing loop rejecting or drive the sampler out of the domain in which its arithmetic matches the reference. The signing loop is bounded at 128 attempts and returns `ErrSigningFailed` beyond that. |
+| Standard status | Falcon as submitted to round 3 of the NIST competition (specification v1.2), bit for bit with the reference implementation: the round-3 KAT is regenerated in the test suite (`TestFalconRound3KATDigest`) and CI compares keys and signatures byte for byte with PQClean on amd64, amd64 with fused multiply-add and arm64. FIPS 206 (FN-DSA) is still a draft and is announced to differ from the submission in details. |
+
+**Security Level**: NIST Level 5
+
 ## Address Security
 
 ### Address Derivation
@@ -279,6 +295,15 @@ branch patterns). These are outside this library's control. For environments
 where hardware-level constant-time guarantees are required, use a hardware
 security module.
 
+**Falcon-1024**: verification is integer-only (NTT mod q and a saturating
+squared-norm sum). Key generation and signing use native `float64`; like the
+reference implementation they are not constant-time. The Gaussian sampler
+keeps the reference's control flow (its only data-dependent branches, the
+`BerExp` byte loop and the rejection loop, are in the C code too) and the
+compiled code was checked for additional branches on arm64 and amd64 v3, but
+the timing of hardware floating-point operations is outside the library's
+control. Do not run Falcon signing where a co-resident attacker can time it.
+
 ### Signature Canonicality
 
 All signature schemes enforce canonical encoding, verified by comprehensive
@@ -296,6 +321,17 @@ negative tests:
 - Hash-based signatures are inherently canonical
 - Fixed signature sizes enforced
 
+**Falcon-1024**:
+
+- Compressed `s2`: a `-0` coefficient, a magnitude above 2047, non-zero
+  padding bits and bytes left after the last coefficient are rejected
+  (`comp_decode` rules)
+- Signed message: the two-byte length field must match the signature exactly;
+  a detached signature must consume every byte after the nonce
+- Public key: every 14-bit coefficient must be below q; private key: the
+  five-bit `-16` and eight-bit `-128` encodings are rejected (`trim_i8_decode`
+  rules)
+
 #### Canonicality Test Coverage
 
 Non-canonical encodings are rejected by the verification functions. This is
@@ -306,6 +342,7 @@ verified by:
 | [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
 | [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
 | [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
+| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; fuzz targets assert a valid signature has exactly one accepted encoding |
 
 Run canonicality tests:
 
@@ -351,6 +388,16 @@ persisting in freed memory:
   seed/noise/message-derived polynomial intermediates (`gInput`, `G`, `e`, `y`,
   `e1`, `e2`, `mu`, `v`, `acc`) are wiped data-independently
 - **SPHINCS+**: `ctx.SkSeed`
+- **Falcon-1024 `PrivateKey.Zeroize`**: the encoded key, the FFT basis and the
+  LDL tree; the public key is kept and signing afterwards returns
+  `ErrSecretKeyZeroized`
+- **Falcon-1024 signing** (`signCore`, `sign`, `signAttempt`): the sampler
+  seed, its SHAKE state, the ChaCha20 sampler state and buffer, and the
+  target, sample and lattice vectors
+- **Falcon-1024 key generation and import** (`NewPrivateKeyFromSeed`,
+  `NewPrivateKey`, `initPrivateKey`, `expandPrivateKey`, `solveNTRU`): f, g,
+  F, G and their NTT and FFT forms, the Gram matrix, the LDL scratch and the
+  NTRU solver workspace
 
 #### Guarantee boundary (best-effort under Go's memory model)
 
@@ -441,10 +488,14 @@ The library distinguishes two failure classes:
 
 Existing invariant-panic sites include `crypto/xmss/params.go` (WOTS parameter
 values), `crypto/xmss/hash.go:coreHash` (HashFunction dispatch),
-`crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), and several SHAKE I/O
+`crypto/xmss/xmss_fast.go:treeHashSetup` (Height bounds), several SHAKE I/O
 sites in `crypto/sphincsplus_256s/hash_shake.go` (cryptographic-primitive errors
-that the SHA-3 contract guarantees do not occur). All carry comments explaining
-what upstream invariant is being enforced.
+that the SHA-3 contract guarantees do not occur), and in
+`crypto/internal/falcon1024` the NTRU solver scratch allocators
+(`ntru.go`: `uint32Scratch.take`, `fprScratch.take`) and `fft.go:ffLDLFFT`
+(short LDL scratch), whose sizes are static for n = 1024 and never depend on
+input. All carry comments explaining what upstream invariant is being enforced;
+the Falcon sites are exercised under `recover` by `TestScratchExhaustionPanics`.
 
 | Function | Nil public key | Wrong-size signature | Oversized context | Verification failure |
 | --- | --- | --- | --- | --- |
@@ -456,6 +507,8 @@ what upstream invariant is being enforced.
 | `legacywallet/xmss.Verify` | n/a (value type) | returns `false` | n/a | returns `false` |
 | `wallet/ml_dsa_87.Verify` | returns `false` | returns `false` | n/a | returns `false` |
 | `wallet/sphincsplus_256s.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/falcon1024.Verify` | returns `false` | returns `false` | n/a | returns `false` |
+| `crypto/falcon1024.Open` | `(nil, ErrPublicKeyNil)` | `(nil, ErrInvalidSignatureSize)` below the 42-byte prefix; `(nil, ErrInvalidSignature)` for any other malformed encoding | n/a | `(nil, ErrInvalidSignature)` |
 
 XMSS preconditions: `crypto/xmss.Verify` and `VerifyWithCustomWOTSParamW`
 return `false` for an invalid `HashFunction` or a public key that is not
@@ -486,6 +539,21 @@ the all-zero `PK{}` there, which is itself a rejected weak key. Regression
 tests: `lifecycle_test.go`, `TestWallet_ZeroValue`, and
 `TestWallet_SignDeterministic_AfterZeroize`.
 
+Keypair lifecycle (Falcon-1024): the same three states as ML-DSA-87. A nil
+`*falcon1024.PublicKey` or `*PrivateKey` is refused with `ErrPublicKeyNil`
+or `ErrSecretKeyNil`; a zero value that never went through a constructor is
+uninitialised, so `Open` returns `ErrInvalidPublicKey`, `Sign` and
+`SignDetached` return `ErrKeyUninitialised` and `Public` is nil; in both
+cases `Verify` returns `false`, `Bytes` returns nil and `Equal` returns
+`false`. After `PrivateKey.Zeroize`, `Sign` and `SignDetached` return
+`ErrSecretKeyZeroized`, `Bytes` returns nil, `Equal` is `false`, and the
+public key stays available (`Public` returns a copy, so holding it does not
+keep the private key reachable); `Zeroize` is idempotent. The internal
+package keeps the state in a `keyState` enum (uninitialised, ready,
+zeroized) exactly as `crypto/ml_dsa_87` does. Regression tests:
+`crypto/falcon1024/nil_pk_test.go`, `lifecycle_test.go`,
+`crypto/internal/falcon1024/hardening_test.go`.
+
 Secret keys (ML-DSA-87): every signing path first checks that each `s1`
 and `s2` coefficient lies in `[-ETA, ETA]` (`ValidateSecretKey`, returning
 `ErrInvalidSecretKey`); an out-of-range coefficient would break the
@@ -493,17 +561,30 @@ and `s2` coefficient lies in `[-ETA, ETA]` (`ValidateSecretKey`, returning
 is bounded at 1024 attempts and returns `ErrSigningFailed` beyond that.
 For a valid key the acceptance probability per attempt is about 0.26
 regardless of the key, so the bound is a sub-2⁻⁴⁴⁰ event in honest use; it
-exists so that a crafted `t0` cannot make signing spin. Nothing in this
-library imports raw secret-key bytes today; the checks sit at the raw-key
-signing primitive so any future import path inherits them. Regression
-tests: `secretkey_test.go`.
+exists so that a crafted `t0` cannot make signing spin. The ML-DSA-87 checks
+sit at the raw-key signing primitive so any future import path inherits them.
+Regression tests: `secretkey_test.go`.
+
+Secret keys (Falcon-1024): `crypto/falcon1024.NewPrivateKey` is the one path
+that imports raw secret-key bytes. Besides the reference's own checks (the
+`trim_i8` encoding rules, f invertible mod q, the recomputed G within ±127)
+it applies the key-generation bounds to the decoded (f, g), and the signing
+loop is bounded at 128 attempts (`ErrSigningFailed`); see "Falcon-1024"
+above. Regression tests: `TestNewPrivateKeyRejectsOutOfBoundEncodings`,
+`TestSignLoopIsBounded`.
 
 The crypto-level `Open` functions return `([]byte, error)`. Each failure mode
 surfaces a distinct typed sentinel from `cryptoerrors`, so callers that need to
 log or route on specific failure types can use `errors.Is(err,
 cryptoerrors.ErrPublicKeyNil)` etc. Callers that don't care which failure
 occurred can write `msg, _ := Open(...)` and treat `msg == nil` as "did not
-verify".
+verify". Falcon-1024 wraps the same sentinels: `ErrPublicKeyNil`,
+`ErrSecretKeyNil`, `ErrKeyUninitialised`, `ErrSecretKeyZeroized`,
+`ErrInvalidPublicKey`, `ErrInvalidSecretKey`, `ErrInvalidSignatureSize` (a
+signature or signed message shorter than its fixed prefix),
+`ErrInvalidSignature`, `ErrInvalidSeed`, `ErrSigningFailed` (also for a
+signature that does not fit its encoding) and `ErrSeedGeneration` (a failing
+randomness reader, with the reader's error kept in the chain).
 
 Internal entry points (`cryptoSignVerify`, `cryptoSignOpen`) carry the same
 nil-PK guard as defense-in-depth and surface the same typed sentinels.

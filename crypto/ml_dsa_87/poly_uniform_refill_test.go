@@ -42,16 +42,18 @@ func TestPolyUniformRefillMatchesRejNTTPoly(t *testing.T) {
 	// triples. A refill happens only if fewer than 256 of them are accepted,
 	// which needs at least 25 rejections where fewer than one is expected,
 	// so no real seed exercises it. Drive it with a crafted stream whose
-	// first 40 triples are 0xFF 0xFF 0x7F, the largest 23-bit value, which
+	// first 81 triples are 0xFF 0xFF 0x7F, the largest 23-bit value, which
 	// is rejected, and check that sampling continues from the right offset
 	// of the stream: the reference squeezes exactly five blocks before the
 	// refill, and the two spare buffer bytes must not be taken from the
-	// stream on the first pass.
+	// stream on the first pass. 81 rejections leave at most 199 + 56 = 255
+	// accepted candidates after the first refill, so the second refill,
+	// where the carry-over offset is recomputed, is reached as well.
 	xof := sha3.NewSHAKE256()
 	_, _ = xof.Write([]byte("poly_uniform refill"))
 	stream := make([]byte, POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES+4*STREAM128_BLOCK_BYTES)
 	_, _ = xof.Read(stream)
-	for i := range 40 {
+	for i := range 81 {
 		stream[3*i], stream[3*i+1], stream[3*i+2] = 0xFF, 0xFF, 0x7F
 	}
 
@@ -61,17 +63,25 @@ func TestPolyUniformRefillMatchesRejNTTPoly(t *testing.T) {
 	}
 	requireSameCoefficients(t, got.coeffs, refRejNTTPoly(t, bytes.NewReader(stream)))
 
-	// The refill must have been reached: the accepted coefficients of the
-	// first pass cannot fill the polynomial.
-	accepted := 0
-	for i := 0; i+3 <= POLY_UNIFORM_N_BLOCKS*STREAM128_BLOCK_BYTES; i += 3 {
-		z := uint32(stream[i]) | uint32(stream[i+1])<<8 | uint32(stream[i+2]&0x7F)<<16
-		if z < Q {
-			accepted++
+	// Both refills must have been reached: the accepted coefficients of the
+	// first pass, and of the first pass plus the first refill, cannot fill
+	// the polynomial.
+	acceptedBefore := func(limit int) int {
+		accepted := 0
+		for i := 0; i+3 <= limit; i += 3 {
+			z := uint32(stream[i]) | uint32(stream[i+1])<<8 | uint32(stream[i+2]&0x7F)<<16
+			if z < Q {
+				accepted++
+			}
 		}
+		return accepted
 	}
-	if accepted >= N {
+	firstPass := POLY_UNIFORM_N_BLOCKS * STREAM128_BLOCK_BYTES
+	if accepted := acceptedBefore(firstPass); accepted >= N {
 		t.Fatalf("first pass accepted %d candidates, the refill was not exercised", accepted)
+	}
+	if accepted := acceptedBefore(firstPass + STREAM128_BLOCK_BYTES); accepted >= N {
+		t.Fatalf("first pass and first refill accepted %d candidates, the second refill was not exercised", accepted)
 	}
 }
 

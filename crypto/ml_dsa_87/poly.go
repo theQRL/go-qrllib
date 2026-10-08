@@ -133,8 +133,9 @@ func polyUniform(a *poly, seed *[SEED_BYTES]uint8, nonce uint16) error {
 
 // polyUniformFromXOF runs the rejection sampling of the reference
 // poly_uniform over an arbitrary byte stream, so that tests can drive the
-// refill path, which no real seed reaches in practice (it needs at least 25
-// rejected candidates among the first 280, where fewer than one is expected).
+// refill path, which no real seed reaches in practice: it needs at least 25
+// rejected candidates among the first 280, where 0.27 are expected, a
+// 2^-132 event per polynomial.
 //
 // The first read takes exactly POLY_UNIFORM_N_BLOCKS blocks of the stream, as
 // the reference squeezes them. The two spare bytes of the buffer only hold a
@@ -156,6 +157,10 @@ func polyUniformFromXOF(a *poly, xof io.Reader) error {
 	for ctr < N {
 		off := bufLen % 3
 		for i := 0; i < off; i++ {
+			//coverage:ignore
+			//rationale: 5 blocks (840 bytes) and a block (168 bytes) are multiples
+			//           of 3, so no candidate bytes are ever carried over for these
+			//           parameters; the carry mirrors the reference poly_uniform.
 			buf[i] = buf[bufLen-off+i]
 		}
 

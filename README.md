@@ -21,6 +21,7 @@ general-purpose applications requiring quantum-resistant security.
 | **SPHINCS+-256s** | Hash-based | SPHINCS+ submission (pre-FIPS 205) — see SPHINCS+ notes | Stateless primitive; wallet path gated pending QRL's SLH-DSA parameter-set choice |
 | **XMSS** | Hash-based | Pre-standardisation; see XMSS notes | QRL v1 → v2 migration |
 | **ML-KEM-1024** | Lattice-based (KEM) | FIPS 203 | Key-encapsulation primitive (not a signature); `crypto/mlkem1024`, not wallet-integrated |
+| **Falcon-1024** | Lattice-based (NTRU) | Falcon round-3 submission (pre-FIPS 206) — see Falcon notes | Signature primitive, `crypto/falcon1024` |
 
 ---
 
@@ -325,6 +326,7 @@ that type is not a valid common descriptor until SLH-DSA activation.
 | `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `PublicKey()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
 | `sphincsplus_256s.SphincsPlus256s` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `xmss.XMSS` | **No** | NEVER use concurrently. Index management is not thread-safe. |
+| `falcon1024.PrivateKey` | Read: Yes, Write: No | The key is read-only after construction, so concurrent `Sign`/`SignDetached` calls on one key are safe. `Zeroize` is the one write; do not call it while a signing call is in flight. |
 | Package-level `Verify()` | Yes | Stateless, safe to call concurrently |
 
 ### Safe Concurrent Pattern
@@ -366,6 +368,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | ML-DSA-87 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
 | SPHINCS+-256s | 64 bytes | 128 bytes | 29,792 bytes |
 | XMSS (h=10) | 64 bytes | ~2,500 bytes | ~2,500 bytes |
+| Falcon-1024 | 1,793 bytes | 2,305 bytes | ≤ 1,462 bytes detached (about 1,261 on average); signed message adds ≤ 1,330 bytes |
 
 ---
 
@@ -388,6 +391,15 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
 ## Standards Compliance
 
 - **ML-DSA-87**: FIPS 204 (Module-Lattice-Based Digital Signature Standard)
+- **Falcon-1024** (notes): `crypto/falcon1024` implements Falcon as submitted
+  to round 3 of the NIST competition (specification v1.2), bit for bit with
+  the reference implementation: the round-3 KAT is regenerated in the test
+  suite and CI compares keys and signatures byte for byte with PQClean on
+  amd64, amd64 with fused multiply-add and arm64. NIST's standard for Falcon,
+  FIPS 206 (FN-DSA), is still a draft and is announced to differ from the
+  submission in details, so key, signature and hashing formats may change
+  when it is final. Public keys are checked for their encoding, not their
+  shape (see [SECURITY.md](SECURITY.md), "Falcon-1024").
 - **SPHINCS+-256s** (notes): The implementation in this library is the
   **SPHINCS+
   submission** (pre-FIPS 205), specifically `SHAKE-256s-robust`. NIST published
@@ -441,13 +453,15 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
 ## Security Considerations
 
 1. **Zeroize sensitive data** - Always call `Zeroize()` when done with a signer
+   (every secret-bearing type has one, including `falcon1024.PrivateKey`)
 2. **Use crypto/rand** - Never use weak random sources for key generation
 3. **Context separation** - Use unique contexts for different applications
    (ML-DSA-87)
 4. **XMSS state** - See critical warning above
 5. **Side channels** - Signing and verification use branchless arithmetic and
    constant-time comparisons; see [SECURITY.md](SECURITY.md) for precise
-   boundaries
+   boundaries. Falcon-1024 key generation and signing use floating-point
+   arithmetic and, like the reference implementation, are not constant-time.
 
 See [SECURITY.md](SECURITY.md) for detailed security information and threat
 model.

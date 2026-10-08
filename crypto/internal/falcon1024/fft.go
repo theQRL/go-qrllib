@@ -508,6 +508,7 @@ type samplerZ func(prng *samplerPRNG, mu, isigma fpr) fpr
 
 func ffSamplingFFT(samp samplerZ, prng *samplerPRNG, z0, z1, t0, t1, tree []fpr, logn int) {
 	var tmp [2 * n]fpr
+	defer zeroFPRs(tmp[:])
 	degree := 1 << logn
 	ffSamplingFFTRecursive(samp, prng, z0[:degree], z1[:degree], tree, t0[:degree], t1[:degree], tmp[:degree<<1], logn)
 }

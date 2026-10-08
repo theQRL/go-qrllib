@@ -1,4 +1,4 @@
-.PHONY: all test lint check clean fuzz fuzz-quick test-kat test-fast test-edge test-thread test-coverage test-coverage-fast test-falcon-fma bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint markdownlint markdownlint-fix
+.PHONY: all test lint check clean fuzz fuzz-quick fuzz-falcon test-kat test-fast test-edge test-thread test-coverage test-coverage-fast test-falcon-fma bench bench-fast shadow ineffassign staticanalysis scan govulncheck gosec nancy actionlint markdownlint markdownlint-fix
 
 # Use golangci-lint from GOPATH/bin if not in PATH
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null || echo "$(HOME)/go/bin/golangci-lint")
@@ -91,7 +91,7 @@ test-coverage:
 # Run fast tests with coverage (excludes SPHINCS+)
 test-coverage-fast:
 	@echo "Running fast tests with coverage (excludes SPHINCS+)..."
-	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/internal/... ./wallet/... ./legacywallet/...
+	@go test -coverprofile=coverage.out -covermode=atomic ./crypto/ml_dsa_87/... ./crypto/xmss/... ./crypto/falcon1024/... ./crypto/internal/... ./wallet/... ./legacywallet/...
 	@echo "Processing coverage exclusions (//coverage:ignore comments)..."
 	@$(GO_IGNORE_COV) --file coverage.out --ignore-empty || echo "Note: install go-ignore-cov for coverage exclusions: go install github.com/quantumcycle/go-ignore-cov@v0.7.1"
 	@go tool cover -html=coverage.out -o coverage.html
@@ -117,12 +117,12 @@ bench-mldsa:
 # Run KAT (Known Answer Test) tests only
 test-kat:
 	@echo "Running KAT tests..."
-	@go test -v ./crypto/ml_dsa_87/... ./crypto/sphincsplus_256s/... -run 'KAT'
+	@go test -v ./crypto/ml_dsa_87/... ./crypto/sphincsplus_256s/... ./crypto/internal/falcon1024/... -run 'KAT'
 
 # Run KAT tests for fast packages only (excludes SPHINCS+)
 test-kat-fast:
 	@echo "Running KAT tests (fast packages only)..."
-	@go test -v ./crypto/ml_dsa_87/... -run 'KAT'
+	@go test -v ./crypto/ml_dsa_87/... ./crypto/internal/falcon1024/... -run 'KAT'
 
 # Run the Falcon-1024 tests with fused multiply-add instructions (GOAMD64=v3).
 # The default amd64 build never fuses, so this is the only way to exercise the
@@ -154,7 +154,7 @@ test-thread-fast:
 	@go test -race -v ./crypto/ml_dsa_87/... ./crypto/xmss/... -run 'ThreadSafety'
 
 # Run all fuzz tests for a short duration
-fuzz: fuzz-xmss fuzz-mldsa fuzz-mlkem fuzz-sphincs fuzz-mnemonic
+fuzz: fuzz-xmss fuzz-mldsa fuzz-mlkem fuzz-sphincs fuzz-falcon fuzz-mnemonic
 	@echo "All fuzz tests completed."
 
 # Quick fuzz test (shorter duration, essential targets only)
@@ -163,6 +163,7 @@ fuzz-quick:
 	@go test -fuzz=FuzzXMSSVerify -fuzztime=$(FUZZ_TIME) ./crypto/xmss/...
 	@go test -fuzz=FuzzMLDSA87Verify -fuzztime=$(FUZZ_TIME) ./crypto/ml_dsa_87/...
 	@go test -fuzz=FuzzMLKEM1024Decapsulate -fuzztime=$(FUZZ_TIME) ./crypto/internal/mlkem1024/...
+	@go test -fuzz=FuzzFalcon1024Verify -fuzztime=$(FUZZ_TIME) ./crypto/falcon1024/...
 	@go test -fuzz=FuzzMnemonicToBin -fuzztime=$(FUZZ_TIME) ./wallet/misc/...
 
 # Fuzz XMSS signature verification
@@ -196,6 +197,14 @@ fuzz-sphincs:
 	@go test -fuzz=FuzzSphincsPlus256sOpen -fuzztime=$(FUZZ_TIME) ./crypto/sphincsplus_256s/...
 	@go test -fuzz=FuzzSphincsPlus256sExtractMessage -fuzztime=$(FUZZ_TIME) ./crypto/sphincsplus_256s/...
 	@go test -fuzz=FuzzSphincsPlus256sExtractSignature -fuzztime=$(FUZZ_TIME) ./crypto/sphincsplus_256s/...
+
+# Fuzz Falcon-1024 decoders and verification
+fuzz-falcon:
+	@echo "Fuzzing Falcon-1024 ($(FUZZ_TIME) per target)..."
+	@go test -fuzz=FuzzFalcon1024NewPublicKey -fuzztime=$(FUZZ_TIME) ./crypto/falcon1024/...
+	@go test -fuzz=FuzzFalcon1024NewPrivateKey -fuzztime=$(FUZZ_TIME) ./crypto/falcon1024/...
+	@go test -fuzz=FuzzFalcon1024Verify -fuzztime=$(FUZZ_TIME) ./crypto/falcon1024/...
+	@go test -fuzz=FuzzFalcon1024Open -fuzztime=$(FUZZ_TIME) ./crypto/falcon1024/...
 
 # Fuzz mnemonic operations
 fuzz-mnemonic:

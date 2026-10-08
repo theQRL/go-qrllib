@@ -159,7 +159,10 @@ func TestSignTree(t *testing.T) {
 
 			rng := sha3.NewSHAKE256()
 			_, _ = rng.Write([]byte(tc.seed))
-			s2 := sign(rng, priv, c0)
+			s2, err := sign(rng, priv, c0)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if !verifyRaw(c0, s2, pub.hNTT) {
 				t.Fatal("sign output failed verifyRaw")
 			}
@@ -168,13 +171,14 @@ func TestSignTree(t *testing.T) {
 }
 
 func TestSignRound3KATVectors(t *testing.T) {
-	// These vectors are derived from Falcon Round 3 submission KATs, not
-	// official NIST/FIPS validation vectors.
-	// TestFalconRound3KATDigest checks the full 100-case transcript against the
-	// Falcon reference digest; this test pins the internal sign output
-	// for every KAT case.
+	// These vectors are derived from the Falcon round-3 submission KATs
+	// (KAT/falcon1024-KAT.rsp in falcon-round3.zip, produced by the NIST API,
+	// i.e. the sign_dyn path this package follows), not from NIST/FIPS
+	// validation vectors. TestFalconRound3KATDigest checks the full 100-case
+	// transcript against the SHA-1 of that file; this test pins the
+	// compressed s2 of every case so a failure names the case.
 	// Source: https://falcon-sign.info/falcon-round3.zip
-	testCases := readSignTreeRound3KATVectors(t)
+	testCases := readSignDynRound3KATVectors(t)
 
 	forEachRound3KATSignInput(t, len(testCases), func(count int, priv *PrivateKey, c0 ringElement, rng *sha3.SHAKE) {
 		tc := testCases[count]
@@ -182,7 +186,10 @@ func TestSignRound3KATVectors(t *testing.T) {
 			if tc.Count != count {
 				t.Fatalf("count = %d, want %d", tc.Count, count)
 			}
-			s2 := sign(rng, priv, c0)
+			s2, err := sign(rng, priv, c0)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			pub := priv.PublicKey()
 			if !verifyRaw(c0, s2, pub.hNTT) {
@@ -395,6 +402,8 @@ func TestFalconRound3KATDigest(t *testing.T) {
 		katDigestWriteLine(h, "")
 	}
 
+	// SHA-1 of KAT/falcon1024-KAT.rsp in https://falcon-sign.info/falcon-round3.zip
+	// (1,757,286 bytes); the transcript above is rebuilt in that file's layout.
 	if got := h.Sum(nil); hex.EncodeToString(got) != "affdeb3aa83bf9a2039fa9c17d65fd3e3b9828e2" {
 		t.Fatalf("Round 3 KAT digest mismatch: %x", got)
 	}

@@ -46,6 +46,10 @@ def load_pair(prompt_path, results_path):
 
 def supported_signature_group(tg):
     """Reports whether go-qrllib can serve a sigGen/sigVer test group."""
+    # Newer ACVP revisions add keyFormat (expanded | seed); the merged sk
+    # field below is the expanded key, so seed-format groups are skipped.
+    if tg.get("keyFormat", "expanded") != "expanded":
+        return False
     interface = tg.get("signatureInterface", "")
     if interface == "external":
         return tg.get("preHash", "") == "pure"

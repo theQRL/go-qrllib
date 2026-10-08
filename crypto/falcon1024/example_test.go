@@ -2,6 +2,7 @@ package falcon1024_test
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 
 	"github.com/theQRL/go-qrllib/crypto/falcon1024"
@@ -25,9 +26,8 @@ func Example() {
 	if err != nil {
 		log.Fatal("invalid signature")
 	}
-	if !bytes.Equal(opened, msg) {
-		log.Fatal("unexpected message")
-	}
+	fmt.Println(bytes.Equal(opened, msg))
+	// Output: true
 }
 
 func Example_detached() {
@@ -44,7 +44,6 @@ func Example_detached() {
 		log.Fatal(err)
 	}
 
-	if !falcon1024.Verify(pub, msg, sig) {
-		log.Fatal("invalid signature")
-	}
+	fmt.Println(falcon1024.Verify(pub, msg, sig))
+	// Output: true
 }

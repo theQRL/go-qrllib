@@ -248,18 +248,28 @@ jobs:
         with:
           go-version: '1.25.x'
 
+      - name: Run the Falcon-1024 test suite on this target
+        # The suite carries the KAT and the fusion-boundary tests. amd64 fuses
+        # only the add form x*y+z; arm64 also fuses x*y-z and z-x*y, so a
+        # dropped guard at a subtract-form site shows up only here. Running
+        # the suite on every leg of the matrix keeps both shapes covered.
+        run: go test -count=1 ./crypto/internal/falcon1024/... ./crypto/falcon1024/...
+
       - name: Clone PQClean falcon-1024 (clean)
         # PQClean's "clean" Falcon-1024 is the round-3 reference code behind the
         # NIST API: integer-emulated floating point and the sign_dyn signer,
         # i.e. exactly what go-qrllib reproduces bit for bit. Sparse checkout
-        # of the implementation and the shared SHAKE code only.
+        # of the implementation and the shared SHAKE code only, pinned to the
+        # commit the harness was written against so "byte for byte" has a
+        # fixed referent; bump the pin deliberately.
         run: |
-          git clone --depth 1 --no-checkout --filter=blob:none \
-            https://github.com/PQClean/PQClean.git /tmp/pqclean
+          git init /tmp/pqclean
           cd /tmp/pqclean
+          git remote add origin https://github.com/PQClean/PQClean.git
           git sparse-checkout init --cone
           git sparse-checkout set crypto_sign/falcon-1024/clean common
-          git checkout
+          git fetch --depth 1 --filter=blob:none origin 0586a824fc0d49df0b6b6e9179d8d15d06d0974f
+          git checkout FETCH_HEAD
           echo "PQClean commit: $(git rev-parse --short HEAD)"
 
       - name: Generate go-qrllib keys and signatures from the shared stream
