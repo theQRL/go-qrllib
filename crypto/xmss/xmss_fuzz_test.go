@@ -12,8 +12,9 @@ func FuzzXMSSVerify(f *testing.F) {
 	f.Add(make([]byte, 100), make([]byte, 100), make([]byte, 100), uint8(2))
 
 	f.Fuzz(func(t *testing.T, message, signature, pk []byte, hashFuncByte uint8) {
-		// Map hashFuncByte to valid hash function
-		hashFunc := HashFunction(hashFuncByte % 3)
+		// Deliberately unmasked: Verify must return false, never panic, for
+		// every HashFunction value including the 253 invalid ones.
+		hashFunc := HashFunction(hashFuncByte)
 
 		// This should never panic, regardless of input
 		_ = Verify(hashFunc, message, signature, pk)
@@ -26,14 +27,12 @@ func FuzzXMSSVerifyWithCustomWOTSParamW(f *testing.F) {
 	f.Add(make([]byte, 32), make([]byte, 2287), make([]byte, 64), uint8(1), uint32(16))
 
 	f.Fuzz(func(t *testing.T, message, signature, pk []byte, hashFuncByte uint8, wotsParamW uint32) {
-		hashFunc := HashFunction(hashFuncByte % 3)
-
-		// Constrain wotsParamW to valid values to avoid panic in NewWOTSParams
-		// Valid values are powers of 2 where logW is 2, 4, or 8 (i.e., w = 4, 16, 256)
-		validW := []uint32{4, 16, 256}
-		w := validW[int(wotsParamW)%len(validW)]
+		// Deliberately unmasked on both selectors: VerifyWithCustomWOTSParamW
+		// validates hashFunction and wotsParamW itself and must return false,
+		// never panic, for every value of each.
+		hashFunc := HashFunction(hashFuncByte)
 
 		// This should never panic
-		_ = VerifyWithCustomWOTSParamW(hashFunc, message, signature, pk, w)
+		_ = VerifyWithCustomWOTSParamW(hashFunc, message, signature, pk, wotsParamW)
 	})
 }

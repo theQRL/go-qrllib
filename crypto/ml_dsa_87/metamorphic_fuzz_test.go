@@ -73,7 +73,7 @@ func FuzzMetamorphicVerifyRejectsMauledPublicKey(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Fatal("baseline signature failed verification")
 		}
 
@@ -81,7 +81,7 @@ func FuzzMetamorphicVerifyRejectsMauledPublicKey(f *testing.F) {
 		var mauledPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
 		copy(mauledPK[:], mauledBytes)
 
-		if Verify(ctx, msg, sig, &mauledPK) {
+		if Verify(ctx, msg, sig, rawPK(mauledPK)) {
 			t.Fatalf("single-bit mauled public key verified (bitIndex=%d)", bitIndex)
 		}
 	})
@@ -102,7 +102,7 @@ func FuzzMetamorphicVerifyRejectsMauledMessage(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Fatal("baseline signature failed verification")
 		}
 
@@ -110,7 +110,7 @@ func FuzzMetamorphicVerifyRejectsMauledMessage(f *testing.F) {
 		if bytes.Equal(mauledMsg, msg) {
 			t.Fatal("message maul did not change the input")
 		}
-		if Verify(ctx, mauledMsg, sig, &pk) {
+		if Verify(ctx, mauledMsg, sig, rawPK(pk)) {
 			t.Fatalf("single-bit mauled message verified (bitIndex=%d)", bitIndex)
 		}
 	})
@@ -131,7 +131,7 @@ func FuzzMetamorphicVerifyRejectsMauledSignature(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, msg, sig, &pk) {
+		if !Verify(ctx, msg, sig, rawPK(pk)) {
 			t.Fatal("baseline signature failed verification")
 		}
 
@@ -139,7 +139,7 @@ func FuzzMetamorphicVerifyRejectsMauledSignature(f *testing.F) {
 		var mauledSig [CRYPTO_BYTES]uint8
 		copy(mauledSig[:], mauledBytes)
 
-		if Verify(ctx, msg, mauledSig, &pk) {
+		if Verify(ctx, msg, mauledSig, rawPK(pk)) {
 			t.Fatalf("single-bit mauled signature verified (bitIndex=%d)", bitIndex)
 		}
 	})
@@ -193,7 +193,7 @@ func FuzzMetamorphicOpenRejectsMauledAttachedSignature(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		opened, err := Open(ctx, sealed, &pk)
+		opened, err := Open(ctx, sealed, rawPK(pk))
 		if err != nil {
 			t.Fatalf("baseline attached-signature message returned error from Open: %v", err)
 		}
@@ -207,7 +207,7 @@ func FuzzMetamorphicOpenRejectsMauledAttachedSignature(f *testing.F) {
 		mauledSealed := append([]byte(nil), mauledPrefix...)
 		mauledSealed = append(mauledSealed, sealed[CRYPTO_BYTES:]...)
 
-		if _, err := Open(ctx, mauledSealed, &pk); err == nil {
+		if _, err := Open(ctx, mauledSealed, rawPK(pk)); err == nil {
 			t.Fatalf("single-bit mauled attached signature opened successfully (bitIndex=%d)", bitIndex)
 		}
 	})

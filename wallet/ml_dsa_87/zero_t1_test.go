@@ -103,13 +103,12 @@ func TestWalletVerify_RejectsZeroT1Forgery(t *testing.T) {
 			if len(sig) != SigSize {
 				t.Fatalf("forged sig len %d != %d", len(sig), SigSize)
 			}
-			// Sanity: the forgery genuinely verifies at the FIPS 204 layer.
-			// If this ever fails, the forgery recipe is stale and the test
-			// below would pass vacuously.
-			var sigArr [mldsa.CRYPTO_BYTES]uint8
-			copy(sigArr[:], sig)
-			if !mldsa.Verify(ctx, tc.msg, sigArr, (*[mldsa.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)) {
-				t.Fatal("setup: forgery did not verify at the crypto layer; recipe is stale")
+			// The crypto layer refuses to even construct this key; that is the
+			// mechanism wallet Verify relies on. (That the forgery verifies
+			// under the raw FIPS 204 primitive is pinned in-package by
+			// crypto/ml_dsa_87's TestVerify_AcceptsZeroT1ForgeryByDesign.)
+			if _, err := mldsa.ParsePublicKey(pk[:]); !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+				t.Fatalf("setup: ParsePublicKey err = %v, want ErrWeakPublicKey", err)
 			}
 			if Verify(tc.msg, sig, &pk, desc) {
 				t.Fatal("SECURITY: forged signature verified under an all-zero-t1 " +
@@ -152,12 +151,12 @@ func TestBytesToPK_RejectsZeroT1(t *testing.T) {
 		if err == nil {
 			t.Fatalf("rho=%#x: BytesToPK accepted a zero-t1 public key", rho)
 		}
-		if !errors.Is(err, cryptoerrors.ErrZeroT1PublicKey) {
-			t.Fatalf("rho=%#x: err = %v, want errors.Is(..., ErrZeroT1PublicKey)", rho, err)
+		if !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+			t.Fatalf("rho=%#x: err = %v, want errors.Is(..., ErrWeakPublicKey)", rho, err)
 		}
 		_, err = HexStrToPK(hex.EncodeToString(pk[:]))
-		if !errors.Is(err, cryptoerrors.ErrZeroT1PublicKey) {
-			t.Fatalf("rho=%#x: HexStrToPK err = %v, want ErrZeroT1PublicKey", rho, err)
+		if !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+			t.Fatalf("rho=%#x: HexStrToPK err = %v, want ErrWeakPublicKey", rho, err)
 		}
 	}
 }

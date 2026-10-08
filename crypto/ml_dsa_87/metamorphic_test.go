@@ -115,7 +115,7 @@ func TestMetamorphicVerifyRejectsBitMauledPublicKeys(t *testing.T) {
 			sig := mustSign(t, mldsa, tc.ctx, tc.message)
 			pk := mldsa.GetPK()
 
-			if !Verify(tc.ctx, tc.message, sig, &pk) {
+			if !Verify(tc.ctx, tc.message, sig, rawPK(pk)) {
 				t.Fatal("baseline signature failed verification")
 			}
 
@@ -124,7 +124,7 @@ func TestMetamorphicVerifyRejectsBitMauledPublicKeys(t *testing.T) {
 				var mauledPK [CRYPTO_PUBLIC_KEY_BYTES]uint8
 				copy(mauledPK[:], mutated)
 
-				if Verify(tc.ctx, tc.message, sig, &mauledPK) {
+				if Verify(tc.ctx, tc.message, sig, rawPK(mauledPK)) {
 					t.Fatalf("single-bit mauled public key verified at bit %d", bit)
 				}
 			}
@@ -139,13 +139,13 @@ func TestMetamorphicVerifyRejectsBitMauledMessages(t *testing.T) {
 			sig := mustSign(t, mldsa, tc.ctx, tc.message)
 			pk := mldsa.GetPK()
 
-			if !Verify(tc.ctx, tc.message, sig, &pk) {
+			if !Verify(tc.ctx, tc.message, sig, rawPK(pk)) {
 				t.Fatal("baseline signature failed verification")
 			}
 
 			for bit := 0; bit < len(tc.message)*8; bit++ {
 				mauledMsg := flipSingleBit(tc.message, bit)
-				if Verify(tc.ctx, mauledMsg, sig, &pk) {
+				if Verify(tc.ctx, mauledMsg, sig, rawPK(pk)) {
 					t.Fatalf("single-bit mauled message verified at bit %d", bit)
 				}
 			}
@@ -160,7 +160,7 @@ func TestMetamorphicVerifyRejectsBitMauledSignatures(t *testing.T) {
 			sig := mustSign(t, mldsa, tc.ctx, tc.message)
 			pk := mldsa.GetPK()
 
-			if !Verify(tc.ctx, tc.message, sig, &pk) {
+			if !Verify(tc.ctx, tc.message, sig, rawPK(pk)) {
 				t.Fatal("baseline signature failed verification")
 			}
 
@@ -169,7 +169,7 @@ func TestMetamorphicVerifyRejectsBitMauledSignatures(t *testing.T) {
 				var mauledSig [CRYPTO_BYTES]uint8
 				copy(mauledSig[:], mutated)
 
-				if Verify(tc.ctx, tc.message, mauledSig, &pk) {
+				if Verify(tc.ctx, tc.message, mauledSig, rawPK(pk)) {
 					t.Fatalf("single-bit mauled signature verified at bit %d", bit)
 				}
 			}
@@ -246,7 +246,7 @@ func TestMetamorphicSecretKeyMaulingFeatureScan(t *testing.T) {
 					if sig == baseSig {
 						sameSigCount++
 					}
-					if Verify(tc.ctx, tc.message, sig, &pk) {
+					if Verify(tc.ctx, tc.message, sig, rawPK(pk)) {
 						validCount++
 					}
 				}
@@ -272,7 +272,7 @@ func TestMetamorphicSignAttachedOpenRejectsBitMauledAttachedSignatures(t *testin
 			}
 			pk := mldsa.GetPK()
 
-			opened, err := Open(tc.ctx, sealed, &pk)
+			opened, err := Open(tc.ctx, sealed, rawPK(pk))
 			if err != nil {
 				t.Fatalf("baseline attached-signature message returned error from Open: %v", err)
 			}
@@ -282,7 +282,7 @@ func TestMetamorphicSignAttachedOpenRejectsBitMauledAttachedSignatures(t *testin
 
 			for bit := 0; bit < CRYPTO_BYTES*8; bit++ {
 				mauledSealed := flipSingleBit(sealed, bit)
-				if _, err := Open(tc.ctx, mauledSealed, &pk); err == nil {
+				if _, err := Open(tc.ctx, mauledSealed, rawPK(pk)); err == nil {
 					t.Fatalf("single-bit mauled attached signature opened successfully at bit %d", bit)
 				}
 			}

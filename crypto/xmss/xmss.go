@@ -312,6 +312,12 @@ func Verify(hashFunction HashFunction, message, signature []uint8, pk []uint8) (
 }
 
 func VerifyWithCustomWOTSParamW(hashFunction HashFunction, message, signature []uint8, pk []uint8, wotsParamW uint32) (result bool) {
+	// hashFunction is a public parameter and must be validated here: without
+	// this guard an invalid value reaches coreHash's invariant tripwire and
+	// panics, which violates the no-panic contract every verifier carries.
+	if !hashFunction.IsValid() {
+		return false
+	}
 	// Validate wotsParamW before calling NewWOTSParams to avoid panic on unsupported values.
 	// Valid WOTS w values are powers of 2 where log2(w) ∈ {2, 4, 8}.
 	switch wotsParamW {

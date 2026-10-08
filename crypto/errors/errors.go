@@ -14,23 +14,34 @@ var (
 
 // Key errors
 var (
-	ErrInvalidPublicKey  = errors.New("invalid public key")
+	ErrInvalidPublicKey = errors.New("invalid public key")
+	// ErrInvalidSecretKey is returned when a packed ML-DSA-87 secret key has
+	// an s1 or s2 coefficient outside [-ETA, ETA]; see
+	// ml_dsa_87.ValidateSecretKey. Key generation never produces one.
 	ErrInvalidSecretKey  = errors.New("invalid secret key")
 	ErrPublicKeyNil      = errors.New("public key is nil")
 	ErrSecretKeyNil      = errors.New("secret key is nil")
 	ErrSecretKeyZeroized = errors.New("secret key is zeroized")
-	ErrKeyGeneration     = errors.New("key generation failed")
-	// ErrZeroT1PublicKey is returned by key validation when an ML-DSA
-	// public key's t1 component is all zero. Such a key is universally
-	// forgeable and must never be accepted from an untrusted source.
-	ErrZeroT1PublicKey = errors.New("public key t1 is all zero")
+	// ErrKeyUninitialised is returned when a zero-value keypair, one that
+	// never went through a constructor, is asked to sign.
+	ErrKeyUninitialised = errors.New("keypair is uninitialised")
+	ErrKeyGeneration    = errors.New("key generation failed")
+	// ErrWeakPublicKey is returned by key validation when an ML-DSA-87
+	// public key is weak: fewer than 76 of its 2048 t1 coefficients are
+	// large, so the verifier would accept a signature anyone can compute.
+	// Key generation never produces such a key; see
+	// ml_dsa_87.ValidatePublicKey for the rule.
+	ErrWeakPublicKey = errors.New("public key is weak: fewer than 76 of 2048 t1 coefficients are large")
 )
 
 // Signature errors
 var (
 	ErrInvalidSignature     = errors.New("invalid signature")
 	ErrInvalidSignatureSize = errors.New("invalid signature size")
-	ErrSigningFailed        = errors.New("signing failed")
+	// ErrSigningFailed is returned when the ML-DSA-87 rejection loop exceeds
+	// its attempt bound. That is a sub-2^-440 event for a valid key; it
+	// happens only for a secret key crafted to be rejected on most attempts.
+	ErrSigningFailed = errors.New("signing failed")
 )
 
 // Context errors (ML-DSA)

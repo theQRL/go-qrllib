@@ -3,10 +3,12 @@ package ml_dsa_87
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
+	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	mldsa "github.com/theQRL/go-qrllib/crypto/ml_dsa_87"
 	"github.com/theQRL/go-qrllib/wallet/common"
 	"github.com/theQRL/go-qrllib/wallet/common/descriptor"
@@ -589,11 +591,14 @@ func TestWallet_SignDeterministic_ContextBound(t *testing.T) {
 
 	// Without the descriptor-derived context the same bytes must fail at
 	// the FIPS 204 layer: the context is part of the signed message prefix.
-	rawPK := (*[mldsa.CRYPTO_PUBLIC_KEY_BYTES]uint8)(&pk)
-	if mldsa.Verify(nil, message, sig, rawPK) {
+	k, err := mldsa.ParsePublicKey(pk[:])
+	if err != nil {
+		t.Fatalf("ParsePublicKey: %v", err)
+	}
+	if mldsa.Verify(nil, message, sig, k) {
 		t.Fatal("signature verified with an empty context; descriptor binding is missing")
 	}
-	if !mldsa.Verify(common.SigningContext(desc), message, sig, rawPK) {
+	if !mldsa.Verify(common.SigningContext(desc), message, sig, k) {
 		t.Fatal("control: signature must verify at the crypto layer with the descriptor context")
 	}
 
@@ -605,9 +610,10 @@ func TestWallet_SignDeterministic_ContextBound(t *testing.T) {
 	}
 }
 
-// TestWallet_SignDeterministic_AfterZeroize mirrors TestWallet_Zeroize for
-// the deterministic path: once the wallet is zeroized, SignDeterministic no
-// longer produces signatures that verify under the wallet's public key.
+// TestWallet_SignDeterministic_AfterZeroize checks that a zeroized wallet
+// refuses to sign rather than signing with cleared material: both signing
+// methods return ErrSecretKeyZeroized and no signature is produced, while
+// the public key remains available.
 func TestWallet_SignDeterministic_AfterZeroize(t *testing.T) {
 	w, err := NewWallet()
 	if err != nil {
@@ -627,14 +633,59 @@ func TestWallet_SignDeterministic_AfterZeroize(t *testing.T) {
 
 	w.Zeroize()
 
-	after, err := w.SignDeterministic(message)
-	if err != nil {
-		t.Fatalf("SignDeterministic after Zeroize returned an error: %v", err)
+	if sig, err := w.SignDeterministic(message); !errors.Is(err, cryptoerrors.ErrSecretKeyZeroized) || sig != [SigSize]uint8{} {
+		t.Fatalf("SignDeterministic after Zeroize: sig zero=%v err=%v, want zero + ErrSecretKeyZeroized", sig == [SigSize]uint8{}, err)
 	}
-	if after == before {
-		t.Fatal("SignDeterministic after Zeroize reproduced the pre-Zeroize signature; key material was not cleared")
+	if _, err := w.Sign(message); !errors.Is(err, cryptoerrors.ErrSecretKeyZeroized) {
+		t.Fatalf("Sign after Zeroize: err = %v, want ErrSecretKeyZeroized", err)
 	}
-	if Verify(message, after[:], &pk, desc) {
-		t.Fatal("SignDeterministic after Zeroize produced a signature that verifies under the original public key")
+	if w.GetPK() != pk {
+		t.Fatal("public key changed after Zeroize")
+	}
+	w.Zeroize() // idempotent
+}
+
+// TestWallet_ZeroValue checks that a Wallet{} declared without a
+// constructor is inert: signing reports an error, accessors return zero
+// values, and nothing panics.
+func TestWallet_ZeroValue(t *testing.T) {
+	var w Wallet
+	if _, err := w.Sign([]byte("x")); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
+		t.Fatalf("Sign on zero-value wallet: err = %v, want ErrKeyUninitialised", err)
+	}
+	if _, err := w.SignDeterministic([]byte("x")); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
+		t.Fatalf("SignDeterministic on zero-value wallet: err = %v, want ErrKeyUninitialised", err)
+	}
+	checkUninitialisedGetters(t, "zero-value", &w)
+	w.Zeroize()
+	var nilW *Wallet
+	nilW.Zeroize()
+	if _, err := nilW.Sign([]byte("x")); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
+		t.Fatalf("Sign on nil wallet: err = %v", err)
+	}
+	checkUninitialisedGetters(t, "nil", nilW)
+}
+
+// checkUninitialisedGetters asserts the nil-safety contract from the Wallet
+// type doc: every getter returns its zero value or ErrKeyUninitialised.
+func checkUninitialisedGetters(t *testing.T, name string, w *Wallet) {
+	t.Helper()
+	if w.GetPK() != (PK{}) || w.GetSK() != ([SKSize]uint8{}) {
+		t.Fatalf("%s wallet returned non-zero key material", name)
+	}
+	if w.GetSeed() != (common.Seed{}) || w.GetDescriptor() != (Descriptor{}) {
+		t.Fatalf("%s wallet returned non-zero seed or descriptor", name)
+	}
+	if w.GetAddress() != ([common.AddressSize]uint8{}) || w.GetAddressStr() != "" || w.GetChecksumAddressStr() != "" {
+		t.Fatalf("%s wallet returned a non-empty address", name)
+	}
+	if _, err := w.GetExtendedSeed(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) {
+		t.Fatalf("%s wallet GetExtendedSeed: err = %v, want ErrKeyUninitialised", name, err)
+	}
+	if s, err := w.GetHexSeed(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) || s != "" {
+		t.Fatalf("%s wallet GetHexSeed: %q, err = %v, want \"\" + ErrKeyUninitialised", name, s, err)
+	}
+	if m, err := w.GetMnemonic(); !errors.Is(err, cryptoerrors.ErrKeyUninitialised) || m != "" {
+		t.Fatalf("%s wallet GetMnemonic: %q, err = %v, want \"\" + ErrKeyUninitialised", name, m, err)
 	}
 }

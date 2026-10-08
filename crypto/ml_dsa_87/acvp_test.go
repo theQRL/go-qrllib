@@ -206,6 +206,9 @@ func TestACVPSigGen(t *testing.T) {
 
 			// The signature must also verify under the key's public key.
 			pk := acvpPublicKeyFromSecretKey(&sk)
+			if err := ValidatePublicKey(&pk); err != nil {
+				t.Errorf("NIST key rejected by ValidatePublicKey: %v", err)
+			}
 			var sigArr [CRYPTO_BYTES]uint8
 			copy(sigArr[:], sig)
 			var ok bool

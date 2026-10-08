@@ -56,7 +56,7 @@ func TestOpen_OversizedContext_ReturnsErrInvalidContext(t *testing.T) {
 	// FIPS 204 caps ctx at 255 bytes.
 	oversized := make([]byte, 256)
 
-	msg, err := Open(oversized, sealed, &pk)
+	msg, err := Open(oversized, sealed, rawPK(pk))
 	if msg != nil {
 		t.Errorf("Open(oversized ctx) msg = %v; want nil", msg)
 	}
@@ -76,7 +76,7 @@ func TestOpen_ShortInput_ReturnsErrInvalidSignatureSize(t *testing.T) {
 	}
 
 	for _, sm := range cases {
-		msg, err := Open(ctx, sm, &pk)
+		msg, err := Open(ctx, sm, rawPK(pk))
 		if msg != nil {
 			t.Errorf("Open(short sm len=%d) msg = %v; want nil", len(sm), msg)
 		}
@@ -97,7 +97,7 @@ func TestOpen_InvalidSignature_ReturnsErrInvalidSignature(t *testing.T) {
 	copy(tampered, sealed)
 	tampered[10] ^= 0xFF
 
-	msg, err := Open(ctx, tampered, &pk)
+	msg, err := Open(ctx, tampered, rawPK(pk))
 	if msg != nil {
 		t.Errorf("Open(tampered) msg = %v; want nil", msg)
 	}
@@ -110,7 +110,7 @@ func TestOpen_HappyPath_ReturnsMessageAndNilError(t *testing.T) {
 	m, ctx, sealed := openFixture(t)
 	pk := m.GetPK()
 
-	msg, err := Open(ctx, sealed, &pk)
+	msg, err := Open(ctx, sealed, rawPK(pk))
 	if err != nil {
 		t.Fatalf("Open(valid) returned err = %v; want nil", err)
 	}

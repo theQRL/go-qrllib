@@ -120,7 +120,7 @@ func FuzzMLDSA87SignVerifyRoundTripMutate(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		if !Verify(ctx, message, sig, &pk) {
+		if !Verify(ctx, message, sig, rawPK(pk)) {
 			t.Fatal("Valid signature failed verification")
 		}
 
@@ -128,7 +128,7 @@ func FuzzMLDSA87SignVerifyRoundTripMutate(f *testing.F) {
 		if bytes.Equal(mutatedCtx, ctx) {
 			t.Fatal("Context mutation did not change the input")
 		}
-		if Verify(mutatedCtx, message, sig, &pk) {
+		if Verify(mutatedCtx, message, sig, rawPK(pk)) {
 			t.Fatal("Signature verified with mutated context")
 		}
 
@@ -136,17 +136,17 @@ func FuzzMLDSA87SignVerifyRoundTripMutate(f *testing.F) {
 		if bytes.Equal(mutatedMsg, message) {
 			t.Fatal("Message mutation did not change the input")
 		}
-		if Verify(ctx, mutatedMsg, sig, &pk) {
+		if Verify(ctx, mutatedMsg, sig, rawPK(pk)) {
 			t.Fatal("Signature verified with mutated message")
 		}
 
 		mutatedSig := mutateSignature(sig, mutation)
-		if Verify(ctx, message, mutatedSig, &pk) {
+		if Verify(ctx, message, mutatedSig, rawPK(pk)) {
 			t.Fatal("Mutated signature verified")
 		}
 
 		mutatedPK := mutatePublicKey(pk, mutation)
-		if Verify(ctx, message, sig, &mutatedPK) {
+		if Verify(ctx, message, sig, rawPK(mutatedPK)) {
 			t.Fatal("Signature verified with mutated public key")
 		}
 	})
@@ -179,7 +179,7 @@ func FuzzMLDSA87SignAttachedOpenRoundTripMutate(f *testing.F) {
 		}
 
 		pk := mldsa.GetPK()
-		opened, err := Open(ctx, sealed, &pk)
+		opened, err := Open(ctx, sealed, rawPK(pk))
 		if err != nil {
 			t.Fatalf("Open returned an error for a valid attached-signature message: %v", err)
 		}
@@ -188,17 +188,17 @@ func FuzzMLDSA87SignAttachedOpenRoundTripMutate(f *testing.F) {
 		}
 
 		mutatedCtx := mutateSlice(ctx, mutation)
-		if _, err := Open(mutatedCtx, sealed, &pk); err == nil {
+		if _, err := Open(mutatedCtx, sealed, rawPK(pk)); err == nil {
 			t.Fatal("Open succeeded with mutated context")
 		}
 
 		mutatedSealed := mutateSlice(sealed, mutation)
-		if _, err := Open(ctx, mutatedSealed, &pk); err == nil {
+		if _, err := Open(ctx, mutatedSealed, rawPK(pk)); err == nil {
 			t.Fatal("Open succeeded with mutated attached-signature message")
 		}
 
 		mutatedPK := mutatePublicKey(pk, mutation)
-		if _, err := Open(ctx, sealed, &mutatedPK); err == nil {
+		if _, err := Open(ctx, sealed, rawPK(mutatedPK)); err == nil {
 			t.Fatal("Open succeeded with mutated public key")
 		}
 	})
@@ -245,7 +245,7 @@ func FuzzMLDSA87FromHexSeedAndSigner(f *testing.F) {
 		var sig [CRYPTO_BYTES]uint8
 		copy(sig[:], sigBytes)
 		pk := mldsa.GetPK()
-		if !Verify(ctx, digest, sig, &pk) {
+		if !Verify(ctx, digest, sig, rawPK(pk)) {
 			t.Fatal("CryptoSigner produced a signature that does not verify")
 		}
 

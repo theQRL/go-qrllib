@@ -129,9 +129,11 @@ go get github.com/theQRL/go-qrllib
 
 Requires Go 1.25 or later.
 
-go-qrllib has **zero third-party dependencies**: every primitive (SHA-3/SHAKE,
-randomness, constant-time comparison) comes from the Go standard library
-(`crypto/sha3`, `crypto/rand`, `crypto/subtle`).
+go-qrllib has **zero third-party dependencies**: every supporting primitive
+(SHA-3/SHAKE, SHA-256, randomness, constant-time comparison) comes from the Go
+standard library (`crypto/sha3`, `crypto/sha256`, `crypto/rand`,
+`crypto/subtle`). `go.mod` has no `require` directives and there is no
+`go.sum`.
 
 ## Quick Start
 
@@ -155,9 +157,18 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Verify
-pk := signer.GetPK()
-valid := ml_dsa_87.Verify(ctx, message, signature, &pk)
+// Verify with your own key
+valid := ml_dsa_87.Verify(ctx, message, signature, signer.PublicKey())
+
+// Verify with a key received as bytes. ParsePublicKey is the only way to
+// turn bytes into a key Verify accepts; it checks the length and rejects
+// a weak key (see ValidatePublicKey), a shape key generation never produces.
+pkBytes := signer.PublicKey().Bytes() // stand-in for the 2592 bytes you received
+pk, err := ml_dsa_87.ParsePublicKey(pkBytes[:])
+if err != nil {
+    log.Fatal(err) // ErrInvalidPublicKey or ErrWeakPublicKey
+}
+valid = ml_dsa_87.Verify(ctx, message, signature, pk)
 ```
 
 ### SPHINCS+-256s (primitive; wallet path gated)
@@ -311,7 +322,7 @@ that type is not a valid common descriptor until SLH-DSA activation.
 
 | Type | Thread-Safe? | Notes |
 | --- | --- | --- |
-| `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
+| `ml_dsa_87.MLDSA87` | Read: Yes, Write: No | Safe to call `GetPK()`, `PublicKey()`, `Verify()` concurrently. Do not call `Sign()` concurrently on same instance. |
 | `sphincsplus_256s.SphincsPlus256s` | Read: Yes, Write: No | Same as ML-DSA-87 |
 | `xmss.XMSS` | **No** | NEVER use concurrently. Index management is not thread-safe. |
 | Package-level `Verify()` | Yes | Stateless, safe to call concurrently |
