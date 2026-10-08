@@ -368,7 +368,7 @@ func signConcurrently(messages [][]byte, seed [32]byte) {
 | ML-DSA-87 | 2,592 bytes | 4,896 bytes | 4,627 bytes |
 | SPHINCS+-256s | 64 bytes | 128 bytes | 29,792 bytes |
 | XMSS (h=10) | 64 bytes | ~2,500 bytes | ~2,500 bytes |
-| Falcon-1024 | 1,793 bytes | 2,305 bytes | ≤ 1,462 bytes detached (about 1,261 on average); signed message adds ≤ 1,330 bytes |
+| Falcon-1024 | 1,793 bytes | 2,305 bytes | ≤ 1,462 bytes detached (about 1,261 on average); signed message adds ≤ 1,462 bytes |
 
 ---
 

@@ -92,8 +92,12 @@ const (
 	PrivateKeySize = 2305
 
 	// MaxSignedMessageOverhead is the most a signed message exceeds the
-	// message it carries, in bytes (CRYPTO_BYTES).
-	MaxSignedMessageOverhead = 1330
+	// message it carries, in bytes: CRYPTO_BYTES of PQClean's api.h at the
+	// pinned commit (0586a824), which equals FALCON_SIG_COMPRESSED_MAXSIZE.
+	// The round-3 submission's api.h said 1330, so its crypto_sign stopped at
+	// a 1,287-byte body; bodies are 1,230 +/- 3 bytes, so neither limit is
+	// reached by an in-bound key.
+	MaxSignedMessageOverhead = 1462
 
 	// MaxSignatureSize is the maximum size in bytes of a detached signature
 	// (FALCON_SIG_COMPRESSED_MAXSIZE of the reference library API for degree

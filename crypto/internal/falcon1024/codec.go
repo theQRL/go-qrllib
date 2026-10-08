@@ -276,9 +276,9 @@ const (
 	signedMessageLengthSize = 2
 	signedMessagePrefixSize = signedMessageLengthSize + nonceSize
 
-	// maxCompressedSignatureSize is the room the reference crypto_sign gives
-	// comp_encode: CRYPTO_BYTES less the length prefix, the nonce and the
-	// signature header byte.
+	// maxCompressedSignatureSize is the room PQClean's crypto_sign
+	// (CRYPTO_BYTES - 40 - 3) gives comp_encode: CRYPTO_BYTES less the length
+	// prefix, the nonce and the signature header byte.
 	maxCompressedSignatureSize = MaxSignedMessageOverhead - signedMessagePrefixSize - headerSize
 )
 

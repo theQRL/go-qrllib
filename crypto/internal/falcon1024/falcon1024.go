@@ -10,9 +10,10 @@ import (
 )
 
 // This package follows the NIST API of the Falcon round-3 reference
-// implementation (nist.c): key generation expands SeedSize random bytes with
-// SHAKE256 exactly as crypto_sign_keypair expands the bytes it draws from
-// randombytes, private and public keys use the CRYPTO_SECRETKEYBYTES and
+// implementation (nist.c) with the size constants of PQClean's api.h: key
+// generation expands SeedSize random bytes with SHAKE256 exactly as
+// crypto_sign_keypair expands the bytes it draws from randombytes, private
+// and public keys use the CRYPTO_SECRETKEYBYTES and
 // CRYPTO_PUBLICKEYBYTES encodings, and Sign and Open produce and consume the
 // crypto_sign signed-message format. SignDetached and Verify add the
 // compressed detached-signature format of the reference library API
@@ -32,8 +33,12 @@ const (
 	PrivateKeySize = 2305
 
 	// MaxSignedMessageOverhead is the most a signed message exceeds the
-	// message it carries, in bytes (CRYPTO_BYTES).
-	MaxSignedMessageOverhead = 1330
+	// message it carries, in bytes: CRYPTO_BYTES of PQClean's api.h at the
+	// pinned commit (0586a824), which equals FALCON_SIG_COMPRESSED_MAXSIZE.
+	// The round-3 submission's api.h said 1330, so its crypto_sign stopped at
+	// a 1,287-byte body; bodies are 1,230 +/- 3 bytes, so neither limit is
+	// reached by an in-bound key.
+	MaxSignedMessageOverhead = 1462
 
 	// MaxSignatureSize is the maximum size in bytes of a detached signature
 	// (FALCON_SIG_COMPRESSED_MAXSIZE of the reference library API for degree

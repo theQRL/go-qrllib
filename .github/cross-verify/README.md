@@ -143,7 +143,7 @@ commit users to a choice QRL has not made.
   with `GOAMD64=v3` and on an arm64 runner. The last two targets would fuse
   multiply-adds unless the code prevents it, which the Go sampler does with
   explicit conversions; running there checks that the guards hold.
-- Key sizes: PK=1793, SK=2305 bytes; signed message overhead at most 1330,
+- Key sizes: PK=1793, SK=2305 bytes; signed message overhead at most 1462,
   detached signature at most 1462 bytes. At the pinned commit PQClean's
   `crypto_sign_signature` allows a 1,421-byte compressed body (1,462 bytes in
   total), the same maximum as go-qrllib's `SignDetached`.
