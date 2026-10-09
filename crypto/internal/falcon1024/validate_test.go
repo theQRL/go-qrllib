@@ -17,12 +17,14 @@ import (
 
 // --- key constructions ------------------------------------------------------
 
+// constantPolynomial returns the public polynomial h(x) = k.
 func constantPolynomial(k int32) ringElement {
 	var h ringElement
 	h[0] = fieldFromSmall(k)
 	return h
 }
 
+// monomialPolynomial returns the public polynomial h(x) = k*x^j.
 func monomialPolynomial(k int32, j int) ringElement {
 	var h ringElement
 	h[j] = fieldFromSmall(k)
@@ -40,6 +42,8 @@ func ratioPolynomial(t *testing.T, a, b smallPolynomial) ringElement {
 	return h
 }
 
+// constantSmallPolynomial returns the small polynomial c, for use as a
+// numerator or an integer divisor.
 func constantSmallPolynomial(c int32) smallPolynomial {
 	var p smallPolynomial
 	p[0] = c
@@ -60,6 +64,7 @@ func seededSmallPolynomial(label string, bound int32) smallPolynomial {
 	return p
 }
 
+// encodePublic serialises h in the NIST public-key format.
 func encodePublic(t *testing.T, h ringElement) []byte {
 	t.Helper()
 	var pk [PublicKeySize]byte
@@ -103,6 +108,7 @@ func polynomialWithSquaredNorm(t *testing.T, label string, target uint64) ringEl
 	return ringElement{}
 }
 
+// centredSquaredNorm is ||h||^2 with every coefficient taken in (-q/2, q/2].
 func centredSquaredNorm(h ringElement) uint64 {
 	var norm uint64
 	for _, c := range h {
@@ -225,6 +231,8 @@ func forgeUnderMonomial(t *testing.T, k int32, j int, message []byte) bool {
 
 // --- the rule ----------------------------------------------------------------
 
+// TestWeakKeyRuleAcceptsGeneratedKeys checks that keys from the key
+// generator pass the rule, through ValidatePublicKey and directly.
 func TestWeakKeyRuleAcceptsGeneratedKeys(t *testing.T) {
 	for i := range 8 {
 		seed := make([]byte, SeedSize)
@@ -282,6 +290,9 @@ func TestWeakKeyRuleRejectsConstantsAndMonomials(t *testing.T) {
 	}
 }
 
+// TestWeakKeyRuleRejectsSmallIntegerRatios checks the multiplier scan on
+// keys a/c up to the last multiplier scanned, and that the next one is left
+// alone.
 func TestWeakKeyRuleRejectsSmallIntegerRatios(t *testing.T) {
 	a := seededSmallPolynomial("ratio numerator", 600)
 	for _, c := range []int32{1, 2, 907, 1024} {
@@ -299,6 +310,8 @@ func TestWeakKeyRuleRejectsSmallIntegerRatios(t *testing.T) {
 	}
 }
 
+// TestWeakKeyRuleBoundary pins the norm bound to the exact value: 2^30 - 1
+// is weak and 2^30 is strong for c = 1.
 func TestWeakKeyRuleBoundary(t *testing.T) {
 	// For c = 1 the rule reads ||h||^2 + 1 <= 2^30.
 	weak := polynomialWithSquaredNorm(t, "boundary weak", weakKeySquaredNormBound-1)
@@ -327,6 +340,8 @@ func TestWeakKeyRuleKnownGapSparseDivisor(t *testing.T) {
 	}
 }
 
+// TestValidatePublicKeyErrors checks the sentinel contract: malformed
+// encodings wrap ErrInvalidPublicKey, weak keys wrap ErrWeakPublicKey only.
 func TestValidatePublicKeyErrors(t *testing.T) {
 	priv := testPrivateKey(t)
 	pk := priv.PublicKey().Bytes()
@@ -344,6 +359,9 @@ func TestValidatePublicKeyErrors(t *testing.T) {
 	}
 }
 
+// TestNewPrivateKeyAppliesWeakKeyRuleThenBounds checks the order of the
+// import checks: the weak-key rule on the derived public half first, then
+// the key-generation bounds on (f, g).
 func TestNewPrivateKeyAppliesWeakKeyRuleThenBounds(t *testing.T) {
 	// f = 1, g = 0, F = 0 derives h = 0, the weakest key of all.
 	degenerate := make([]byte, PrivateKeySize)
@@ -391,6 +409,7 @@ type weakKeyVectorFile struct {
 
 const weakKeyVectorsFile = "weak_public_key_vectors.json"
 
+// boolPtr returns a pointer to b, for the optional forgeryVerifies field.
 func boolPtr(b bool) *bool { return &b }
 
 // buildWeakKeyVectors constructs the shared vectors. Regenerate the file with
@@ -488,6 +507,7 @@ func roundingForgeryVerifies(t *testing.T, h ringElement, message []byte) bool {
 	return forgeConstantUnderKey(t, &pub, 111, message)
 }
 
+// mustDecode parses an encoded public key or fails the test.
 func mustDecode(t *testing.T, pk []byte) ringElement {
 	t.Helper()
 	h, err := pkDecode(pk)
@@ -497,6 +517,8 @@ func mustDecode(t *testing.T, pk []byte) ringElement {
 	return h
 }
 
+// mustSmall lifts a small polynomial to its representative with
+// coefficients in [0, q).
 func mustSmall(t *testing.T, p smallPolynomial) ringElement {
 	t.Helper()
 	var h ringElement
@@ -506,6 +528,10 @@ func mustSmall(t *testing.T, p smallPolynomial) ringElement {
 	return h
 }
 
+// TestWeakPublicKeyVectors rebuilds the shared vectors, checks that the
+// stored file matches field for field, and re-derives every verdict,
+// multiplier, norm and forgery flag from the stored bytes alone. With
+// FALCON_WRITE_WEAK_VECTORS=1 it rewrites the file first.
 func TestWeakPublicKeyVectors(t *testing.T) {
 	built := buildWeakKeyVectors(t)
 	path := filepath.Join("testdata", weakKeyVectorsFile)
@@ -532,8 +558,8 @@ func TestWeakPublicKeyVectors(t *testing.T) {
 	message := []byte("falcon-1024 weak public key vectors")
 	for i, v := range stored.PublicKeys {
 		t.Run(v.Name, func(t *testing.T) {
-			if v != built.PublicKeys[i] && (v.Name != built.PublicKeys[i].Name || v.PK != built.PublicKeys[i].PK) {
-				t.Fatalf("stored vector differs from the construction; regenerate with FALCON_WRITE_WEAK_VECTORS=1")
+			if field := vectorDifference(v, built.PublicKeys[i]); field != "" {
+				t.Fatalf("stored %s differs from the construction; regenerate with FALCON_WRITE_WEAK_VECTORS=1", field)
 			}
 			pk, err := hex.DecodeString(v.PK)
 			if err != nil {
@@ -559,8 +585,11 @@ func TestWeakPublicKeyVectors(t *testing.T) {
 			}
 		})
 	}
-	for _, v := range stored.PrivateKeys {
+	for i, v := range stored.PrivateKeys {
 		t.Run(v.Name, func(t *testing.T) {
+			if v != built.PrivateKeys[i] {
+				t.Fatalf("stored vector differs from the construction; regenerate with FALCON_WRITE_WEAK_VECTORS=1")
+			}
 			sk, err := hex.DecodeString(v.SK)
 			if err != nil {
 				t.Fatal(err)
@@ -583,6 +612,67 @@ func TestWeakPublicKeyVectors(t *testing.T) {
 				t.Fatalf("unknown expectation %q", v.Expected)
 			}
 		})
+	}
+}
+
+// vectorDifference names the first field in which two public-key vectors
+// differ, comparing forgeryVerifies by value rather than pointer, or returns
+// "" when they match.
+func vectorDifference(stored, built weakPublicKeyVector) string {
+	switch {
+	case stored.Name != built.Name:
+		return "name"
+	case stored.PK != built.PK:
+		return "pk"
+	case stored.Expected != built.Expected:
+		return "expected"
+	case stored.Multiplier != built.Multiplier:
+		return "multiplier"
+	case stored.SquaredNorm != built.SquaredNorm:
+		return "squaredNorm"
+	case (stored.ForgeryVerifies == nil) != (built.ForgeryVerifies == nil):
+		return "forgeryVerifies"
+	case stored.ForgeryVerifies != nil && *stored.ForgeryVerifies != *built.ForgeryVerifies:
+		return "forgeryVerifies"
+	case stored.Note != built.Note:
+		return "note"
+	}
+	return ""
+}
+
+// TestVectorDifference checks that the stored-vector comparison notices a
+// change in any one field, including the pointer-valued forgery flag.
+func TestVectorDifference(t *testing.T) {
+	base := weakPublicKeyVector{Name: "n", PK: "0a", Expected: "weak", Multiplier: 1, SquaredNorm: 2, ForgeryVerifies: boolPtr(true), Note: "x"}
+	if got := vectorDifference(base, base); got != "" {
+		t.Errorf("identical vectors reported %q", got)
+	}
+	copyWith := func(mutate func(v *weakPublicKeyVector)) weakPublicKeyVector {
+		v := base
+		v.ForgeryVerifies = boolPtr(*base.ForgeryVerifies)
+		mutate(&v)
+		return v
+	}
+	for want, mutate := range map[string]func(v *weakPublicKeyVector){
+		"name":        func(v *weakPublicKeyVector) { v.Name = "m" },
+		"pk":          func(v *weakPublicKeyVector) { v.PK = "0b" },
+		"expected":    func(v *weakPublicKeyVector) { v.Expected = "strong" },
+		"multiplier":  func(v *weakPublicKeyVector) { v.Multiplier = 2 },
+		"squaredNorm": func(v *weakPublicKeyVector) { v.SquaredNorm = 3 },
+		"note":        func(v *weakPublicKeyVector) { v.Note = "y" },
+	} {
+		if got := vectorDifference(base, copyWith(mutate)); got != want {
+			t.Errorf("changed %s: reported %q", want, got)
+		}
+	}
+	if got := vectorDifference(base, copyWith(func(v *weakPublicKeyVector) { v.ForgeryVerifies = nil })); got != "forgeryVerifies" {
+		t.Errorf("flag dropped: reported %q", got)
+	}
+	if got := vectorDifference(base, copyWith(func(v *weakPublicKeyVector) { *v.ForgeryVerifies = false })); got != "forgeryVerifies" {
+		t.Errorf("flag flipped: reported %q", got)
+	}
+	if got := vectorDifference(base, copyWith(func(v *weakPublicKeyVector) { v.ForgeryVerifies = boolPtr(true) })); got != "" {
+		t.Errorf("equal flag behind a different pointer reported %q", got)
 	}
 }
 
@@ -612,6 +702,8 @@ func forgeConstantUnderKey(t *testing.T, pub *PublicKey, k int32, message []byte
 	return Verify(pub, message, sig) == nil
 }
 
+// BenchmarkValidatePublicKey measures the rule on a generated key, the
+// common case, where every multiplier exits early.
 func BenchmarkValidatePublicKey(b *testing.B) {
 	seed := make([]byte, SeedSize)
 	priv, err := NewPrivateKeyFromSeed(seed)
@@ -627,6 +719,7 @@ func BenchmarkValidatePublicKey(b *testing.B) {
 	}
 }
 
+// ExampleValidatePublicKey shows that a generated key passes the rule.
 func ExampleValidatePublicKey() {
 	seed := make([]byte, SeedSize)
 	priv, _ := NewPrivateKeyFromSeed(seed)

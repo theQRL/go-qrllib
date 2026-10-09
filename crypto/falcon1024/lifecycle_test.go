@@ -14,6 +14,9 @@ import (
 	"github.com/theQRL/go-qrllib/crypto/internal/testutil"
 )
 
+// TestZeroize checks the zeroized state: Bytes returns nil, both signing
+// paths return ErrSecretKeyZeroized, the public key still verifies, and a
+// second Zeroize is harmless.
 func TestZeroize(t *testing.T) {
 	pub, priv, err := GenerateKey(nil)
 	if err != nil {
@@ -136,6 +139,8 @@ func TestNewPrivateKeyRejectsOutOfBoundEncodings(t *testing.T) {
 	}
 }
 
+// weakKeyVectors is the part of the shared Falcon weak-key vector file this
+// package consumes: the encoded keys and their expected verdicts.
 type weakKeyVectors struct {
 	PublicKeys []struct {
 		Name     string `json:"name"`
@@ -149,6 +154,8 @@ type weakKeyVectors struct {
 	} `json:"privateKeys"`
 }
 
+// weakKeyVectorFile loads the shared vectors from the internal package's
+// testdata directory.
 func weakKeyVectorFile(t *testing.T) weakKeyVectors {
 	t.Helper()
 	v := testutil.ReadJSON[weakKeyVectors](t, filepath.Join("..", "internal", "falcon1024", "testdata"), "weak_public_key_vectors.json")
@@ -211,6 +218,8 @@ func TestShortSignaturesAreSizeErrors(t *testing.T) {
 	}
 }
 
+// TestNewPublicKeyRejectsCoefficientAtQ checks that a coefficient equal to q
+// is an encoding error, not a weak key.
 func TestNewPublicKeyRejectsCoefficientAtQ(t *testing.T) {
 	pub, _, err := GenerateKey(nil)
 	if err != nil {
