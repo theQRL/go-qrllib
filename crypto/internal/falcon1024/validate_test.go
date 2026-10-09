@@ -456,7 +456,9 @@ func buildWeakKeyVectors(t *testing.T) weakKeyVectorFile {
 			"the squared norm of the centred coefficients of c*h, plus c^2, is at most squaredNormBound. " +
 			"multiplier and squaredNorm give the first such c and ||c*h||^2 (0, 0 when strong). forgeryVerifies, where set, records whether " +
 			"a signature produced from the key alone, by rounding the message hash against the reduced two-dimensional lattice of a constant or " +
-			"monomial key, is accepted by the primitive verifier. Every QRL client must reach the same verdicts.",
+			"monomial key, is accepted by the primitive verifier. privateKeys carry the verdict a private-key import must reach: valid, " +
+			"weak (the public half fails the rule) or invalid (the key-generation bounds or the NTRU equation f*G - g*F = q fail). " +
+			"Every QRL client must reach the same verdicts.",
 		MultiplierBound:  weakKeyMultiplierBound,
 		SquaredNormBound: weakKeySquaredNormBound,
 	}
@@ -476,10 +478,14 @@ func buildWeakKeyVectors(t *testing.T) weakKeyVectorFile {
 
 	degenerate := make([]byte, PrivateKeySize)
 	degenerate[0], degenerate[1] = privateKeyHeader, 0x08
+	honestBytes := honest.Bytes()
 	file.PrivateKeys = []weakPrivateKeyVector{
-		{"generated key (seed 0..47)", hex.EncodeToString(honest.Bytes()), "valid", ""},
+		{"generated key (seed 0..47)", hex.EncodeToString(honestBytes), "valid", ""},
 		{"f = 1, g = 0, F = 0", hex.EncodeToString(degenerate), "weak", "derives h = 0; refused before the key-generation bounds"},
 		{"(f, g) outside the squared-norm bound, strong public half", hex.EncodeToString(oversizedStrongPrivateKey(t).Bytes()), "invalid", "passes the weak-key rule, fails the key-generation bounds"},
+		{"generated key with F replaced by x*F", hex.EncodeToString(substituteF(t, honestBytes, shiftedF)), "invalid", "derives the correct public key; f*G - g*F = x*q, so signing could never pass the norm check"},
+		{"generated key with F replaced by -F", hex.EncodeToString(substituteF(t, honestBytes, negatedF)), "invalid", "derives the correct public key; f*G - g*F = -q"},
+		{"generated key with F replaced by f", hex.EncodeToString(substituteF(t, honestBytes, fAsF)), "invalid", "derives the correct public key; f*G - g*F = 0, so the sampler would never produce a sample"},
 	}
 	return file
 }

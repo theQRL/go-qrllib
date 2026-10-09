@@ -39,6 +39,13 @@ const (
 	entries  = 8
 	labelGo  = "go-qrllib Falcon-1024 cross-verification: go-qrllib generates"
 	labelRef = "go-qrllib Falcon-1024 cross-verification: PQClean generates"
+
+	// paddedSignatureSize is the falcon-padded-1024 signature length. PQClean's
+	// falcon-1024 verifier accepts a compressed signature zero-padded to it;
+	// go-qrllib accepts exactly one encoding. Both behaviours are pinned by
+	// the two harnesses so that a change on either side is noticed.
+	paddedSignatureSize = 1280
+	nonceSize           = 40
 )
 
 // entry is one key pair with a signed message and a detached signature of a
@@ -177,6 +184,26 @@ func check(path string) error {
 		if falcon1024.Verify(pub, tampered, b.sig) {
 			return fmt.Errorf("entry %d: Verify accepted PQClean's signature for a different message", i)
 		}
+
+		// Negative vectors: the zero-padded forms PQClean accepts must not
+		// verify here, in either format.
+		if len(b.sig) < paddedSignatureSize {
+			padded := make([]byte, paddedSignatureSize)
+			copy(padded, b.sig)
+			if falcon1024.Verify(pub, b.msg, padded) {
+				return fmt.Errorf("entry %d: Verify accepted a zero-padded detached signature", i)
+			}
+		}
+		// The signed message's signature field (1 + compressed body) says how
+		// much zero padding brings its body to the padded length.
+		sigLen := int(b.sm[0])<<8 | int(b.sm[1])
+		if pad := paddedSignatureSize - nonceSize - sigLen; pad > 0 {
+			smPadded := append(bytes.Clone(b.sm), make([]byte, pad)...)
+			smPadded[0], smPadded[1] = byte((sigLen+pad)>>8), byte(sigLen+pad)
+			if _, err := falcon1024.Open(pub, smPadded); err == nil {
+				return fmt.Errorf("entry %d: Open accepted a zero-padded signed message", i)
+			}
+		}
 	}
 	return nil
 }
@@ -209,6 +236,7 @@ func main() {
 		fmt.Println("  - same stream -> identical public key, private key, signed message and detached signature")
 		fmt.Println("  - PQClean signed message opens under go-qrllib")
 		fmt.Println("  - PQClean detached signature verifies under go-qrllib, and not for a different message")
+		fmt.Println("  - zero-padded (falcon-padded-1024 length) forms are rejected by go-qrllib; PQClean's harness checks it accepts them")
 	default:
 		fmt.Fprintln(os.Stderr, "usage: falcon1024_crossverify (generate|check) <file>")
 		os.Exit(2)

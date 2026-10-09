@@ -2,6 +2,7 @@ package falcon1024_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	. "github.com/theQRL/go-qrllib/crypto/falcon1024"
@@ -63,6 +64,16 @@ func FuzzFalcon1024NewPrivateKey(f *testing.F) {
 	f.Add(degeneratePrivateKeyEncoding())
 	f.Add([]byte{})
 	f.Add(make([]byte, PrivateKeySize))
+	// The shared vectors: encodings the import must refuse although their
+	// public half is fine (out-of-bound (f, g), F that is not an NTRU
+	// solution), which byte-level mutation does not produce.
+	for _, v := range weakKeyVectorFile(f).PrivateKeys {
+		sk, err := hex.DecodeString(v.SK)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(sk)
+	}
 
 	f.Fuzz(func(t *testing.T, encoded []byte) {
 		got, err := NewPrivateKey(encoded)

@@ -12,6 +12,12 @@ type samplerPRNG struct {
 	ptr     int
 	state   [12]uint32
 	counter uint64
+
+	// draws counts the rejection-loop iterations of sampleFFTPoint since the
+	// last seeding; exhausted is set when one coordinate used up
+	// maxSamplerDraws of them, which ends the signing attempt.
+	draws     uint64
+	exhausted bool
 }
 
 func newSamplerPRNG(rng *sha3.SHAKE) *samplerPRNG {
@@ -21,14 +27,18 @@ func newSamplerPRNG(rng *sha3.SHAKE) *samplerPRNG {
 }
 
 func initSamplerPRNG(p *samplerPRNG, rng *sha3.SHAKE) {
-	// Falcon expands 56 bytes into 48 bytes of ChaCha state and an 8-byte counter.
+	// Falcon expands 56 bytes into 48 bytes of ChaCha state and an 8-byte
+	// counter. The copy is as sensitive as the state it becomes.
 	var seed [56]byte
+	defer zeroBytes(seed[:])
 	_, _ = rng.Read(seed[:])
 
 	for i := range p.state {
 		p.state[i] = binary.LittleEndian.Uint32(seed[4*i:])
 	}
 	p.counter = binary.LittleEndian.Uint64(seed[48:])
+	p.draws = 0
+	p.exhausted = false
 
 	p.refill()
 }

@@ -395,12 +395,17 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   to round 3 of the NIST competition (specification v1.2), bit for bit with
   the reference implementation: the round-3 KAT is regenerated in the test
   suite and CI compares keys and signatures byte for byte with PQClean on
-  amd64, amd64 with fused multiply-add and arm64. NIST's standard for Falcon,
+  amd64, amd64 with fused multiply-add and arm64, and runs the Falcon suites
+  under qemu on riscv64. NIST's standard for Falcon,
   FIPS 206 (FN-DSA), is still a draft and is announced to differ from the
   submission in details, so key, signature and hashing formats may change
   when it is final. As for ML-DSA-87, `NewPublicKey` rejects weak keys, ones
   anyone could sign under (every constant or monomial polynomial, and every
-  `a/c` with small `a` and `c` up to 1024); see [SECURITY.md](SECURITY.md),
+  `a/c` with small `a` and `c` up to 1024). `NewPrivateKey` refuses encodings
+  that do not solve the NTRU equation or fall outside the key-generation
+  bounds, and signing is bounded so that no imported key can make it spin.
+  Exactly one signature encoding is accepted: the zero-padded form PQClean
+  and liboqs also accept is rejected. See [SECURITY.md](SECURITY.md),
   "Falcon-1024".
 - **SPHINCS+-256s** (notes): The implementation in this library is the
   **SPHINCS+

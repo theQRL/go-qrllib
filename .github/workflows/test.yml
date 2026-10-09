@@ -105,7 +105,10 @@ jobs:
                 ./wallet/misc)             budget=500000x ;;
                 *)                         budget=20000x ;;
               esac
-              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime="$budget"
+              # Minimisation of coverage-expanding inputs defaults to 60 s each
+              # and can eat most of a short budget; one minimisation run per
+              # input keeps the time on new inputs.
+              go test "$pkg" -run='^$' -parallel=1 -fuzz="^${fuzz}\$" -fuzztime="$budget" -fuzzminimizetime=1x
             done <<< "$targets"
           done
 
@@ -126,3 +129,41 @@ jobs:
           files: ./coverage.out
           flags: go-qrllib
           fail_ci_if_error: true
+
+  falcon1024-riscv64:
+    name: Falcon-1024 on riscv64 (qemu-user)
+    # Go leaves the integer result of converting a NaN implementation-defined,
+    # and the targets differ: 0 on arm64, 2^63 on amd64, 2^63-1 on riscv64.
+    # The Falcon sampler only meets a NaN on a basis the import checks refuse,
+    # and the draw bound ends signing on any such basis; this leg runs the
+    # Falcon suites on the one target whose conversion differs from both CI
+    # architectures, so a regression in either guard shows up here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.25.x'
+
+      - name: Install qemu-user-static
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-user-static
+
+      - name: Build the Falcon-1024 test binaries for riscv64
+        env:
+          GOARCH: riscv64
+        run: |
+          go test -c -o /tmp/falcon1024_internal.test ./crypto/internal/falcon1024/
+          go test -c -o /tmp/falcon1024_public.test ./crypto/falcon1024/
+
+      - name: Run the Falcon-1024 suites under qemu-riscv64
+        # Test binaries read testdata relative to the package directory.
+        run: |
+          (cd crypto/internal/falcon1024 && qemu-riscv64-static /tmp/falcon1024_internal.test -test.timeout 50m)
+          (cd crypto/falcon1024 && qemu-riscv64-static /tmp/falcon1024_public.test -test.timeout 50m)

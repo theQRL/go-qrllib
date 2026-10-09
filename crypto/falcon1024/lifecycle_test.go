@@ -156,7 +156,7 @@ type weakKeyVectors struct {
 
 // weakKeyVectorFile loads the shared vectors from the internal package's
 // testdata directory.
-func weakKeyVectorFile(t *testing.T) weakKeyVectors {
+func weakKeyVectorFile(t testing.TB) weakKeyVectors {
 	t.Helper()
 	v := testutil.ReadJSON[weakKeyVectors](t, filepath.Join("..", "internal", "falcon1024", "testdata"), "weak_public_key_vectors.json")
 	if len(v.PublicKeys) == 0 || len(v.PrivateKeys) == 0 {

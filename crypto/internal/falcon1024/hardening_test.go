@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
@@ -510,5 +511,124 @@ func TestConstantPublicKeyIsRejected(t *testing.T) {
 	// forgery still verifies, which is why the rule exists.
 	if err := Verify(&pub, message, sig); err != nil {
 		t.Fatalf("forged signature under a constant key rejected by the primitive: %v", err)
+	}
+}
+
+// substituteF re-encodes a valid key with its F replaced, leaving f and g,
+// and so the public key, unchanged.
+func substituteF(t *testing.T, valid []byte, replace func(f, ntruF smallPolynomial) smallPolynomial) []byte {
+	t.Helper()
+	f, g, ntruF, err := skDecode(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]byte, PrivateKeySize)
+	if err := skEncode(out, f, g, replace(f, ntruF)); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// shiftedF returns x*F: the negacyclic rotation, whose determinant is x*q.
+func shiftedF(_, ntruF smallPolynomial) smallPolynomial {
+	var s smallPolynomial
+	s[0] = -ntruF[n-1]
+	copy(s[1:], ntruF[:n-1])
+	return s
+}
+
+// negatedF returns -F, whose determinant is -q.
+func negatedF(_, ntruF smallPolynomial) smallPolynomial {
+	for i := range ntruF {
+		ntruF[i] = -ntruF[i]
+	}
+	return ntruF
+}
+
+// fAsF returns f in place of F, whose determinant is zero.
+func fAsF(f, _ smallPolynomial) smallPolynomial { return f }
+
+// TestNewPrivateKeyRequiresNTRUSolution checks that an encoding whose F is
+// not an NTRU solution for (f, g) is refused even though it derives the
+// correct public key and keeps (f, g) inside every bound.
+func TestNewPrivateKeyRequiresNTRUSolution(t *testing.T) {
+	valid := testPrivateKey(t).Bytes()
+	f, g, ntruF, err := skDecode(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ntruG, ok := completePrivate(f, g, ntruF)
+	if !ok || !ntruEquationHolds(f, g, ntruF, ntruG) {
+		t.Fatal("generated key does not satisfy the NTRU equation")
+	}
+	for name, replace := range map[string]func(f, ntruF smallPolynomial) smallPolynomial{
+		"F replaced by x*F": shiftedF,
+		"F replaced by -F":  negatedF,
+		"F replaced by f":   fAsF,
+	} {
+		sk := substituteF(t, valid, replace)
+		_, importErr := NewPrivateKey(sk)
+		if !errors.Is(importErr, cryptoerrors.ErrInvalidSecretKey) || errors.Is(importErr, cryptoerrors.ErrWeakPublicKey) {
+			t.Errorf("%s: error = %v; want ErrInvalidSecretKey only", name, importErr)
+		}
+	}
+}
+
+// TestSamplerDrawBoundEndsSigning builds, bypassing the import checks, the
+// basis an encoding with F = f would give (determinant zero, so the LDL tree
+// carries NaN and near-zero leaves) and checks that signing fails promptly
+// instead of spinning in the sampler's rejection loop.
+func TestSamplerDrawBoundEndsSigning(t *testing.T) {
+	f, g, _, err := skDecode(testPrivateKey(t).Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, ok := computePublic(f, g)
+	if !ok {
+		t.Fatal("f is invertible")
+	}
+	priv, err := initPrivateKey(&PrivateKey{}, f, g, f, g, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha3.NewSHAKE256()
+	_, _ = hash.Write([]byte("draw bound"))
+	c0 := hashToPoint(hash)
+	rng := sha3.NewSHAKE256()
+	_, _ = rng.Write([]byte("draw bound sampler"))
+
+	start := time.Now()
+	_, signErr := sign(rng, priv, c0)
+	if !errors.Is(signErr, cryptoerrors.ErrSigningFailed) {
+		t.Fatalf("sign with a zero-determinant basis: error = %v; want ErrSigningFailed", signErr)
+	}
+	if took := time.Since(start); took > 30*time.Second {
+		t.Errorf("sign took %v to give up", took)
+	}
+}
+
+// TestSamplerDrawsPerCoordinate measures the sampler's rejection rate on a
+// generated key, which is what makes maxSamplerDraws unreachable in honest
+// use.
+func TestSamplerDrawsPerCoordinate(t *testing.T) {
+	priv := testPrivateKey(t)
+	hash := sha3.NewSHAKE256()
+	_, _ = hash.Write([]byte("draws"))
+	c0 := hashToPoint(hash)
+	rng := sha3.NewSHAKE256()
+	_, _ = rng.Write([]byte("draws sampler"))
+	prng := newSamplerPRNG(rng)
+	defer prng.zeroize()
+
+	if _, ok := signAttempt(prng, priv, c0); !ok {
+		t.Fatal("attempt rejected by the norm check")
+	}
+	mean := float64(prng.draws) / float64(2*n)
+	t.Logf("%d draws for %d coordinates, %.2f per coordinate", prng.draws, 2*n, mean)
+	if mean > 8 {
+		t.Errorf("mean draws per coordinate = %.2f; want a handful", mean)
+	}
+	if prng.exhausted {
+		t.Error("a generated key exhausted the draw budget")
 	}
 }

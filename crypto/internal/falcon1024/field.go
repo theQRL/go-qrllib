@@ -228,7 +228,10 @@ func toNTTMonty(f []fieldElement) {
 // single Fermat inversion of the prefix product (Montgomery's trick) followed
 // by back-substitution. Returns false if any fNTT[i] is zero.
 func divideNTTByBatchedInverse(hNTT, fNTT []fieldElement) bool {
+	// fMont and pMont hold f and its running products in Montgomery form,
+	// secret whenever f is (key generation and import both divide by f).
 	var fMont, pMont [n]fieldElement
+	defer zeroFieldElements(fMont[:], pMont[:])
 	for i := range fNTT {
 		if fNTT[i] == 0 {
 			return false
