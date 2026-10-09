@@ -1,6 +1,8 @@
 package ml_dsa_87
 
 import (
+	"fmt"
+
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 )
 
@@ -66,10 +68,14 @@ func ValidatePublicKey(pk *[CRYPTO_PUBLIC_KEY_BYTES]uint8) error {
 	var t1 polyVecK
 	unpackPk(&rho, &t1, pk)
 	if countLargeT1(&t1) < t1MinLarge {
-		return cryptoerrors.ErrWeakPublicKey
+		return errWeakT1
 	}
 	return nil
 }
+
+// errWeakT1 is the ML-DSA-87 weak-key error; it wraps the library sentinel
+// and keeps the message the rule has always reported.
+var errWeakT1 = fmt.Errorf("%w: fewer than 76 of 2048 t1 coefficients are large", cryptoerrors.ErrWeakPublicKey)
 
 // countLargeT1 returns how many coefficients of t1 are large. Every
 // coefficient is in [0, 2^10) after polyT1Unpack. The accumulation is

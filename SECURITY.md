@@ -200,12 +200,13 @@ or address layer.
 | --- | --- |
 | Post-quantum secure | Yes (NTRU lattice assumptions) |
 | EUF-CMA secure | Yes, per the Falcon specification |
-| Deterministic signing | No. Each signature draws a 40-byte nonce and then a 48-byte sampler seed from the caller's `io.Reader` (nil selects `crypto/rand`). The sampler seed is as sensitive as the private key for the signature it produces; a reader that repeats bytes belongs in tests only. |
+| Deterministic signing | No. Each signature draws a 40-byte nonce and then a 48-byte sampler seed from the caller's `io.Reader` (nil selects `crypto/rand`). The sampler seed is as sensitive as the private key for the signature it produces; a reader that repeats bytes belongs in tests only. The nonce must not repeat while the seed changes: two signatures of one message under one nonce differ by a short vector of the private lattice. A caller that wants deterministic signatures derives both values from a pseudorandom function of the key and the message. |
 | Stateless | Yes |
 | Side-channel resistant | Verification is integer-only. Key generation and signing use native `float64` and, like the reference, are not constant-time; see [details below](#constant-time-operations). |
-| Signature malleability | No: the compressed encoding rejects a `-0` coefficient, magnitudes above 2047, non-zero padding bits and trailing bytes, and both framings require the signature to consume exactly the bytes it claims. |
-| Public-key validation | Encoding only: header byte, length and every coefficient below q. The shape of the polynomial is not checked. A public key whose polynomial is a small constant or monomial (any `±k·x^j` with k roughly between 14 and 907) lets anyone round a message hash to a short lattice point and produce a signature the verifier accepts, so a signature proves nothing about who generated such a key. Keys from `GenerateKey` never have this shape (`h = g/f` is uniform). Whether to adopt a rejection rule, as the library does for ML-DSA-87, is an open decision; any rule must be identical across clients and frozen with shared vectors. `TestConstantPublicKeyIsNotRejected` pins the current behaviour so the decision is deliberate. |
-| Private-key import | `NewPrivateKey` recomputes G as the reference `crypto_sign` does and additionally applies the key-generation bounds to the decoded (f, g): squared norm below 16823 and orthogonalised Gram-Schmidt norm below 16822.4121. Every key the reference or this package generates passes; an encoding outside the bounds would keep the signing loop rejecting or drive the sampler out of the domain in which its arithmetic matches the reference. The signing loop is bounded at 128 attempts and returns `ErrSigningFailed` beyond that. |
+| Signature malleability | No: the compressed encoding rejects a `-0` coefficient, magnitudes above 2047, non-zero padding bits and trailing bytes, and both framings require the signature to consume exactly the bytes it claims, so a signature has exactly one accepted encoding. PQClean's falcon-1024 verifier and liboqs also accept the polynomial zero-padded to the 1,280-byte falcon-padded-1024 length, in both framings; this package rejects that form. The accepted set is frozen by `crypto/internal/falcon1024/testdata/signature_encoding_vectors.json`, which every QRL client must reproduce, and the cross-verification job pins both behaviours (go-qrllib rejects the padded forms, PQClean accepts them). Tests: `TestSignatureEncodingVectors`, `TestZeroPaddedSignaturesAreRejected`. |
+| Public-key validation | `NewPublicKey` (and `ValidatePublicKey`, for callers holding raw bytes) rejects weak keys, those under which the verifier would accept a signature anyone can compute. A key `h = a/c` with a small polynomial `a` and a small integer `c` publishes a short basis of its lattice (the rotations of `(-a, c)`), and rounding a message hash against it gives a signature inside the norm bound whenever `184 <= ‖a‖² + c² <= 823,237`; every constant and monomial key is of that form (98.6% of the constants `k` in `[1, q)` forge end to end, the rest have an even shorter lattice vector). The rule: with `h` centred, the key is weak if for some integer `c` in `[1, 1024]` the squared norm of the centred coefficients of `c·h`, plus `c²`, is at most `2^30`. Honest keys have `‖c·h‖² ≈ 1.29·10^10` for every `c`; the chance that a generated key is rejected is below `2^-1562`. The same rule runs on the public half of an imported private key and in key generation; the primitive verifier is unchanged. Like the ML-DSA-87 rule it is sufficient, not complete: a key built as `a/b` for a sparse non-integer `b` is not caught. The rule is integer-only and must be applied identically by every QRL client, against `crypto/internal/falcon1024/testdata/weak_public_key_vectors.json`. Error: wraps `ErrWeakPublicKey`. Tests: `validate_test.go`. |
+| Private-key import | `NewPrivateKey` recomputes G as the reference `crypto_sign` does and then applies three checks the reference does not: the public half must pass the weak-key rule; (f, g, F, G) must solve the NTRU equation `f·G − g·F = q` (an encoding whose F is replaced, by `x·F`, `−F` or `f` say, derives the correct public key and passes every other check, but its basis cannot sign: the norm check never passes, or the sampler never produces a sample); and (f, g) must satisfy the key-generation bounds, squared norm below 16823 and orthogonalised Gram-Schmidt norm below 16822.4121. Every key the reference or this package generates passes. Signing is bounded twice, at 128 attempts and at 2^16 sampler draws per coordinate (a generated key needs about 1.7), and returns `ErrSigningFailed` when either bound is hit, so a basis built outside the import checks cannot make signing spin on any architecture. Tests: `TestNewPrivateKeyRequiresNTRUSolution`, `TestSamplerDrawBoundEndsSigning`, `TestSamplerDrawsPerCoordinate`; the shared weak-key vectors carry the substituted-F encodings as `invalid`. |
+| Domain separation | None in the primitive: the signed input is the nonce followed by the message, as the round-3 submission defines it. A protocol that signs several kinds of data with one key must prefix its own domain separator, as the wallet layer does for ML-DSA-87 with a descriptor-derived context. FIPS 206 adds a context string and changes the hashing, so the prefix will need revisiting when the standard is final. |
 | Standard status | Falcon as submitted to round 3 of the NIST competition (specification v1.2), bit for bit with the reference implementation (size constants from PQClean's api.h): the round-3 KAT is regenerated in the test suite (`TestFalconRound3KATDigest`) and CI compares keys and signatures byte for byte with PQClean on amd64, amd64 with fused multiply-add and arm64. FIPS 206 (FN-DSA) is still a draft and is announced to differ from the submission in details. |
 
 **Security Level**: NIST Level 5
@@ -342,7 +343,7 @@ verified by:
 | [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
 | [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
 | [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
-| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; fuzz targets assert a valid signature has exactly one accepted encoding |
+| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; the internal fuzz targets `FuzzDetachedSignatureCanonical` and `FuzzSignedMessageCanonical` decode and re-encode every input the codec accepts and require the bytes to match, and the public targets check that an accepted signature keeps the framing and verifies for no other message |
 
 Run canonicality tests:
 
@@ -392,12 +393,15 @@ persisting in freed memory:
   LDL tree; the public key is kept and signing afterwards returns
   `ErrSecretKeyZeroized`
 - **Falcon-1024 signing** (`signCore`, `sign`, `signAttempt`): the sampler
-  seed, its SHAKE state, the ChaCha20 sampler state and buffer, and the
-  target, sample and lattice vectors
+  seed, its SHAKE state, the 56-byte copy the ChaCha20 sampler is seeded
+  from, the sampler state and buffer, and the target, sample and lattice
+  vectors
 - **Falcon-1024 key generation and import** (`NewPrivateKeyFromSeed`,
   `NewPrivateKey`, `initPrivateKey`, `expandPrivateKey`, `solveNTRU`): f, g,
-  F, G and their NTT and FFT forms, the Gram matrix, the LDL scratch and the
-  NTRU solver workspace
+  F, G and their NTT and FFT forms, the Montgomery-form temporaries of the
+  batched inversion that derives the public key, the scratch of the NTRU
+  equation check, the Gram matrix, the LDL scratch and the NTRU solver
+  workspace
 
 #### Guarantee boundary (best-effort under Go's memory model)
 
@@ -481,7 +485,8 @@ The library distinguishes two failure classes:
 - **Invariant violations**: internal preconditions that should never fail if the
   rest of the library is correct (e.g. an unrecognised `HashFunction` reaching
   the dispatch switch *after* the public constructor's validation guard, or
-  `xmss/params.go`'s `logW` switch reaching its impossible default). These
+  `xmss/params.go`'s exact-match switch on the WOTS `w` reaching its default
+  for a value outside {4, 16, 256}). These
   **panic with a clear message**; they exist as crash-early tripwires so that
   any future regression which bypasses an upstream guard fails loudly in tests
   rather than silently corrupting key material in production.
@@ -513,10 +518,24 @@ the Falcon sites are exercised under `recover` by `TestScratchExhaustionPanics`.
 XMSS preconditions: `crypto/xmss.Verify` and `VerifyWithCustomWOTSParamW`
 return `false` for an invalid `HashFunction` or a public key that is not
 exactly 64 bytes. `XMSSFastGenKeyPair` and
-`XMSSFastGenKeyPairFromExpandedSeed` return `ErrBufferTooSmall` for a short
-`pk`/`sk` and `ErrInvalidBDSParams` for a nil `bdsState` or `h ≤ k`. The XMSS
-fuzzers pass the hash-function and WOTS `w` selectors unmasked. Tests:
-`crypto/xmss/verify_preconditions_test.go`.
+`XMSSFastGenKeyPairFromExpandedSeed` return `ErrUnsupportedParameterSet` for
+a nil parameter set, `ErrBufferTooSmall` for a short `pk`/`sk`,
+`ErrInvalidBDSParams` for a nil `bdsState`, one built for a different
+`(h, n, k)`, or `h ≤ k`, and `ErrInvalidSeed` for a nil expanded seed, all
+before anything is written. `NewWOTSParams` matches `w` exactly against
+{4, 16, 256} before it panics as an invariant tripwire; the exported callers
+that take a width from the caller (`VerifyWithCustomWOTSParamW`,
+`GetHeightFromSigSize`) check it first and return `false` or
+`ErrUnsupportedParameterSet`. The XMSS fuzzers pass
+the hash-function and WOTS `w` selectors unmasked. Tests:
+`crypto/xmss/verify_preconditions_test.go`, `crypto/xmss/params_test.go`.
+
+Nil receivers (ML-DSA-87): methods on a nil `*MLDSA87` follow the same rule
+as nil arguments. `Sign`, `SignDeterministic` and `SignAttached` return
+`ErrSecretKeyNil`, `Zeroize` is a no-op, `PublicKey` returns nil and the
+accessors return zero values; `(*PublicKey).Bytes` on a nil key returns the
+zero array and `Equal` returns false. Tests:
+`crypto/ml_dsa_87/nil_receiver_test.go`.
 
 v1 descriptor parity: `legacywallet/xmss` accepts what the v1 (QRL mainnet)
 node accepted, per qrllib v1.2.4, so every funded v1 address stays
@@ -563,15 +582,30 @@ For a valid key the acceptance probability per attempt is about 0.26
 regardless of the key, so the bound is a sub-2⁻⁴⁴⁰ event in honest use; it
 exists so that a crafted `t0` cannot make signing spin. The ML-DSA-87 checks
 sit at the raw-key signing primitive so any future import path inherits them.
+They cover what can be checked without recomputing the public key: whether
+`t0` and `tr` are consistent with `rho`, `s1` and `s2` is not verified. An
+inconsistent key is accepted and signs (with `t0` forced to its extremes the
+per-attempt acceptance falls from about 0.25 to about 0.09, so signing takes
+about three times longer and stays far inside the attempt bound). A wrong
+`tr` changes the challenge, so none of its signatures verify under the key's
+own public half; a wrong `t0` only changes the hints, so a small change
+leaves most signatures valid and a large one leaves none. Nothing in this
+library imports raw ML-DSA-87 secret keys; an import path that does should
+recompute the public key from `rho`, `s1` and `s2` and compare `t0` and `tr`,
+inside the signing primitive where the matrix is already expanded, at about a
+tenth of the signing cost.
 Regression tests: `secretkey_test.go`.
 
 Secret keys (Falcon-1024): `crypto/falcon1024.NewPrivateKey` is the one path
 that imports raw secret-key bytes. Besides the reference's own checks (the
 `trim_i8` encoding rules, f invertible mod q, the recomputed G within ±127)
-it applies the key-generation bounds to the decoded (f, g), and the signing
-loop is bounded at 128 attempts (`ErrSigningFailed`); see "Falcon-1024"
-above. Regression tests: `TestNewPrivateKeyRejectsOutOfBoundEncodings`,
-`TestSignLoopIsBounded`.
+it requires the public half to pass the weak-key rule, the four polynomials
+to solve the NTRU equation f·G − g·F = q, and (f, g) to satisfy the
+key-generation bounds; signing is bounded at 128 attempts and at 2^16 sampler
+draws per coordinate (`ErrSigningFailed`); see "Falcon-1024" above.
+Regression tests: `TestNewPrivateKeyRejectsOutOfBoundEncodings`,
+`TestNewPrivateKeyRequiresNTRUSolution`, `TestSignLoopIsBounded`,
+`TestSamplerDrawBoundEndsSigning`.
 
 The crypto-level `Open` functions return `([]byte, error)`. Each failure mode
 surfaces a distinct typed sentinel from `cryptoerrors`, so callers that need to

@@ -201,6 +201,52 @@ pk := signer.GetPK()
 valid := sphincsplus_256s.Verify(message, signature, &pk)
 ```
 
+### Falcon-1024 (primitive; round-3, pre-FIPS 206)
+
+`crypto/falcon1024` is a signature primitive with no wallet layer. It
+implements the NIST round-3 submission bit for bit; FIPS 206 (FN-DSA) is
+still a draft and will differ in details, so key, signature and hashing
+formats may change when it is final. See the Falcon notes in [Standards
+Compliance](#standards-compliance) and [SECURITY.md](SECURITY.md).
+
+```go
+import "github.com/theQRL/go-qrllib/crypto/falcon1024"
+
+// A fresh key from crypto/rand, or a deterministic one from a 48-byte seed
+// with falcon1024.NewPrivateKeyFromSeed(seed).
+pub, priv, err := falcon1024.GenerateKey(nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer priv.Zeroize()
+
+// Signed message: the message travels inside the signature and Open returns
+// it, as crypto_sign / crypto_sign_open do in the reference API.
+message := []byte("The sleeper must awaken")
+signed, err := falcon1024.Sign(nil, priv, message)
+if err != nil {
+    log.Fatal(err)
+}
+opened, err := falcon1024.Open(pub, signed) // ErrInvalidSignature when tampered
+if err != nil {
+    log.Fatal(err)
+}
+
+// Detached signature (at most falcon1024.MaxSignatureSize bytes), verified
+// against a message you already hold. Exactly one encoding is accepted.
+sig, err := falcon1024.SignDetached(nil, priv, message)
+if err != nil {
+    log.Fatal(err)
+}
+valid := falcon1024.Verify(pub, message, sig)
+
+// Keys received as bytes. NewPublicKey checks the encoding and refuses weak
+// keys; NewPrivateKey also checks the NTRU equation and the key-generation
+// bounds, so an encoding it accepts can always sign.
+pub2, err := falcon1024.NewPublicKey(pub.Bytes())    // ErrInvalidPublicKey or ErrWeakPublicKey
+priv2, err := falcon1024.NewPrivateKey(priv.Bytes()) // ErrInvalidSecretKey or ErrWeakPublicKey
+```
+
 ### Wallet Layer (QRL V2.0)
 
 The wallet packages wrap the crypto primitives with QRL-specific address
@@ -395,11 +441,18 @@ To run them locally, see [`.github/acvp/README.md`](.github/acvp/README.md).
   to round 3 of the NIST competition (specification v1.2), bit for bit with
   the reference implementation: the round-3 KAT is regenerated in the test
   suite and CI compares keys and signatures byte for byte with PQClean on
-  amd64, amd64 with fused multiply-add and arm64. NIST's standard for Falcon,
+  amd64, amd64 with fused multiply-add and arm64, and runs the Falcon suites
+  under qemu on riscv64. NIST's standard for Falcon,
   FIPS 206 (FN-DSA), is still a draft and is announced to differ from the
   submission in details, so key, signature and hashing formats may change
-  when it is final. Public keys are checked for their encoding, not their
-  shape (see [SECURITY.md](SECURITY.md), "Falcon-1024").
+  when it is final. As for ML-DSA-87, `NewPublicKey` rejects weak keys, ones
+  anyone could sign under (every constant or monomial polynomial, and every
+  `a/c` with small `a` and `c` up to 1024). `NewPrivateKey` refuses encodings
+  that do not solve the NTRU equation or fall outside the key-generation
+  bounds, and signing is bounded so that no imported key can make it spin.
+  Exactly one signature encoding is accepted: the zero-padded form PQClean
+  and liboqs also accept is rejected. See [SECURITY.md](SECURITY.md),
+  "Falcon-1024".
 - **SPHINCS+-256s** (notes): The implementation in this library is the
   **SPHINCS+
   submission** (pre-FIPS 205), specifically `SHAKE-256s-robust`. NIST published

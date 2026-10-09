@@ -28,6 +28,13 @@ func zeroInt32s(s []int32) {
 	runtime.KeepAlive(&s)
 }
 
+func zeroFieldElements(ss ...[]fieldElement) {
+	for _, s := range ss {
+		clear(s)
+		runtime.KeepAlive(&s)
+	}
+}
+
 func zeroSmallPolynomials(ps ...*smallPolynomial) {
 	for _, p := range ps {
 		zeroInt32s(p[:])
@@ -54,6 +61,8 @@ func (p *samplerPRNG) zeroize() {
 	clear(p.state[:])
 	p.counter = 0
 	p.ptr = 0
+	p.draws = 0
+	p.exhausted = false
 	runtime.KeepAlive(p)
 }
 

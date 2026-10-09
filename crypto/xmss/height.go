@@ -49,8 +49,15 @@ func (h Height) IsValid() bool {
 }
 
 // GetHeightFromSigSize calculates the tree height from a signature size.
-// Returns an error if the signature size is invalid.
+// Returns an error if the signature size is invalid or wotsParamW is not one
+// of the supported widths 4, 16 and 256; the width is a caller-supplied value
+// and must not reach the NewWOTSParams tripwire.
 func GetHeightFromSigSize(sigSize, wotsParamW uint32) (Height, error) {
+	switch wotsParamW {
+	case 4, 16, 256:
+	default:
+		return 0, cryptoerrors.ErrUnsupportedParameterSet
+	}
 	wotsParam := NewWOTSParams(WOTSParamN, wotsParamW)
 	signatureBaseSize := calculateSignatureBaseSize(wotsParam.keySize)
 	if sigSize < signatureBaseSize {

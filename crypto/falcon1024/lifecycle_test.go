@@ -2,15 +2,21 @@ package falcon1024_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 	"testing/iotest"
 
 	cryptoerrors "github.com/theQRL/go-qrllib/crypto/errors"
 	. "github.com/theQRL/go-qrllib/crypto/falcon1024"
+	"github.com/theQRL/go-qrllib/crypto/internal/testutil"
 )
 
+// TestZeroize checks the zeroized state: Bytes returns nil, both signing
+// paths return ErrSecretKeyZeroized, the public key still verifies, and a
+// second Zeroize is harmless.
 func TestZeroize(t *testing.T) {
 	pub, priv, err := GenerateKey(nil)
 	if err != nil {
@@ -82,24 +88,109 @@ func TestNewPrivateKeyRejectsOutOfBoundEncodings(t *testing.T) {
 	// bit pattern 01111 repeated, five bytes per eight coefficients.
 	fifteen := bytes.Repeat([]byte{0x7B, 0xDE, 0xF7, 0xBD, 0xEF}, 128)
 
-	for name, mutate := range map[string]func(sk []byte){
-		"f = 1, g = 0, F = 0 (Gram-Schmidt norm bound)": func(sk []byte) {
+	for name, tc := range map[string]struct {
+		mutate func(sk []byte)
+		want   error
+	}{
+		"f = 1, g = 0, F = 0 (derives the weak key h = 0)": {func(sk []byte) {
 			clear(sk[1:])
 			sk[1] = 0x08
-		},
-		"f = 15 everywhere, g = 0, F = 0 (squared norm bound)": func(sk []byte) {
+		}, cryptoerrors.ErrWeakPublicKey},
+		"f = 15 everywhere, g = 0, F = 0 (derives h = 0)": {func(sk []byte) {
 			clear(sk[1:])
 			copy(sk[1:], fifteen)
-		},
-		"f coefficient encoded as -16":  func(sk []byte) { sk[1] = sk[1]&0x07 | 0x80 },
-		"g coefficient encoded as -16":  func(sk []byte) { sk[641] = sk[641]&0x07 | 0x80 },
-		"F coefficient encoded as -128": func(sk []byte) { sk[1281] = 0x80 },
-		"F inconsistent with f and g":   func(sk []byte) { sk[1281] ^= 0x01 },
+		}, cryptoerrors.ErrWeakPublicKey},
+		"f coefficient encoded as -16":  {func(sk []byte) { sk[1] = sk[1]&0x07 | 0x80 }, cryptoerrors.ErrInvalidSecretKey},
+		"g coefficient encoded as -16":  {func(sk []byte) { sk[641] = sk[641]&0x07 | 0x80 }, cryptoerrors.ErrInvalidSecretKey},
+		"F coefficient encoded as -128": {func(sk []byte) { sk[1281] = 0x80 }, cryptoerrors.ErrInvalidSecretKey},
+		"F inconsistent with f and g":   {func(sk []byte) { sk[1281] ^= 0x01 }, cryptoerrors.ErrInvalidSecretKey},
 	} {
 		sk := bytes.Clone(valid)
-		mutate(sk)
-		if _, err := NewPrivateKey(sk); !errors.Is(err, cryptoerrors.ErrInvalidSecretKey) {
-			t.Errorf("%s: error = %v; want ErrInvalidSecretKey", name, err)
+		tc.mutate(sk)
+		if _, err := NewPrivateKey(sk); !errors.Is(err, tc.want) {
+			t.Errorf("%s: error = %v; want %v", name, err, tc.want)
+		}
+	}
+
+	// The key-generation bounds, with a public half the weak-key rule
+	// accepts, come from the shared vector file.
+	for _, v := range weakKeyVectorFile(t).PrivateKeys {
+		sk, err := hex.DecodeString(v.SK)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = NewPrivateKey(sk)
+		switch v.Expected {
+		case "valid":
+			if err != nil {
+				t.Errorf("%s: %v", v.Name, err)
+			}
+		case "weak":
+			if !errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+				t.Errorf("%s: error = %v; want ErrWeakPublicKey", v.Name, err)
+			}
+		case "invalid":
+			if !errors.Is(err, cryptoerrors.ErrInvalidSecretKey) || errors.Is(err, cryptoerrors.ErrWeakPublicKey) {
+				t.Errorf("%s: error = %v; want ErrInvalidSecretKey only", v.Name, err)
+			}
+		default:
+			t.Fatalf("%s: unknown expectation %q", v.Name, v.Expected)
+		}
+	}
+}
+
+// weakKeyVectors is the part of the shared Falcon weak-key vector file this
+// package consumes: the encoded keys and their expected verdicts.
+type weakKeyVectors struct {
+	PublicKeys []struct {
+		Name     string `json:"name"`
+		PK       string `json:"pk"`
+		Expected string `json:"expected"`
+	} `json:"publicKeys"`
+	PrivateKeys []struct {
+		Name     string `json:"name"`
+		SK       string `json:"sk"`
+		Expected string `json:"expected"`
+	} `json:"privateKeys"`
+}
+
+// weakKeyVectorFile loads the shared vectors from the internal package's
+// testdata directory.
+func weakKeyVectorFile(t testing.TB) weakKeyVectors {
+	t.Helper()
+	v := testutil.ReadJSON[weakKeyVectors](t, filepath.Join("..", "internal", "falcon1024", "testdata"), "weak_public_key_vectors.json")
+	if len(v.PublicKeys) == 0 || len(v.PrivateKeys) == 0 {
+		t.Fatal("weak-key vector file is empty")
+	}
+	return v
+}
+
+// ValidatePublicKey and NewPublicKey reach the shared vectors' verdicts, and
+// ValidatePublicKey reports a malformed encoding as such.
+func TestValidatePublicKeyVectors(t *testing.T) {
+	for _, v := range weakKeyVectorFile(t).PublicKeys {
+		pk, err := hex.DecodeString(v.PK)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = ValidatePublicKey(pk)
+		_, errNew := NewPublicKey(pk)
+		switch v.Expected {
+		case "weak":
+			if !errors.Is(err, cryptoerrors.ErrWeakPublicKey) || !errors.Is(errNew, cryptoerrors.ErrWeakPublicKey) {
+				t.Errorf("%s: ValidatePublicKey = %v, NewPublicKey = %v; want ErrWeakPublicKey", v.Name, err, errNew)
+			}
+		case "strong":
+			if err != nil || errNew != nil {
+				t.Errorf("%s: ValidatePublicKey = %v, NewPublicKey = %v; want nil", v.Name, err, errNew)
+			}
+		default:
+			t.Fatalf("%s: unknown expectation %q", v.Name, v.Expected)
+		}
+	}
+	for name, bad := range map[string][]byte{"nil": nil, "short": make([]byte, PublicKeySize-1), "header": make([]byte, PublicKeySize)} {
+		if err := ValidatePublicKey(bad); !errors.Is(err, cryptoerrors.ErrInvalidPublicKey) {
+			t.Errorf("ValidatePublicKey(%s) = %v; want ErrInvalidPublicKey", name, err)
 		}
 	}
 }
@@ -127,6 +218,8 @@ func TestShortSignaturesAreSizeErrors(t *testing.T) {
 	}
 }
 
+// TestNewPublicKeyRejectsCoefficientAtQ checks that a coefficient equal to q
+// is an encoding error, not a weak key.
 func TestNewPublicKeyRejectsCoefficientAtQ(t *testing.T) {
 	pub, _, err := GenerateKey(nil)
 	if err != nil {

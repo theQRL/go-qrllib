@@ -65,8 +65,12 @@ func (d *MLDSA87) PublicKey() *PublicKey {
 	return &PublicKey{packed: d.pk, valid: true}
 }
 
-// Bytes returns a copy of the packed encoding (rho || t1).
+// Bytes returns a copy of the packed encoding (rho || t1). A nil receiver
+// yields the zero array rather than a panic.
 func (pk *PublicKey) Bytes() [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
+	if pk == nil {
+		return [CRYPTO_PUBLIC_KEY_BYTES]uint8{}
+	}
 	return pk.packed
 }
 

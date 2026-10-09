@@ -30,6 +30,28 @@ type BDSState struct {
 // loop below underflows uint32 when height < k and attempts to allocate
 // roughly 4 billion TreeHashInst values, which in practice hangs the
 // process. Noted and fixed while remediating TOB-QRLLIB-2.
+// fits reports whether s was built for the tree params describes. NewBDSState
+// sizes every buffer from (h, n, k), so a state built for another tuple has
+// at least one buffer of the wrong length, which the traversal code would
+// index past. A nil state fits nothing.
+func (s *BDSState) fits(params *XMSSParams) bool {
+	if s == nil || params == nil || params.h <= params.k {
+		return false
+	}
+	h, n, k := params.h, params.n, params.k
+	if len(s.stack) != int((h+1)*n) || len(s.stackLevels) != int(h+1) ||
+		len(s.auth) != int(h*n) || len(s.keep) != int((h>>1)*n) ||
+		len(s.retain) != int(((1<<k)-k-1)*n) || len(s.treeHash) != int(h-k) {
+		return false
+	}
+	for _, th := range s.treeHash {
+		if th == nil || len(th.node) != int(n) {
+			return false
+		}
+	}
+	return true
+}
+
 func NewBDSState(height, n, k uint32) *BDSState {
 	if height <= k {
 		return nil

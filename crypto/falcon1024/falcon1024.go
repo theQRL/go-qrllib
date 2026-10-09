@@ -9,7 +9,14 @@
 // use the compressed signature format of the reference library API (falcon.h,
 // FALCON_SIG_COMPRESSED), which PQClean and liboqs also use for Falcon-1024.
 // A detached signature carries the same nonce and compressed polynomial as
-// the signed message, under the header byte 0x3A instead of 0x2A.
+// the signed message, under the header byte 0x3A instead of 0x2A. Exactly
+// one encoding of a signature is accepted, in either framing: the compressed
+// polynomial must consume every byte after the nonce. PQClean's falcon-1024
+// verifier and liboqs also accept the polynomial zero-padded to the
+// 1,280-byte falcon-padded-1024 length; this package rejects that form, so a
+// signature has no second valid encoding here. The accepted set is frozen by
+// the shared vectors in the internal package's testdata
+// (signature_encoding_vectors.json), which every QRL client must reproduce.
 //
 // # Which Falcon
 //
@@ -27,24 +34,48 @@
 // by a 48-byte sampler seed for each signature. The reader must be a
 // cryptographically secure source; pass nil to use crypto/rand. The sampler
 // seed is as sensitive as the private key for the signature it produces, so a
-// reader that repeats bytes belongs in tests only.
+// reader that repeats bytes belongs in tests only. The nonce is what keeps
+// two signatures of one message apart: a reader that repeats the nonce while
+// the sampler seed changes signs the same target twice, and the difference of
+// the two signatures is a short vector of the private lattice. A caller that
+// needs deterministic signatures must derive both values from a pseudorandom
+// function of the key and the message rather than replay a stream.
+//
+// # Domain separation
+//
+// The signed input is the nonce followed by the message, as the round-3
+// submission defines it; there is no context string. A protocol that signs
+// several kinds of data with one key must prefix the message with its own
+// domain separator before calling [Sign] or [SignDetached], as the QRL wallet
+// layer does for ML-DSA-87 with a descriptor-derived context. FIPS 206 adds a
+// context string of its own and changes the hashing, so that prefix will need
+// revisiting when the standard is final.
 //
 // # Public keys
 //
-// [NewPublicKey] checks the encoding: the header byte, the length and that
-// every coefficient is below q. It does not check the shape of the
-// polynomial. A public key whose polynomial is a small constant or monomial
-// lets anyone produce signatures the verifier accepts, so a signature proves
-// nothing about who generated the key it verifies under. Keys from
-// [GenerateKey] never have that shape. Callers that accept keys from other
-// parties should treat key generation as part of the trust decision; see
-// SECURITY.md.
+// [NewPublicKey] checks the encoding (header byte, length, every coefficient
+// below q) and then applies the weak-key rule of [ValidatePublicKey]: a key
+// whose polynomial has a small integer multiple that is short (every
+// constant and monomial, and every a/c with small a and c up to 1024) hands
+// out a short lattice basis, so anyone could produce signatures the verifier
+// accepts under it. Such keys are refused with an error wrapping
+// cryptoerrors.ErrWeakPublicKey; keys from [GenerateKey] never have that
+// shape (the false-reject probability is below 2^-1562). The same rule runs
+// on the public half of an imported private key. Like the ML-DSA-87 rule it
+// is sufficient, not complete; see SECURITY.md, "Falcon-1024".
 //
 // # Private keys, zeroization and timing
 //
-// [NewPrivateKey] rejects an encoding whose (f, g) fails the bounds key
-// generation enforces, in addition to the reference's own checks; every key
-// the reference or this package generates passes. [PrivateKey.Zeroize]
+// [NewPrivateKey] applies, after the reference's own checks, three the
+// reference does not: the derived public key must pass the weak-key rule, the
+// four polynomials must solve the NTRU equation f*G - g*F = q, and (f, g)
+// must satisfy the bounds key generation enforces. Every key the reference or
+// this package generates passes. An encoding failing the second or third
+// check derives a basis that cannot sign; the attempt loop is bounded at 128
+// and the sampler's rejection loop at 2^16 draws per coordinate, so signing
+// with such a basis (reachable only by bypassing the import checks) returns
+// an error wrapping cryptoerrors.ErrSigningFailed on every architecture
+// instead of spinning. [PrivateKey.Zeroize]
 // overwrites the secret material; signing afterwards returns an error
 // wrapping cryptoerrors.ErrSecretKeyZeroized while the public key stays
 // available. A *PrivateKey may be used by concurrent Sign calls; Zeroize must
@@ -115,8 +146,17 @@ type PublicKey struct {
 	key *falcon1024.PublicKey
 }
 
+// ValidatePublicKey checks an encoded public key without constructing it. It
+// returns an error wrapping cryptoerrors.ErrInvalidPublicKey for a malformed
+// encoding and one wrapping cryptoerrors.ErrWeakPublicKey for a weak key, one
+// under which anyone could sign; see the package documentation. [NewPublicKey]
+// applies the same check, so this is for callers holding raw bytes.
+func ValidatePublicKey(publicKey []byte) error {
+	return falcon1024.ValidatePublicKey(publicKey)
+}
+
 // NewPublicKey constructs a public key from its PublicKeySize-byte encoded
-// form. See the package documentation for what is and is not checked.
+// form, refusing malformed encodings and weak keys; see [ValidatePublicKey].
 func NewPublicKey(publicKey []byte) (*PublicKey, error) {
 	key, err := falcon1024.NewPublicKey(publicKey)
 	if err != nil {

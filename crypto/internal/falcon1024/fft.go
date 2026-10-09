@@ -114,13 +114,29 @@ func berExp(prng *samplerPRNG, x, ccs fpr) bool {
 
 // sampleFFTPoint samples one Falcon FFT coordinate using the discrete Gaussian
 // sampler.
+// maxSamplerDraws bounds the rejection loop of sampleFFTPoint for one
+// coordinate. For a leaf inside the sampler's domain, which every basis the
+// import checks accept has, a draw is accepted with a constant probability
+// (TestSamplerDrawsPerCoordinate measures the mean at a few draws per
+// coordinate), so 2^16 consecutive rejections do not happen in honest use.
+// The bound exists so that a basis whose LDL tree carries NaN or near-zero
+// leaves, reachable only by bypassing those checks, cannot make signing spin
+// on any architecture. The reference loops without bound.
+const maxSamplerDraws = 1 << 16
+
 func sampleFFTPoint(prng *samplerPRNG, mu, isigma fpr) fpr {
 	s := math.Floor(float64(mu))
+	if prng.exhausted {
+		// An earlier coordinate ran out of draws; the attempt is already
+		// lost, so finish the tree walk without spending more.
+		return fpr(s)
+	}
 	r := mu - fpr(s)
 	dss := fpr(isigma*isigma) * 0.5
 	ccs := isigma * sigmaMin1024
 
-	for {
+	for range maxSamplerDraws {
+		prng.draws++
 		z0 := gaussian0Sample(prng)
 		b := int(prng.readByte()) & 1
 		z := b + ((b<<1)-1)*z0
@@ -131,6 +147,8 @@ func sampleFFTPoint(prng *samplerPRNG, mu, isigma fpr) fpr {
 			return fpr(s + float64(z))
 		}
 	}
+	prng.exhausted = true
+	return fpr(s)
 }
 
 func ffLDLTreeSize(logn int) int {

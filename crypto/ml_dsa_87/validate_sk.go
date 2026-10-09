@@ -17,7 +17,17 @@ import (
 // so this is the whole of what can be checked without recomputing the
 // public key. Out-of-range s1 or s2 would break the ‖z‖∞ < GAMMA1 − BETA
 // bound the rejection loop relies on, and with it the zero-knowledge
-// property of the signature.
+// property of the signature. Whether t0 and tr are consistent with rho, s1
+// and s2 is not checked: an inconsistent key passes and signs (more slowly
+// at the extremes of t0, where the per-attempt acceptance drops from about
+// 0.25 to about 0.09 because more attempts exceed OMEGA hints; the bounded
+// loop in cryptoSignSignatureAttempts turns any key that rejects every
+// attempt into ErrSigningFailed rather than a spin). A wrong tr changes
+// the challenge, so no such signature verifies under the key's own public
+// half; a wrong t0 only changes the hints, so a small change leaves most
+// signatures valid and a large one leaves none. An import path for raw
+// secret keys, which this library does not have, should recompute the
+// public key and compare.
 //
 // Every signing path applies this check. Keys made by this package always
 // pass; it is exported for callers holding raw secret-key bytes.

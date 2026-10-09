@@ -14,14 +14,24 @@ additionally cross-verified against the Go standard library's FIPS 203-validated
 
 ### ML-DSA-87 (FIPS 204)
 
-- Reference: <https://github.com/pq-crystals/dilithium> (current master)
+- Reference: <https://github.com/pq-crystals/dilithium> pinned to commit
+  `d35ba3fe5449bee3e6d43e1f296c3ca818bd36be` (master; bump deliberately)
+- What it adds: the ACVP job proves byte-exact key generation and signing
+  (including hedged signing with a supplied rnd) against NIST's vectors and
+  the Wycheproof job covers the verifier's edge cases, both on fixed inputs.
+  This job is the second opinion: an independent, non-NIST implementation
+  verifies a signature made with live randomness, and go-qrllib verifies one
+  of its signatures carrying a non-empty context. A byte-exact comparison on
+  a shared deterministic stream, as the Falcon and SPHINCS+ jobs do, would
+  make it stronger.
 - Tests bidirectional signature verification with context parameter
 - Key sizes: PK=2592, SK=4896, Sig=4627 bytes
 
 ### SPHINCS+ (SHAKE-256s-robust)
 
 - Reference: <https://github.com/sphincs/sphincsplus> @ branch
-  `consistent-basew`
+  `consistent-basew`, pinned to commit
+  `129b72c80e122a22a61f71b5d2b042770890ccee` (bump deliberately)
 - Parameters: PARAMS=sphincs-shake-256s THASH=robust
 - Tests bidirectional signature verification
 - Key sizes: PK=64, SK=128, Seed=96, Sig=29792 bytes
@@ -192,6 +202,7 @@ cloned or compiled; the check runs in-process.
 ```bash
 # ML-DSA-87
 git clone https://github.com/pq-crystals/dilithium.git /tmp/mldsa-ref
+git -C /tmp/mldsa-ref checkout d35ba3fe5449bee3e6d43e1f296c3ca818bd36be  # the commit CI pins
 cd /path/to/go-qrllib
 go run .github/cross-verify/mldsa87_sign.go
 cd /tmp/mldsa-ref/ref
@@ -226,6 +237,7 @@ go run .github/cross-verify/falcon1024_crossverify.go check /tmp/falcon1024_ref.
 
 # SPHINCS+ (SHAKE-256s-robust)
 git clone --branch consistent-basew https://github.com/sphincs/sphincsplus.git /tmp/sphincs-ref
+git -C /tmp/sphincs-ref checkout 129b72c80e122a22a61f71b5d2b042770890ccee  # the commit CI pins
 cd /path/to/go-qrllib
 go run .github/cross-verify/sphincs_sign.go
 cd /tmp/sphincs-ref/ref

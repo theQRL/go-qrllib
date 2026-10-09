@@ -2,6 +2,7 @@ package falcon1024_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	. "github.com/theQRL/go-qrllib/crypto/falcon1024"
@@ -36,7 +37,14 @@ func degeneratePrivateKeyEncoding() []byte {
 	return sk
 }
 
-var fuzzMessage = []byte("falcon-1024 fuzz message")
+var (
+	fuzzMessage  = []byte("falcon-1024 fuzz message")
+	fuzzTampered = []byte("falcon-1024 fuzz messagf")
+)
+
+// signedMessagePrefix is the fixed part of the signed-message framing:
+// length(2) || nonce(40), before the message and the signature.
+const signedMessagePrefix = 42
 
 func FuzzFalcon1024NewPublicKey(f *testing.F) {
 	pub, _ := fuzzKeyPair(f)
@@ -63,6 +71,16 @@ func FuzzFalcon1024NewPrivateKey(f *testing.F) {
 	f.Add(degeneratePrivateKeyEncoding())
 	f.Add([]byte{})
 	f.Add(make([]byte, PrivateKeySize))
+	// The shared vectors: encodings the import must refuse although their
+	// public half is fine (out-of-bound (f, g), F that is not an NTRU
+	// solution), which byte-level mutation does not produce.
+	for _, v := range weakKeyVectorFile(f).PrivateKeys {
+		sk, err := hex.DecodeString(v.SK)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(sk)
+	}
 
 	f.Fuzz(func(t *testing.T, encoded []byte) {
 		got, err := NewPrivateKey(encoded)
@@ -87,8 +105,11 @@ func FuzzFalcon1024NewPrivateKey(f *testing.F) {
 	})
 }
 
-// A valid detached signature has exactly one encoding: any other input that
-// Verify accepts for the same key and message would be a second encoding.
+// Any detached signature Verify accepts must be a well-formed one for this
+// key and message and must not verify for another message. Signing is
+// randomized, so another honest signature is a valid corpus entry; the
+// one-encoding rule itself is checked per input by the internal package's
+// FuzzDetachedSignatureCanonical, which decodes and re-encodes.
 func FuzzFalcon1024Verify(f *testing.F) {
 	pub, priv := fuzzKeyPair(f)
 	valid, err := SignDetached(zeroReader{}, priv, fuzzMessage)
@@ -102,14 +123,22 @@ func FuzzFalcon1024Verify(f *testing.F) {
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, signature []byte) {
-		if Verify(pub, fuzzMessage, signature) && !bytes.Equal(signature, valid) {
-			t.Fatalf("a second signature encoding verified: %x", signature)
+		if !Verify(pub, fuzzMessage, signature) {
+			return
+		}
+		if len(signature) > MaxSignatureSize || signature[0] != 0x3A {
+			t.Fatalf("accepted signature breaks the detached format: %d bytes, header %#x", len(signature), signature[0])
+		}
+		if Verify(pub, fuzzTampered, signature) {
+			t.Fatalf("accepted signature also verifies for a different message: %x", signature)
 		}
 	})
 }
 
-// Open accepts a signed message only when it is byte for byte the one that
-// was produced, and then returns exactly the message it carries.
+// Any signed message Open accepts must return exactly the message its
+// framing carries. Another honest signed message (a different nonce, or a
+// different message) is a valid corpus entry; the one-encoding rule is
+// checked per input by the internal package's FuzzSignedMessageCanonical.
 func FuzzFalcon1024Open(f *testing.F) {
 	pub, priv := fuzzKeyPair(f)
 	valid, err := Sign(zeroReader{}, priv, fuzzMessage)
@@ -130,8 +159,14 @@ func FuzzFalcon1024Open(f *testing.F) {
 			}
 			return
 		}
-		if !bytes.Equal(signedMessage, valid) || !bytes.Equal(message, fuzzMessage) {
-			t.Fatalf("Open accepted a different signed message: %x", signedMessage)
+		// Framing: length(2) || nonce(40) || message || 0x2A || polynomial,
+		// the length field covering the header byte and the polynomial.
+		sigLen := int(signedMessage[0])<<8 | int(signedMessage[1])
+		if len(signedMessage) < signedMessagePrefix+sigLen {
+			t.Fatalf("accepted signed message is shorter than its framing: %x", signedMessage)
+		}
+		if !bytes.Equal(message, signedMessage[signedMessagePrefix:len(signedMessage)-sigLen]) {
+			t.Fatalf("Open returned a message other than the one the framing carries: %x", signedMessage)
 		}
 	})
 }

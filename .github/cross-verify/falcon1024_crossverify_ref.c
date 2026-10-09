@@ -35,6 +35,7 @@
 #define SK_LEN    PQCLEAN_FALCON1024_CLEAN_CRYPTO_SECRETKEYBYTES
 #define SIG_MAX   PQCLEAN_FALCON1024_CLEAN_CRYPTO_BYTES
 #define MSG_MAX   (33 * ENTRIES)
+#define NONCE_LEN 40
 
 static const char LABEL_GO[]  = "go-qrllib Falcon-1024 cross-verification: go-qrllib generates";
 static const char LABEL_REF[] = "go-qrllib Falcon-1024 cross-verification: PQClean generates";
@@ -197,6 +198,34 @@ static int check(const entry *theirs) {
         if (PQCLEAN_FALCON1024_CLEAN_crypto_sign_verify(b->sig, b->siglen, tampered, b->msglen, b->pk) == 0) {
             return fail("crypto_sign_verify accepted go-qrllib's signature for a different message", i);
         }
+
+        /* PQClean also accepts the compressed signature zero-padded to the
+         * falcon-padded-1024 length (pqclean.c, do_verify), in both formats;
+         * go-qrllib does not (its harness checks the rejection). Both
+         * behaviours are pinned so that a change on either side is noticed. */
+        if (b->siglen < PQCLEAN_FALCONPADDED1024_CLEAN_CRYPTO_BYTES) {
+            uint8_t padded[PQCLEAN_FALCONPADDED1024_CLEAN_CRYPTO_BYTES];
+            memset(padded, 0, sizeof padded);
+            memcpy(padded, b->sig, b->siglen);
+            if (PQCLEAN_FALCON1024_CLEAN_crypto_sign_verify(padded, sizeof padded, b->msg, b->msglen, b->pk) != 0) {
+                return fail("crypto_sign_verify rejected the zero-padded detached form it is documented to accept", i);
+            }
+        }
+        /* The signed message's own signature field (1 + compressed body) says
+         * how much zero padding brings its body to the padded length too. */
+        size_t smsiglen = ((size_t)b->sm[0] << 8) | b->sm[1];
+        if (smsiglen + NONCE_LEN < PQCLEAN_FALCONPADDED1024_CLEAN_CRYPTO_BYTES) {
+            size_t pad = PQCLEAN_FALCONPADDED1024_CLEAN_CRYPTO_BYTES - NONCE_LEN - smsiglen;
+            uint8_t smpadded[MSG_MAX + SIG_MAX + PQCLEAN_FALCONPADDED1024_CLEAN_CRYPTO_BYTES];
+            memcpy(smpadded, b->sm, b->smlen);
+            memset(smpadded + b->smlen, 0, pad);
+            smpadded[0] = (uint8_t)((smsiglen + pad) >> 8);
+            smpadded[1] = (uint8_t)(smsiglen + pad);
+            if (PQCLEAN_FALCON1024_CLEAN_crypto_sign_open(m, &mlen, smpadded, b->smlen + pad, b->pk) != 0
+                    || mlen != b->msglen || memcmp(m, b->msg, mlen) != 0) {
+                return fail("crypto_sign_open rejected the zero-padded signed message it is documented to accept", i);
+            }
+        }
     }
     return 0;
 }
@@ -215,6 +244,7 @@ int main(int argc, char **argv) {
     printf("  - same stream -> identical public key, private key, signed message and detached signature\n");
     printf("  - go-qrllib signed message opens under PQClean\n");
     printf("  - go-qrllib detached signature verifies under PQClean, and not for a different message\n");
+    printf("  - PQClean accepts the zero-padded (falcon-padded-1024 length) forms; go-qrllib's harness checks it rejects them\n");
 
     drbg_seed(LABEL_REF);
     if (generate(ours) || write_entries(argv[2], ours)) {

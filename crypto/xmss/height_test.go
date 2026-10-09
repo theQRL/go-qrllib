@@ -188,3 +188,13 @@ func TestUInt32ToHeight(t *testing.T) {
 		})
 	}
 }
+
+// An unsupported WOTS width is a typed error, not a trip of the
+// NewWOTSParams invariant panic.
+func TestGetHeightFromSigSize_UnsupportedW(t *testing.T) {
+	for _, w := range []uint32{0, 3, 5, 17, 257} {
+		if _, err := GetHeightFromSigSize(2500, w); !errors.Is(err, cryptoerrors.ErrUnsupportedParameterSet) {
+			t.Errorf("GetHeightFromSigSize(2500, %d) error = %v, want ErrUnsupportedParameterSet", w, err)
+		}
+	}
+}

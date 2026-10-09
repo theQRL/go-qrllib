@@ -205,11 +205,13 @@ func NewPrivateKeyFromSeed(seed []byte) (*PrivateKey, error) {
 
 // NewPrivateKey decodes a PrivateKeySize-byte private key. As the reference
 // crypto_sign does, it recomputes G from f, g and F and rejects encodings for
-// which that fails. It also rejects an encoding whose (f, g) fails the bounds
-// key generation enforces, which the reference does not check on import: such
-// a key keeps the signing loop rejecting for ever or drives the sampler out
-// of the domain in which its arithmetic matches the reference. Every key the
-// reference or this package generates passes these checks.
+// which that fails. It then checks what the reference does not check on
+// import: that (f, g, F, G) solve the NTRU equation f*G - g*F = q, that the
+// public half passes the weak-key rule, and that (f, g) satisfy the bounds
+// key generation enforces. An encoding failing any of these keeps the signing
+// loop rejecting, drives the sampler out of the domain in which its
+// arithmetic matches the reference, or both. Every key the reference or this
+// package generates passes.
 func NewPrivateKey(privateKey []byte) (*PrivateKey, error) {
 	f, g, ntruF, err := skDecode(privateKey)
 	if err != nil {
@@ -228,6 +230,23 @@ func NewPrivateKey(privateKey []byte) (*PrivateKey, error) {
 		//coverage:ignore
 		//rationale: completePrivate has already inverted f mod q; computePublic
 		//           inverts the same NTT coefficients and cannot fail after it.
+		return nil, errInvalidPrivateKey
+	}
+
+	// The public half an encoding derives is held to the same rule as a key
+	// received on its own.
+	if err := validatePublicPolynomial(h); err != nil {
+		return nil, err
+	}
+
+	// completePrivate only checks that the recomputed G is small. The four
+	// polynomials must also satisfy f*G - g*F = q, or the matrix built from
+	// them is not a basis of the key's lattice: its determinant is off, the
+	// second half of the LDL tree falls outside the sampler's domain, and
+	// signing never passes the norm check (F replaced by x*F or -F) or never
+	// gets a sample (F replaced by f). Such an encoding derives the correct
+	// public key, so nothing else can tell it from the genuine one.
+	if !ntruEquationHolds(f, g, ntruF, ntruG) {
 		return nil, errInvalidPrivateKey
 	}
 
@@ -274,6 +293,14 @@ func generateKeyComponents(rng *sha3.SHAKE) (f, g, ntruF, ntruG smallPolynomial,
 		var ok bool
 		h, ok = computePublic(f, g)
 		if !ok {
+			continue
+		}
+
+		if c, _ := weakPublicKeyMultiplier(h); c != 0 {
+			//coverage:ignore
+			//rationale: h = g/f is uniform for sampled f and g, so a weak public
+			//           half is a sub-2^-1562 event; the check keeps key generation
+			//           under the same rule as import (see ValidatePublicKey).
 			continue
 		}
 
@@ -415,18 +442,29 @@ func completePrivate(f, g, ntruF smallPolynomial) (smallPolynomial, bool) {
 // completePrivateCenter maps a residue modulo q to the centered range the
 // way the reference complete_private does: every residue of q/2 and above
 // has q subtracted. (verify_raw centers differently and keeps q/2 itself.)
+// ntruEquationHolds reports whether f*G - g*F = q, using a scratch buffer of
+// its own that is wiped afterwards (it holds the four polynomials modulo a
+// small prime).
+func ntruEquationHolds(f, g, ntruF, ntruG smallPolynomial) bool {
+	var scratch [6 * n]uint32
+	defer zeroUint32s(scratch[:])
+	return checkNTRUEquation(f, g, ntruF, ntruG, scratch[:])
+}
+
 func completePrivateCenter(w uint32) int32 {
 	w -= q & ^(-((w - q/2) >> 31))
 	return int32(w)
 }
 
-// NewPublicKey decodes a PublicKeySize-byte public key: the header byte, the
-// length and the range of every coefficient are checked, nothing else. See
-// the package documentation of crypto/falcon1024 on what that means for keys
-// received from other parties.
+// NewPublicKey decodes a PublicKeySize-byte public key and applies the
+// weak-key rule of [ValidatePublicKey]; a key under which anyone could sign
+// is refused with an error wrapping ErrWeakPublicKey.
 func NewPublicKey(pubBytes []byte) (*PublicKey, error) {
 	h, err := pkDecode(pubBytes)
 	if err != nil {
+		return nil, err
+	}
+	if err := validatePublicPolynomial(h); err != nil {
 		return nil, err
 	}
 
@@ -511,9 +549,10 @@ func SignDetached(random io.Reader, priv *PrivateKey, message []byte) ([]byte, e
 // key-generation bounds the norm check rejects an attempt with probability
 // well below one in a thousand (the bound is 1.1 times the expected norm of
 // a 2048-dimensional Gaussian), so 128 consecutive rejections cannot happen
-// in honest use even at a far higher rate; the bound exists so that a key
-// constructed outside those bounds cannot make signing spin. The reference
-// loops without bound.
+// in honest use even at a far higher rate; the bound exists so that a basis
+// built outside the import checks cannot make signing spin in the attempt
+// loop. The sampler's own rejection loop is bounded separately, by
+// maxSamplerDraws. The reference loops without bound in both places.
 const maxSignAttempts = 128
 
 // sign mirrors the reference sign_dyn loop: each attempt seeds a fresh
@@ -527,6 +566,12 @@ func sign(rng *sha3.SHAKE, priv *PrivateKey, c0 ringElement) (smallPolynomial, e
 		s2, ok := signAttempt(&prng, priv, c0)
 		if ok {
 			return s2, nil
+		}
+		if prng.exhausted {
+			// The sampler could not produce a coordinate within its draw
+			// budget. That is a property of the basis, not of this attempt's
+			// randomness, so further attempts would only repeat it.
+			break
 		}
 	}
 
@@ -552,6 +597,9 @@ func signAttempt(prng *samplerPRNG, priv *PrivateKey, c0 ringElement) (smallPoly
 	var sampleX, sampleY fftPolynomial
 	defer zeroFFTPolynomials(&sampleX, &sampleY)
 	ffSamplingFFT(sampleFFTPoint, prng, sampleX[:], sampleY[:], t0[:], t1[:], priv.tree[:], logN)
+	if prng.exhausted {
+		return smallPolynomial{}, false
+	}
 
 	var latticeX, latticeY, tmp fftPolynomial
 	defer zeroFFTPolynomials(&latticeX, &latticeY, &tmp)
