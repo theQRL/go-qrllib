@@ -343,7 +343,7 @@ verified by:
 | [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
 | [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
 | [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
-| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; fuzz targets assert a valid signature has exactly one accepted encoding |
+| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; fuzz targets assert that an accepted signature keeps the framing, verifies for no other message, and that the seed signature has no second accepted encoding (an accepted input with its nonce must be it byte for byte) |
 
 Run canonicality tests:
 
@@ -485,7 +485,8 @@ The library distinguishes two failure classes:
 - **Invariant violations**: internal preconditions that should never fail if the
   rest of the library is correct (e.g. an unrecognised `HashFunction` reaching
   the dispatch switch *after* the public constructor's validation guard, or
-  `xmss/params.go`'s `logW` switch reaching its impossible default). These
+  `xmss/params.go`'s exact-match switch on the WOTS `w` reaching its default
+  for a value outside {4, 16, 256}). These
   **panic with a clear message**; they exist as crash-early tripwires so that
   any future regression which bypasses an upstream guard fails loudly in tests
   rather than silently corrupting key material in production.
@@ -517,10 +518,24 @@ the Falcon sites are exercised under `recover` by `TestScratchExhaustionPanics`.
 XMSS preconditions: `crypto/xmss.Verify` and `VerifyWithCustomWOTSParamW`
 return `false` for an invalid `HashFunction` or a public key that is not
 exactly 64 bytes. `XMSSFastGenKeyPair` and
-`XMSSFastGenKeyPairFromExpandedSeed` return `ErrBufferTooSmall` for a short
-`pk`/`sk` and `ErrInvalidBDSParams` for a nil `bdsState` or `h ≤ k`. The XMSS
-fuzzers pass the hash-function and WOTS `w` selectors unmasked. Tests:
-`crypto/xmss/verify_preconditions_test.go`.
+`XMSSFastGenKeyPairFromExpandedSeed` return `ErrUnsupportedParameterSet` for
+a nil parameter set, `ErrBufferTooSmall` for a short `pk`/`sk`,
+`ErrInvalidBDSParams` for a nil `bdsState`, one built for a different
+`(h, n, k)`, or `h ≤ k`, and `ErrInvalidSeed` for a nil expanded seed, all
+before anything is written. `NewWOTSParams` matches `w` exactly against
+{4, 16, 256} before it panics as an invariant tripwire; the exported callers
+that take a width from the caller (`VerifyWithCustomWOTSParamW`,
+`GetHeightFromSigSize`) check it first and return `false` or
+`ErrUnsupportedParameterSet`. The XMSS fuzzers pass
+the hash-function and WOTS `w` selectors unmasked. Tests:
+`crypto/xmss/verify_preconditions_test.go`, `crypto/xmss/params_test.go`.
+
+Nil receivers (ML-DSA-87): methods on a nil `*MLDSA87` follow the same rule
+as nil arguments. `Sign`, `SignDeterministic` and `SignAttached` return
+`ErrSecretKeyNil`, `Zeroize` is a no-op, `PublicKey` returns nil and the
+accessors return zero values; `(*PublicKey).Bytes` on a nil key returns the
+zero array and `Equal` returns false. Tests:
+`crypto/ml_dsa_87/nil_receiver_test.go`.
 
 v1 descriptor parity: `legacywallet/xmss` accepts what the v1 (QRL mainnet)
 node accepted, per qrllib v1.2.4, so every funded v1 address stays

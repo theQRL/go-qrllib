@@ -74,3 +74,18 @@ func TestNewXMSSParams(t *testing.T) {
 		t.Error("wotsParams is nil")
 	}
 }
+
+// The tripwire must fire for every unsupported w, including values whose
+// truncated log2 lands on 2, 4 or 8.
+func TestNewWOTSParams_UnsupportedWPanics(t *testing.T) {
+	for _, w := range []uint32{0, 3, 5, 15, 17, 255, 257, 1024} {
+		t.Run(fmt.Sprint(w), func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("NewWOTSParams(32, %d) did not panic", w)
+				}
+			}()
+			NewWOTSParams(WOTSParamN, w)
+		})
+	}
+}

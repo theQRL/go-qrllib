@@ -54,7 +54,8 @@
 //   - n = 32 (output length)
 //   - w = 16 (Winternitz parameter)
 //   - k = 2 (BDS traversal parameter)
-//   - h ∈ {2, 4, 6, …, [MaxHeight]} (even tree heights)
+//   - h ∈ {4, 6, …, [MaxHeight]} (even tree heights above k; h = 2 is
+//     rejected because BDS traversal needs h > k)
 //
 // Combined with the supported [HashFunction] values, this gives the
 // following concrete parameter sets:

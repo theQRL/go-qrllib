@@ -66,16 +66,25 @@ func XMSSFastGenKeyPairFromExpandedSeed(hashFunction HashFunction, xmssParams *X
 	if err := validateXMSSFastOutputs(xmssParams, pk, sk, bdsState); err != nil {
 		return err
 	}
+	// The core copies from the seed after writing the index bytes of sk, so
+	// a nil seed must be refused before anything is written.
+	if expandedSeed == nil {
+		return cryptoerrors.ErrInvalidSeed
+	}
 	return xmssFastGenKeyPairCore(hashFunction, xmssParams, pk, sk, bdsState, expandedSeed)
 }
 
 // validateXMSSFastParams checks the parameter-set tuple against the
-// supported family (n=32, w=16, k=2, h ∈ even [2, MaxHeight]). The
+// supported family (n=32, w=16, k=2, h ∈ even [4, MaxHeight]). The
 // buffer arithmetic in xmssFastGenKeyPairCore (`rnd=96`, `pks=32`,
 // the `4+2*n` / `4+3*n` offsets) is correct only for n=32; calling
 // it with any other value would silently produce malformed keys.
+// A nil parameter set is refused like any other unsupported one.
 // (TOB-QRLLIB-1 + TOB-QRLLIB-2.)
 func validateXMSSFastParams(xmssParams *XMSSParams) error {
+	if xmssParams == nil || xmssParams.wotsParams == nil {
+		return cryptoerrors.ErrUnsupportedParameterSet
+	}
 	if xmssParams.n != WOTSParamN || xmssParams.wotsParams.w != WOTSParamW || xmssParams.k != WOTSParamK {
 		return cryptoerrors.ErrUnsupportedParameterSet
 	}
@@ -93,14 +102,15 @@ func validateXMSSFastParams(xmssParams *XMSSParams) error {
 // validateXMSSFastOutputs checks the caller-supplied buffers and BDS state
 // that xmssFastGenKeyPairCore writes into, before anything is written: pk
 // must hold root || pub_seed (2n bytes), sk must hold idx || sk_seed ||
-// sk_prf || pub_seed || root (4 + 4n bytes), and bdsState must be non-nil.
-// Without these checks a short buffer or nil state panics inside the core.
+// sk_prf || pub_seed || root (4 + 4n bytes), and bdsState must be non-nil
+// and built for this parameter set. Without these checks a short buffer, a
+// nil state or a state sized for another tree panics inside the core.
 func validateXMSSFastOutputs(xmssParams *XMSSParams, pk, sk []uint8, bdsState *BDSState) error {
 	n := xmssParams.n
 	if len(pk) < int(2*n) || len(sk) < int(4+4*n) {
 		return cryptoerrors.ErrBufferTooSmall
 	}
-	if bdsState == nil {
+	if !bdsState.fits(xmssParams) {
 		return cryptoerrors.ErrInvalidBDSParams
 	}
 	return nil

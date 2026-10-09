@@ -45,13 +45,22 @@ type XMSSParams struct {
 // downstream key material. Direct external callers passing an
 // unsupported `w` will likewise hit the tripwire.
 func NewWOTSParams(n, w uint32) *WOTSParams {
-	logW := uint32(math.Log2(float64(w)))
-	if logW != 2 && logW != 4 && logW != 8 {
+	// An exact match, not a truncated logarithm: uint32(math.Log2(5)) is 2,
+	// so a rounding check would let w = 5, 17 or 257 through with a logW
+	// that does not divide the chain arithmetic below.
+	var logW uint32
+	switch w {
+	case 4:
+		logW = 2
+	case 16:
+		logW = 4
+	case 256:
+		logW = 8
+	default:
 		// Invariant tripwire — see godoc above and SECURITY.md
 		// "Panic policy". All supported callers pass w = WOTSParamW (16);
-		// the buffer arithmetic below assumes integer logW, so any other
-		// w value would produce a malformed WOTSParams.
-		panic("xmss: NewWOTSParams reached with unsupported w; logW must be 2, 4, or 8 (i.e. w ∈ {4, 16, 256})")
+		// any other w value would produce a malformed WOTSParams.
+		panic("xmss: NewWOTSParams reached with unsupported w; w must be 4, 16 or 256")
 	}
 	len1 := (8*n + logW - 1) / logW // ceiling division
 	len2 := uint32(math.Floor(math.Log2(float64(len1*(w-1)))/float64(logW)) + 1)

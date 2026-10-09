@@ -132,6 +132,13 @@ func TestXMSSFastGenKeyPair_RejectsBadOutputs(t *testing.T) {
 		// because h <= k; the params validator must reject it before anything
 		// dereferences that nil, exactly as InitializeTree does.
 		{"height_2_not_bds_capable", NewXMSSParams(WOTSParamN, 2, WOTSParamW, WOTSParamK), 64, 132, NewBDSState(2, WOTSParamN, WOTSParamK), cryptoerrors.ErrInvalidBDSParams},
+		{"nil_params", nil, 64, 132, NewBDSState(4, WOTSParamN, WOTSParamK), cryptoerrors.ErrUnsupportedParameterSet},
+		// A BDS state built for another tree passes a nil check but not a
+		// dimension check: n = 1 makes every buffer too short (slice bounds
+		// panic in the core before this check); height 6 makes them too long
+		// and desynchronises the traversal state from the tree.
+		{"bds_built_for_n_1", params4, 64, 132, NewBDSState(4, 1, WOTSParamK), cryptoerrors.ErrInvalidBDSParams},
+		{"bds_built_for_height_6", params4, 64, 132, NewBDSState(6, WOTSParamN, WOTSParamK), cryptoerrors.ErrInvalidBDSParams},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,5 +170,45 @@ func TestXMSSFastGenKeyPair_RejectsBadOutputs(t *testing.T) {
 	}
 	if bytes.Equal(pk, make([]uint8, 64)) {
 		t.Fatal("control produced an all-zero pk")
+	}
+}
+
+// A nil expanded seed is refused before the index bytes of sk are written.
+func TestXMSSFastGenKeyPairFromExpandedSeed_RejectsNilSeed(t *testing.T) {
+	params4 := NewXMSSParams(WOTSParamN, 4, WOTSParamW, WOTSParamK)
+	pk := make([]uint8, 64)
+	sk := bytes.Repeat([]uint8{0xAA}, 132)
+	err := noPanicErr(t, "XMSSFastGenKeyPairFromExpandedSeed", func() error {
+		return XMSSFastGenKeyPairFromExpandedSeed(SHAKE_256, params4, pk, sk, NewBDSState(4, WOTSParamN, WOTSParamK), nil)
+	})
+	if !errors.Is(err, cryptoerrors.ErrInvalidSeed) {
+		t.Errorf("nil expanded seed: error = %v, want ErrInvalidSeed", err)
+	}
+	if !bytes.Equal(sk, bytes.Repeat([]uint8{0xAA}, 132)) {
+		t.Error("sk was written on the error path")
+	}
+}
+
+// fits must also notice a tree-hash instance that is missing or sized for
+// another n, which no constructor produces but a hand-built state could.
+func TestBDSStateFits_TreeHashInstances(t *testing.T) {
+	params4 := NewXMSSParams(WOTSParamN, 4, WOTSParamW, WOTSParamK)
+	good := NewBDSState(4, WOTSParamN, WOTSParamK)
+	if !good.fits(params4) {
+		t.Fatal("freshly built state does not fit its own parameters")
+	}
+	missing := NewBDSState(4, WOTSParamN, WOTSParamK)
+	missing.treeHash[0] = nil
+	if missing.fits(params4) {
+		t.Error("state with a nil tree-hash instance fits")
+	}
+	short := NewBDSState(4, WOTSParamN, WOTSParamK)
+	short.treeHash[1].node = make([]uint8, WOTSParamN-1)
+	if short.fits(params4) {
+		t.Error("state with a short tree-hash node fits")
+	}
+	var none *BDSState
+	if none.fits(params4) || good.fits(nil) {
+		t.Error("nil state or nil params fit")
 	}
 }

@@ -135,8 +135,12 @@ const (
 	keyStateZeroized
 )
 
-// signable reports whether the keypair may sign.
+// signable reports whether the keypair may sign. A nil receiver is refused
+// with ErrSecretKeyNil, like a nil key passed to the raw-key primitives.
 func (d *MLDSA87) signable() error {
+	if d == nil {
+		return cryptoerrors.ErrSecretKeyNil
+	}
 	switch d.state {
 	case keyStateReady:
 		return nil
@@ -239,19 +243,37 @@ func NewMLDSA87FromHexSeed(hexSeed string) (*MLDSA87, error) {
 	return NewMLDSA87FromSeed(seed)
 }
 
+// GetPK returns the packed public key. A nil receiver yields the zero array.
 func (d *MLDSA87) GetPK() [CRYPTO_PUBLIC_KEY_BYTES]uint8 {
+	if d == nil {
+		return [CRYPTO_PUBLIC_KEY_BYTES]uint8{}
+	}
 	return d.pk
 }
 
+// GetSK returns the packed secret key. A nil receiver yields the zero array.
 func (d *MLDSA87) GetSK() [CRYPTO_SECRET_KEY_BYTES]uint8 {
+	if d == nil {
+		return [CRYPTO_SECRET_KEY_BYTES]uint8{}
+	}
 	return d.sk
 }
 
+// GetSeed returns the seed the keypair was derived from. A nil receiver
+// yields the zero array.
 func (d *MLDSA87) GetSeed() [SEED_BYTES]uint8 {
+	if d == nil {
+		return [SEED_BYTES]uint8{}
+	}
 	return d.seed
 }
 
+// GetHexSeed returns the seed as a 0x-prefixed hex string, or "" for a nil
+// receiver.
 func (d *MLDSA87) GetHexSeed() string {
+	if d == nil {
+		return ""
+	}
 	seed := d.GetSeed()
 	return "0x" + hex.EncodeToString(seed[:])
 }
@@ -446,6 +468,9 @@ func ExtractSignature(signatureMessage []uint8) []uint8 {
 //
 // See SECURITY.md ("Key Zeroization") for the full discussion.
 func (d *MLDSA87) Zeroize() {
+	if d == nil {
+		return
+	}
 	zeroBytes(d.sk[:])
 	zeroBytes(d.seed[:])
 	d.state = keyStateZeroized
