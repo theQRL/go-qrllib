@@ -75,9 +75,10 @@ func InitializeTree(h Height, hashFunction HashFunction, seed []uint8) (*XMSS, e
 	w := WOTSParamW
 	n := WOTSParamN
 
-	// BDS traversal requires height > k. Height.IsValid() accepts h=2 in line
-	// with the documented even-heights-in-[2,MaxHeight] contract, but the
-	// current WOTS parameters (k=2) mean h=2 cannot form a valid BDS state.
+	// BDS traversal requires height > k. Height.IsValid() accepts h=2 as a
+	// syntactically valid Height (even, in [2, MaxHeight]), but the current
+	// WOTS parameters (k=2) mean h=2 cannot form a valid BDS state, so the
+	// usable heights start at 4 (see the package documentation).
 	// The (height-k)%2 branch is unreachable under IsValid (even h minus
 	// even k is always even) but is retained as defense-in-depth against a
 	// future WOTS-parameter change.

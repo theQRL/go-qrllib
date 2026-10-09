@@ -343,7 +343,7 @@ verified by:
 | [`crypto/ml_dsa_87/canonicality_test.go`](crypto/ml_dsa_87/canonicality_test.go) | Truncation, hint ordering, padding, cumulative counts |
 | [`crypto/sphincsplus_256s/canonicality_test.go`](crypto/sphincsplus_256s/canonicality_test.go) | Truncation, FORS/WOTS/auth path corruption |
 | [`crypto/xmss/canonicality_test.go`](crypto/xmss/canonicality_test.go) | Truncation, index/R/WOTS/auth path corruption, height validation |
-| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; fuzz targets assert that an accepted signature keeps the framing, verifies for no other message, and that the seed signature has no second accepted encoding (an accepted input with its nonce must be it byte for byte) |
+| [`crypto/internal/falcon1024/codec_test.go`](crypto/internal/falcon1024/codec_test.go), [`hardening_test.go`](crypto/internal/falcon1024/hardening_test.go), [`crypto/falcon1024/fuzz_test.go`](crypto/falcon1024/fuzz_test.go) | Truncation, minus-zero, padding bits, trailing bytes, over-long unary runs, length-field edges, forbidden key encodings; the internal fuzz targets `FuzzDetachedSignatureCanonical` and `FuzzSignedMessageCanonical` decode and re-encode every input the codec accepts and require the bytes to match, and the public targets check that an accepted signature keeps the framing and verifies for no other message |
 
 Run canonicality tests:
 

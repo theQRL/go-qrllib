@@ -92,10 +92,13 @@
 // # Safe Usage Pattern
 //
 // Always construct Height via xmss.ToHeight (or xmss.UInt32ToHeight) rather
-// than a raw cast such as xmss.Height(10). The helpers validate the value
-// against the allowed range (even integers in [2, MaxHeight]) and return a
-// typed error for invalid input; a raw cast bypasses that validation and
-// will be rejected at InitializeTree with ErrInvalidHeight.
+// than a raw cast such as xmss.Height(10). The helpers check the value is a
+// syntactically valid Height, an even integer in [2, MaxHeight], and return
+// a typed error otherwise; a raw cast bypasses that check and is rejected at
+// InitializeTree with ErrInvalidHeight. A usable tree height is narrower:
+// even values from 4 through MaxHeight, because BDS traversal needs h > k
+// and k is 2. Height 2 is therefore a valid Height value that InitializeTree
+// and the key generators reject with ErrInvalidBDSParams.
 //
 //	height, err := xmss.ToHeight(10)
 //	if err != nil {

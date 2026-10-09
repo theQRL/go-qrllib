@@ -42,15 +42,9 @@ var (
 	fuzzTampered = []byte("falcon-1024 fuzz messagf")
 )
 
-// Offsets of the nonce in the two framings: header(1) || nonce(40) || ...
-// for a detached signature, length(2) || nonce(40) || message || ... for a
-// signed message.
-const (
-	detachedNonceStart = 1
-	detachedNonceEnd   = 41
-	signedNonceStart   = 2
-	signedNonceEnd     = 42
-)
+// signedMessagePrefix is the fixed part of the signed-message framing:
+// length(2) || nonce(40), before the message and the signature.
+const signedMessagePrefix = 42
 
 func FuzzFalcon1024NewPublicKey(f *testing.F) {
 	pub, _ := fuzzKeyPair(f)
@@ -113,10 +107,9 @@ func FuzzFalcon1024NewPrivateKey(f *testing.F) {
 
 // Any detached signature Verify accepts must be a well-formed one for this
 // key and message and must not verify for another message. Signing is
-// randomized, so another honest signature (a different nonce) is a valid
-// corpus entry; what must not exist is a second encoding of the seed
-// signature, so an accepted input that carries the seed signature's nonce
-// has to be the seed signature byte for byte.
+// randomized, so another honest signature is a valid corpus entry; the
+// one-encoding rule itself is checked per input by the internal package's
+// FuzzDetachedSignatureCanonical, which decodes and re-encodes.
 func FuzzFalcon1024Verify(f *testing.F) {
 	pub, priv := fuzzKeyPair(f)
 	valid, err := SignDetached(zeroReader{}, priv, fuzzMessage)
@@ -139,17 +132,13 @@ func FuzzFalcon1024Verify(f *testing.F) {
 		if Verify(pub, fuzzTampered, signature) {
 			t.Fatalf("accepted signature also verifies for a different message: %x", signature)
 		}
-		if bytes.Equal(signature[detachedNonceStart:detachedNonceEnd], valid[detachedNonceStart:detachedNonceEnd]) && !bytes.Equal(signature, valid) {
-			t.Fatalf("a second encoding of the seed signature verified: %x", signature)
-		}
 	})
 }
 
 // Any signed message Open accepts must return exactly the message its
-// framing carries, and the seed signed message must have no second encoding:
-// an accepted input with the seed's nonce and message has to be the seed
-// byte for byte. Another honest signed message (a different nonce, or a
-// different message) is a valid corpus entry.
+// framing carries. Another honest signed message (a different nonce, or a
+// different message) is a valid corpus entry; the one-encoding rule is
+// checked per input by the internal package's FuzzSignedMessageCanonical.
 func FuzzFalcon1024Open(f *testing.F) {
 	pub, priv := fuzzKeyPair(f)
 	valid, err := Sign(zeroReader{}, priv, fuzzMessage)
@@ -173,15 +162,11 @@ func FuzzFalcon1024Open(f *testing.F) {
 		// Framing: length(2) || nonce(40) || message || 0x2A || polynomial,
 		// the length field covering the header byte and the polynomial.
 		sigLen := int(signedMessage[0])<<8 | int(signedMessage[1])
-		if len(signedMessage) < signedNonceEnd+sigLen {
+		if len(signedMessage) < signedMessagePrefix+sigLen {
 			t.Fatalf("accepted signed message is shorter than its framing: %x", signedMessage)
 		}
-		if !bytes.Equal(message, signedMessage[signedNonceEnd:len(signedMessage)-sigLen]) {
+		if !bytes.Equal(message, signedMessage[signedMessagePrefix:len(signedMessage)-sigLen]) {
 			t.Fatalf("Open returned a message other than the one the framing carries: %x", signedMessage)
-		}
-		if bytes.Equal(signedMessage[signedNonceStart:signedNonceEnd], valid[signedNonceStart:signedNonceEnd]) &&
-			bytes.Equal(message, fuzzMessage) && !bytes.Equal(signedMessage, valid) {
-			t.Fatalf("a second encoding of the seed signed message verified: %x", signedMessage)
 		}
 	})
 }
