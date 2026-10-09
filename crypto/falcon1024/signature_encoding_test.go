@@ -79,16 +79,31 @@ func TestSignatureEncodingVectors(t *testing.T) {
 
 // TestZeroPaddedSignaturesAreRejected checks, on a fresh key, that a
 // signature zero-padded to the falcon-padded-1024 length is refused in both
-// the detached and the signed-message form.
+// the detached and the signed-message form. Compressed signatures vary in
+// length (about 1,261 bytes on average, up to MaxSignatureSize), so the
+// test resigns until both forms have room for padding; a signature that is
+// already 1,280 bytes long would be its own padded form.
 func TestZeroPaddedSignaturesAreRejected(t *testing.T) {
 	pub, priv, err := GenerateKey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	message := []byte("padding")
-	sig, err := SignDetached(nil, priv, message)
-	if err != nil {
-		t.Fatal(err)
+	var sig, sm []byte
+	for attempt := 0; ; attempt++ {
+		if attempt == 32 {
+			t.Fatal("no signature shorter than the padded length in 32 attempts")
+		}
+		if sig, err = SignDetached(nil, priv, message); err != nil {
+			t.Fatal(err)
+		}
+		if sm, err = Sign(nil, priv, message); err != nil {
+			t.Fatal(err)
+		}
+		smSigLen := int(sm[0])<<8 | int(sm[1])
+		if len(sig) < paddedSignatureSize && smSigLen+40 < paddedSignatureSize {
+			break
+		}
 	}
 	if !Verify(pub, message, sig) {
 		t.Fatal("compact signature does not verify")
@@ -99,17 +114,10 @@ func TestZeroPaddedSignaturesAreRejected(t *testing.T) {
 		t.Error("zero-padded detached signature verifies")
 	}
 
-	sm, err := Sign(nil, priv, message)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// The signed message's signature field (1 + compressed body) says how
 	// much zero padding brings its body to the padded length.
 	sigLen := int(sm[0])<<8 | int(sm[1])
 	pad := paddedSignatureSize - 40 - sigLen
-	if pad <= 0 {
-		t.Skip("signed message body already at the padded length")
-	}
 	smPadded := append(bytes.Clone(sm), make([]byte, pad)...)
 	smPadded[0], smPadded[1] = byte((sigLen+pad)>>8), byte(sigLen+pad)
 	if _, openErr := Open(pub, smPadded); !errors.Is(openErr, cryptoerrors.ErrInvalidSignature) {
